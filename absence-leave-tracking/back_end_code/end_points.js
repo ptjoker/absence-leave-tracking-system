@@ -33,4 +33,63 @@ router.get('/test-db', async (req, res) => {
   }
 });
 
+// NEW: Registration Endpoint
+router.post('/register', async (req, res) => {
+  try {
+    const {
+      first_name,
+      last_name,
+      student_number,
+      course,
+      level_of_study,
+      student_email,
+      cell_number,
+      password,
+      role
+    } = req.body;
+
+    // 1. Basic validation
+    if (!student_email || !password || !first_name || !last_name) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // 2. Create the user in Supabase Auth
+    // Note: We pass all the profile data inside "user_metadata". 
+    // Our database trigger will automatically pick this up and insert it into the profiles table.
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: student_email,
+      password: password,
+      email_confirm: true, // Automatically confirms the user for testing (remove this in production)
+      user_metadata: {
+        first_name,
+        last_name,
+        student_number,
+        course,
+        level_of_study,
+        student_email,
+        cell_number,
+        role: role || 'student'
+      }
+    });
+
+    if (authError) {
+      // Handle common errors like "User already registered"
+      return res.status(400).json({ error: authError.message });
+    }
+
+    // 3. Return success
+    res.status(201).json({
+      message: 'User registered successfully',
+      user: {
+        id: authData.user.id,
+        email: authData.user.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Registration Error:', error);
+    res.status(500).json({ error: 'Something went wrong during registration' });
+  }
+});
+
 export default router;
