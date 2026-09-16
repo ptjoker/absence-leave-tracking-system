@@ -1,6 +1,7 @@
 // end_points.js
 import express from 'express';
 import sql from './db.js';
+import supabaseAdmin from './supabaseAdmin.js';
 
 const router = express.Router();
 
