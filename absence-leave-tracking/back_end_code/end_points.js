@@ -93,4 +93,73 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// Login Endpoint
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+
+    // Check required fields
+    if (!email || !password) {
+      return res.status(400).json({
+        error: 'Email and password are required'
+      });
+    }
+
+    // Sign in with Supabase
+    const { data, error } =
+      await supabaseAdmin.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+    // Login failed
+    if (error) {
+      return res.status(401).json({
+        error: 'Invalid email or password'
+      });
+    }
+
+    // Get user's profile
+    const profile = await sql`
+      SELECT *
+      FROM profiles
+      WHERE id = ${data.user.id}
+    `;
+
+    if (profile.length === 0) {
+      return res.status(404).json({
+        error: 'User profile not found'
+      });
+    }
+
+    // Check selected role
+    if (role && profile[0].role !== role) {
+      return res.status(403).json({
+        error: 'Incorrect account type'
+      });
+    }
+
+    // Successful login
+    res.status(200).json({
+      message: 'Login successful',
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        first_name: profile[0].first_name,
+        last_name: profile[0].last_name,
+        role: profile[0].role
+      },
+      session: data.session
+    });
+
+  } catch (error) {
+    console.error('Login Error:', error);
+
+    res.status(500).json({
+      error: 'Something went wrong during login'
+    });
+  }
+});
+
+
 export default router;
