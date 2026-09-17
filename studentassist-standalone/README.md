@@ -15,8 +15,3 @@ npm run dev
 ```
 
 5. Open the local URL shown by Vite, usually http://localhost:5173/.
-================================================================
-PROMPTS for Replit page creation:
- -build requested page using image(s) as reference
- -Match the original color-schemes, fonts and etc IMPORTANT: must be written using REACT and javascript Language
- -And must be formatted in VS CODE Format

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "StudentAssist Absence Tracker"
+description = "A responsive absence and leave tracking portal for student assistants, supervisors, and administrators, with a public landing page and role-aware sign-in and registration flows."
+version = "1.0.0"
+id = "artifacts/studentassist"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20809
+
+[services.development]
+run = "pnpm --filter @workspace/studentassist run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/studentassist", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/studentassist/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20809"
+BASE_PATH = "/"
