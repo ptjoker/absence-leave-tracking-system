@@ -228,22 +228,68 @@ function SignupPage() {
   const [form, setForm] = useState({ first: '', last: '', email: '', studentNumber: '', course: '', year: '', password: '', confirm: '' });
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
+
   const update = (key) => (value) => setForm((old) => ({ ...old, [key]: value }));
-  const submit = (e) => {
-    e.preventDefault(); const next = {}; if (!form.first.trim())
-      next.first = 'First name is required.'; if (!form.last.trim())
-      next.last = 'Last name is required.'; if (!form.email.includes('@'))
-      next.email = 'Use a valid institutional email.'; if (role === 'student' && !form.studentNumber.trim())
-      next.studentNumber = 'Student number is required.'; if (role === 'student' && !form.course.trim())
-      next.course = 'Course is required.'; if (role === 'student' && !form.year)
-      next.year = 'Choose your current year.'; if (form.password.length < 8)
-      next.password = 'Use at least 8 characters.'; if (form.password !== form.confirm)
-      next.confirm = 'Passwords do not match.'; setErrors(next); if (!Object.keys(next).length)
+
+  const submit = async (e) => {
+    e.preventDefault();
+
+    // Client-side validation
+    const next = {};
+    if (!form.first.trim()) next.first = 'First name is required.';
+    if (!form.last.trim()) next.last = 'Last name is required.';
+    if (!form.email.includes('@')) next.email = 'Use a valid institutional email.';
+    if (role === 'student' && !form.studentNumber.trim()) next.studentNumber = 'Student number is required.';
+    if (role === 'student' && !form.course.trim()) next.course = 'Course is required.';
+    if (role === 'student' && !form.year) next.year = 'Choose your current year.';
+    if (form.password.length < 8) next.password = 'Use at least 8 characters.';
+    if (form.password !== form.confirm) next.confirm = 'Passwords do not match.';
+    setErrors(next);
+    setServerError('');
+
+    if (Object.keys(next).length) return;
+
+    // Send to backend
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: form.first,
+          last_name: form.last,
+          student_email: form.email,
+          student_number: form.studentNumber,
+          course: form.course,
+          level_of_study: form.year,
+          cell_number: 'Not provided', // TODO: add a cell number field to the form later
+          password: form.password,
+          role: role,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setServerError(data.error || 'Registration failed. Please try again.');
+        return;
+      }
+
       setSuccess(true);
+    } catch (err) {
+      console.error('Registration error:', err);
+      setServerError('Could not reach the server. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
   };
+
   if (success)
     return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="flex flex-1 items-center justify-center px-5 py-14"><div className="w-full max-w-md animate-rise rounded-2xl border border-[#d0e0ea] bg-white p-8 text-center shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-10"><span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={30} /></span><h1 className="serif mt-6 text-4xl text-[#162c4d]">Account request received.</h1><p className="mt-3 leading-7 text-[#60768c]">We’ve prepared your {role === 'student' ? 'student assistant' : 'supervisor'} profile. Check your institutional inbox to verify your email and finish setting up.</p><Link href="/login" className="focus-ring mt-7 block w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] hover:bg-[#256fc6]" data-testid="link-success-login">Continue to sign in</Link></div></main><AuthFooter /></div>;
-  return <AuthShell eyebrow="Join the portal" title="A better way to keep your records in order." copy="Create one account for the attendance details that matter — with the right tools for your role and the people you work with."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-6"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Account registration</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Create your account</h2></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-signup-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-signup-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><div className="grid gap-5 sm:grid-cols-2"><Field label="First name" id="signup-first" placeholder="e.g. Sarah" value={form.first} onChange={update('first')} error={errors.first} /><Field label="Last name" id="signup-last" placeholder="e.g. Nkosi" value={form.last} onChange={update('last')} error={errors.last} /></div><Field label={role === 'student' ? 'University email' : 'Work email'} id="signup-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'} value={form.email} onChange={update('email')} error={errors.email} icon={<Mail size={15} />} />{role === 'student' ? <><Field label="Student number" id="signup-student-number" placeholder="e.g. 20240123" value={form.studentNumber} onChange={update('studentNumber')} error={errors.studentNumber} icon={<BadgeCheck size={15} />} /><div className="grid gap-5 sm:grid-cols-2"><Field label="Course or department" id="signup-course" placeholder="e.g. Information Technology" value={form.course} onChange={update('course')} error={errors.course} icon={<BookOpen size={15} />} /><label className="block" htmlFor="signup-year"><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]"><CalendarDays size={14} className="text-[#8aa0b2]" />Current year<em className="not-italic text-[#d05b48]">*</em></span><span className="relative block"><select id="signup-year" value={form.year} onChange={(e) => update('year')(e.target.value)} className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${errors.year ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid="input-signup-year"><option value="">Select year</option><option value="first">First year</option><option value="second">Second year</option><option value="third">Third year</option><option value="postgraduate">Postgraduate</option></select><ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" /></span>{errors.year && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid="error-signup-year">{errors.year}</span>}</label></div></> : <Field label="Department or faculty" id="signup-course" placeholder="e.g. Faculty of Information and Communication Technology" value={form.course} onChange={update('course')} error={errors.course} icon={<PanelTop size={15} />} />}<div className="grid gap-5 sm:grid-cols-2"><PasswordField label="Password" id="signup-password" value={form.password} onChange={update('password')} error={errors.password} /><PasswordField label="Confirm password" id="signup-confirm" value={form.confirm} onChange={update('confirm')} error={errors.confirm} /></div><label className="flex items-start gap-2 text-xs leading-5 text-[#71869a]"><input type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#1f70d0]" data-testid="input-terms" />I agree to the StudentAssist <a href="#terms" className="font-bold text-[#1f70d0]">terms and privacy policy</a>.</label><button type="submit" className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 hover:bg-[#256fc6] active:translate-y-0 active:shadow-none" data-testid="button-submit-signup">Create {role === 'student' ? 'student' : 'supervisor'} account <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} /></button></form><div className="mt-6 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Already have an account? <Link href="/login" className="font-bold text-[#1f70d0]" data-testid="link-signup-login">Sign in</Link></div></div></AuthShell>;
+
+  return <AuthShell eyebrow="Join the portal" title="A better way to keep your records in order." copy="Create one account for the attendance details that matter — with the right tools for your role and the people you work with."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-6"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Account registration</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Create your account</h2></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-signup-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-signup-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><div className="grid gap-5 sm:grid-cols-2"><Field label="First name" id="signup-first" placeholder="e.g. Sarah" value={form.first} onChange={update('first')} error={errors.first} /><Field label="Last name" id="signup-last" placeholder="e.g. Nkosi" value={form.last} onChange={update('last')} error={errors.last} /></div><Field label={role === 'student' ? 'University email' : 'Work email'} id="signup-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'} value={form.email} onChange={update('email')} error={errors.email} icon={<Mail size={15} />} />{role === 'student' ? <><Field label="Student number" id="signup-student-number" placeholder="e.g. 20240123" value={form.studentNumber} onChange={update('studentNumber')} error={errors.studentNumber} icon={<BadgeCheck size={15} />} /><div className="grid gap-5 sm:grid-cols-2"><Field label="Course or department" id="signup-course" placeholder="e.g. Information Technology" value={form.course} onChange={update('course')} error={errors.course} icon={<BookOpen size={15} />} /><label className="block" htmlFor="signup-year"><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]"><CalendarDays size={14} className="text-[#8aa0b2]" />Current year<em className="not-italic text-[#d05b48]">*</em></span><span className="relative block"><select id="signup-year" value={form.year} onChange={(e) => update('year')(e.target.value)} className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${errors.year ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid="input-signup-year"><option value="">Select year</option><option value="first">First year</option><option value="second">Second year</option><option value="third">Third year</option><option value="postgraduate">Postgraduate</option></select><ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" /></span>{errors.year && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid="error-signup-year">{errors.year}</span>}</label></div></> : <Field label="Department or faculty" id="signup-course" placeholder="e.g. Faculty of Information and Communication Technology" value={form.course} onChange={update('course')} error={errors.course} icon={<PanelTop size={15} />} />}<div className="grid gap-5 sm:grid-cols-2"><PasswordField label="Password" id="signup-password" value={form.password} onChange={update('password')} error={errors.password} /><PasswordField label="Confirm password" id="signup-confirm" value={form.confirm} onChange={update('confirm')} error={errors.confirm} /></div><label className="flex items-start gap-2 text-xs leading-5 text-[#71869a]"><input type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#1f70d0]" data-testid="input-terms" />I agree to the StudentAssist <a href="#terms" className="font-bold text-[#1f70d0]">terms and privacy policy</a>.</label>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 hover:bg-[#256fc6] active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-signup">{loading ? 'Creating account...' : `Create ${role === 'student' ? 'student' : 'supervisor'} account`}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-6 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Already have an account? <Link href="/login" className="font-bold text-[#1f70d0]" data-testid="link-signup-login">Sign in</Link></div></div></AuthShell>;
 }
 function NotFound() {
   return <div className="grid min-h-[100dvh] place-items-center bg-[#eef6fb] px-5 text-center"><div><p className="mono text-xs font-bold uppercase tracking-[.15em] text-[#1f70d0]">404 · Page not found</p><h1 className="serif mt-4 text-5xl text-[#162c4d]">That page took a day off.</h1><p className="mx-auto mt-4 max-w-md text-[#60768c]">The page you’re looking for isn’t part of this semester’s schedule.</p><Link href="/" className="focus-ring mt-7 inline-flex items-center gap-2 rounded-lg bg-[#1f70d0] px-5 py-3 text-sm font-bold text-white" data-testid="link-404-home">Back to StudentAssist <ArrowRight size={16} /></Link></div></div>;
