@@ -147,7 +147,9 @@ router.post('/login', async (req, res) => {
         email: data.user.email,
         first_name: profile[0].first_name,
         last_name: profile[0].last_name,
-        role: profile[0].role
+        role: profile[0].role,
+        course: profile[0].course,
+        cell_number: profile[0].cell_number
       },
       session: data.session
     });
