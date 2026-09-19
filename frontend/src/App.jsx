@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -201,25 +201,62 @@ function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
   const [location, setLocation] = useLocation();
-  const submit = (e) => {
+
+  const submit = async (e) => {
     e.preventDefault();
     const next = {};
     if (!email.includes('@')) next.email = 'Enter your university email address.';
     if (password.length < 6) next.password = 'Password must be at least 6 characters.';
     setErrors(next);
-    if (!Object.keys(next).length) {
+    setServerError('');
+
+    if (Object.keys(next).length) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setServerError(data.error || 'Login failed. Please try again.');
+        return;
+      }
+
+      // Save the session so we can use it on the dashboard
+      localStorage.setItem('session', JSON.stringify({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at,
+        user: data.user,
+      }));
+
       if (role === 'student') {
         setLocation('/dashboard');
       } else {
         setSuccess(true);
       }
+    } catch (err) {
+      console.error('Login error:', err);
+      setServerError('Could not reach the server. Please check your connection.');
+    } finally {
+      setLoading(false);
     }
   };
+
   if (success)
     return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="flex flex-1 items-center justify-center px-5 py-14"><div className="w-full max-w-md animate-rise rounded-2xl border border-[#d0e0ea] bg-white p-8 text-center shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-10"><span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={30} /></span><h1 className="serif mt-6 text-4xl text-[#162c4d]">You’re signed in.</h1><p className="mt-3 leading-7 text-[#60768c]">Your {role === 'student' ? 'student assistant' : 'supervisor'} portal is ready. This demo keeps the welcome flow local while your institution connects its account system.</p><button type="button" onClick={() => setLocation('/')} className="focus-ring mt-7 w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] hover:bg-[#256fc6] active:translate-y-0.5 active:shadow-none" data-testid="button-success-home">Return to home</button></div></main><AuthFooter /></div>;
-  return <AuthShell eyebrow="Secure portal" title={role === 'student' ? 'Welcome back, student.' : 'Welcome back, supervisor.'} copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to StudentAssist</h2><p className="mt-2 text-sm text-[#71869a]">Choose your account type to continue.</p></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-role-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-role-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><Field label={role === 'student' ? 'University email' : 'Work email'} id="login-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'} value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => window.alert('Password reset instructions will be sent to your institutional email.')} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div><button type="submit" className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none" data-testid="button-submit-login">Sign in as {role === 'student' ? 'student' : 'supervisor'} <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} /></button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div></AuthShell>;
+
+  return <AuthShell eyebrow="Secure portal" title={role === 'student' ? 'Welcome back, student.' : 'Welcome back, supervisor.'} copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to StudentAssist</h2><p className="mt-2 text-sm text-[#71869a]">Choose your account type to continue.</p></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); setServerError(''); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-role-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); setServerError(''); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-role-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><Field label={role === 'student' ? 'University email' : 'Work email'} id="login-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'} value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => window.alert('Password reset instructions will be sent to your institutional email.')} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : `Sign in as ${role === 'student' ? 'student' : 'supervisor'}`}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div></AuthShell>;
 }
+
 function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;
 }
@@ -297,6 +334,7 @@ function NotFound() {
 
 function Sidebar() {
   const [location] = useLocation();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, href: '/dashboard' },
     { key: 'request', label: 'Request', icon: <Plus size={18} />, href: '/dashboard/request' },
@@ -332,16 +370,91 @@ function Sidebar() {
           <Bell size={18} />
           Notification
         </button>
-        <Link href="/" className="focus-ring flex items-center gap-3 rounded-lg bg-[#1f70d0] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]" data-testid="link-logout">
-          <LogOut size={18} />
-          Logout
-        </Link>
+        <button type="button"
+        onClick={() => setShowLogoutConfirm(true)}
+        className="focus-ring flex items-center gap-3 rounded-lg bg-[#1f70d0] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
+         data-testid="button-logout">
+        <LogOut size={18} />
+         Logout
+       </button>
       </div>
+
+            {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.25)]">
+            <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#fbe4e1] text-[#d05b48]">
+              <LogOut size={22} />
+            </div>
+            <h3 className="serif mt-4 text-center text-2xl text-[#162c4d]">Log out?</h3>
+            <p className="mt-2 text-center text-sm text-[#60768c]">
+              You'll need to sign in again to access your dashboard.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="focus-ring flex-1 rounded-lg border border-[#cfdee9] bg-white px-4 py-2.5 text-sm font-bold text-[#385570] hover:bg-[#f4f8fb]"
+                data-testid="button-cancel-logout"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('session');
+                  window.location.href = '/login';
+                }}
+                className="focus-ring flex-1 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
+                data-testid="button-confirm-logout"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </aside>
   );
 }
 
 function DashboardPage() {
+  
+    const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const stored = localStorage.getItem('session');
+    if (!stored) {
+      setLocation('/login');
+      return;
+    }
+    try {
+      const session = JSON.parse(stored);
+      const isExpired = session.expires_at && (session.expires_at * 1000 < Date.now());
+      if (isExpired) {
+        localStorage.removeItem('session');
+        setLocation('/login');
+      }
+    } catch {
+      localStorage.removeItem('session');
+      setLocation('/login');
+    }
+  }, [setLocation]);
+
+  
+  // Read the logged-in user from the session
+  const stored = localStorage.getItem('session');
+  if (!stored) return null;
+  const session = JSON.parse(stored);
+  const user = session?.user || {};
+  const firstName = user.first_name || 'User';
+  const lastName = user.last_name || '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase();
+  const email = user.email || 'Not available';
+  const role = user.role === 'supervisor' ? 'Supervisor' : 'Student Assistant';
+  const idShort = user.id ? user.id.slice(0, 8).toUpperCase() : 'N/A';
+  
   const requests = [
     { id: 'REQ-001', type: 'Medical Leave', status: 'Approved' },
     { id: 'REQ-002', type: 'Academic Conference', status: 'Pending' },
@@ -356,17 +469,17 @@ function DashboardPage() {
         <header className="flex h-[70px] items-center justify-end border-b border-[#e2eaf1] bg-white px-8">
           <div className="flex items-center gap-3">
             <span className="text-right leading-tight">
-              <strong className="block text-sm font-bold text-[#162c4d]">Nicholas Mathebula</strong>
-              <span className="block text-xs text-[#7890a4]">SA-2024-8842</span>
+              <strong className="block text-sm font-bold text-[#162c4d]">{fullName}</strong>
+              <span className="block text-xs text-[#7890a4]">{email}</span>
             </span>
-            <span className="grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">NM</span>
+            <span className="grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}</span>
           </div>
         </header>
         <main className="px-8 py-8">
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
-              <h1 className="serif text-4xl text-[#10253f]">Welcome back, Nicholas Mathebula</h1>
+              <h1 className="serif text-4xl text-[#10253f]">Welcome back, {fullName}</h1>
               <p className="mt-2 max-w-lg text-sm text-[#52708b]">Manage your leave requests and track your departmental attendance.</p>
             </div>
             <div className="flex gap-3">
@@ -384,10 +497,10 @@ function DashboardPage() {
           <div className="grid gap-5 lg:grid-cols-[1fr_.6fr]">
             <div className="rounded-xl bg-[#f4f8fb] p-6">
               <div className="grid gap-6 sm:grid-cols-2">
-                <DashboardStat icon={<Building2 size={14} />} label="Department" value="Computer Science" />
-                <DashboardStat icon={<TrendingUp size={14} />} label="Position" value="Student Assistant" />
-                <DashboardStat icon={<Mail size={14} />} label="Email Address" value="215324567@tut4life.ac.za" />
-                <DashboardStat icon={<Phone size={14} />} label="Phone" value="076 432 6578" />
+                <DashboardStat icon={<Building2 size={14} />} label="Department" value="—" />
+<DashboardStat icon={<TrendingUp size={14} />} label="Position" value={role} />
+<DashboardStat icon={<Mail size={14} />} label="Email Address" value={email} />
+<DashboardStat icon={<Phone size={14} />} label="Phone" value="—" />
               </div>
             </div>
             <div className="rounded-xl bg-[#f4f8fb] p-6">
