@@ -222,6 +222,7 @@ router.get('/requests', async (req, res) => {
         r.*,
         p.first_name,
         p.last_name,
+        p.student_email,
         ROW_NUMBER() OVER (ORDER BY r.created_at ASC) AS display_seq
       FROM public.absence_requests r
       JOIN public.profiles p ON p.id = r.user_id
@@ -240,6 +241,7 @@ router.get('/requests', async (req, res) => {
       rawId: row.id,
       name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
       initials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(),
+      email: row.student_email || '',
       type: row.type,
       status: row.status,
       dateRange: row.date_range,

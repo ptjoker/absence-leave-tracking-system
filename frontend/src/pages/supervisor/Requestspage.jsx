@@ -76,7 +76,16 @@ export default function RequestsPage() {
       if (requestType !== type) return false;
     }
     const q = search.trim().toLowerCase();
-    if (q && ![request.name, request.type, request.detail, request.replacement].filter(Boolean).join(' ').toLowerCase().includes(q)) return false;
+    const haystack = [
+      request.name,
+      request.email,
+      request.type,
+      request.detail,
+      request.replacement,
+      request.reason,
+      request.dateRange,
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (q && !haystack.includes(q)) return false;
     return true;
   });
 
