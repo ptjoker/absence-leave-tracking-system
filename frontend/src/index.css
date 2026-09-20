@@ -187,7 +187,7 @@
 
 /* Homepage theme: TUT-inspired royal blue, gold, and institutional neutrals. */
 .homepage-shell {
-  --homepage-bg: #dcebf4;
+  --homepage-bg: rgba(220,235,244,.62);
   --homepage-surface: #f7fbfe;
   --homepage-card: #f4f8fb;
   --homepage-text: #062e53;
@@ -253,7 +253,7 @@
 }
 
 .homepage-dark {
-  --homepage-bg: #081c31;
+  --homepage-bg: rgba(8,28,49,.82);
   --homepage-surface: #0c2742;
   --homepage-card: #113452;
   --homepage-text: #f4f8fc;
@@ -319,3 +319,136 @@
 .homepage-dark .homepage-footer a:hover {
   color: #f3bd32 !important;
 }
+/* ============================================================ */
+/* Global photo backdrop (visible at ~75% in both themes)        */
+/* ============================================================ */
+.app-photo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('/assets/tut-library-watermark.jpg');
+  background-size: cover;
+  background-position: center;
+  opacity: .75;
+}
+.app-content-layer { position: relative; z-index: 10; }
+
+/* Let the photo backdrop show through page canvases in both themes */
+[class~="bg-[#90bddb]"] { background-color: rgba(144,189,219,.55) !important; }
+[class~="bg-[#eef6fb]"] { background-color: rgba(238,246,251,.6) !important; }
+.dark [class~="bg-[#90bddb]"] { background-color: rgba(8,28,49,.8) !important; }
+.dark [class~="bg-[#eef6fb]"] { background-color: rgba(8,28,49,.84) !important; }
+html.dark body { background-color: #08182b; }
+
+/* ============================================================ */
+/* Dark-mode overrides for portal, request, and auth pages       */
+/* (attribute-selector reskin, mirrors the light palette above)  */
+/* ============================================================ */
+.dark [class~="bg-[#f4f8fb]"],
+.dark [class~="bg-[#eef4fb]"],
+.dark [class~="bg-[#eef5f9]"],
+.dark [class~="bg-[#edf4f8]"],
+.dark [class~="bg-[#eef6fb]"],
+.dark [class~="bg-[#eff6fb]"],
+.dark [class~="bg-[#fbfdfe]"],
+.dark [class~="bg-[#e7f2fa]"],
+.dark [class~="bg-[#e8f3fb]"],
+.dark [class~="bg-[#e9f3fb]"],
+.dark [class~="bg-[#eaf3f9]"] { background-color: #15304e !important; }
+.dark [class~="bg-[#e7f1fa]"],
+.dark [class~="bg-[#d7edfb]"],
+.dark [class~="bg-[#dbeefa]"],
+.dark [class~="bg-[#dce5fb]"],
+.dark [class~="bg-[#d8e9f5]"],
+.dark [class~="bg-[#dce8f2]"],
+.dark [class~="bg-[#e5eef8]"] { background-color: #1c3f63 !important; }
+.dark [class~="border-[#d5dfe8]"],
+.dark [class~="border-[#d7e3ee]"],
+.dark [class~="border-[#cfdee9]"],
+.dark [class~="border-[#d0e0ea]"],
+.dark [class~="border-[#e2eaf1]"],
+.dark [class~="border-[#e4edf3]"],
+.dark [class~="border-[#dce4ea]"],
+.dark [class~="border-[#91bfdc]"] { border-color: #2a5078 !important; }
+.dark [class~="bg-[#d4f5e7]"],
+.dark [class~="bg-[#e3f7ec]"],
+.dark [class~="bg-[#eaf8f0]"] { background-color: #123a2c !important; }
+.dark [class~="bg-[#fff0d8]"] { background-color: #4a3410 !important; }
+.dark [class~="bg-[#fbe4e1]"] { background-color: #4a1f1a !important; }
+.dark [class~="text-[#10253f]"],
+.dark [class~="text-[#162c4d]"],
+.dark [class~="text-[#172d48]"],
+.dark [class~="text-[#152d49]"],
+.dark [class~="text-[#203c5d]"],
+.dark [class~="text-[#203e5c]"],
+.dark [class~="text-[#243e5b]"],
+.dark [class~="text-[#283f59]"],
+.dark [class~="text-[#29445f]"] { color: #eef4fb !important; }
+.dark [class~="text-[#52708b]"],
+.dark [class~="text-[#60768c]"],
+.dark [class~="text-[#6a7180]"],
+.dark [class~="text-[#6b809a]"],
+.dark [class~="text-[#6b8297]"],
+.dark [class~="text-[#6c8196]"],
+.dark [class~="text-[#71869a]"],
+.dark [class~="text-[#7890a4]"],
+.dark [class~="text-[#8aa0b2]"],
+.dark [class~="text-[#8ca0b2]"],
+.dark [class~="text-[#9baebe]"],
+.dark [class~="text-[#9bb0c1]"],
+.dark [class~="text-[#bdccd8]"],
+.dark [class~="text-[#385570]"],
+.dark [class~="text-[#48627d]"] { color: #b7c8da !important; }
+.dark [class~="text-[#1f70d0]"],
+.dark [class~="text-[#286ee5]"] { color: #63a6f2 !important; }
+.dark [class~="border-[#1f70d0]"],
+.dark [class~="border-[#286ee5]"] { border-color: #63a6f2 !important; }
+.dark [class~="text-[#19885d]"],
+.dark [class~="text-[#22b78b]"] { color: #3ddb9d !important; }
+.dark [class~="text-[#d05b48]"],
+.dark [class~="text-[#c54f43]"] { color: #ff8a75 !important; }
+.dark [class~="border-[#d05b48]"],
+.dark [class~="border-[#c54f43]"] { border-color: #ff8a75 !important; }
+.dark [class~="text-[#f0b323]"],
+.dark [class~="text-[#f2aa00]"] { color: #ffcf4d !important; }
+.dark [class~="bg-white"] { background-color: #0f253d !important; }
+.dark [class~="bg-[#162c4d]"] { background-color: #23446e !important; }
+.dark [class~="bg-[#d05b48]"] { background-color: #b8453a !important; }
+
+/* Shared dark mode for every StudentAssist route. The theme switch is global
+   and persisted, so changing it on a student or supervisor page carries over
+   to every other page. */
+.dark body { background: #071a2b !important; color: #e8f1f8 !important; }
+.dark .bg-white { background-color: #0d263b !important; }
+.dark .bg-\[\#f4f8fb\] { background-color: #102f47 !important; }
+.dark .bg-\[\#fbfdfe\] { background-color: #0b2235 !important; }
+.dark .bg-\[\#eef4fb\],
+.dark .bg-\[\#edf4f8\],
+.dark .bg-\[\#eef2f6\] { background-color: #16384f !important; }
+.dark .border-\[\#e2eaf1\],
+.dark .border-\[\#d0e0ea\],
+.dark .border-\[\#cfdee9\],
+.dark .border-\[\#dce8f2\],
+.dark .border-\[\#d7e3ee\] { border-color: #29475e !important; }
+.dark .text-\[\#10253f\],
+.dark .text-\[\#162c4d\],
+.dark .text-\[\#243e5b\],
+.dark .text-\[\#385570\],
+.dark .text-\[\#29445f\],
+.dark .text-\[\#203c5d\] { color: #e8f1f8 !important; }
+.dark .text-\[\#52708b\],
+.dark .text-\[\#60768c\],
+.dark .text-\[\#718196\],
+.dark .text-\[\#71869a\],
+.dark .text-\[\#7890a4\],
+.dark .text-\[\#8aa0b2\],
+.dark .text-\[\#8ca0b2\],
+.dark .text-\[\#9baebe\] { color: #a9bfd0 !important; }
+.dark .text-\[\#1f70d0\],
+.dark .text-\[\#286ee5\] { color: #70aef5 !important; }
+.dark .placeholder\:text-\[\#9baebe\]::placeholder { color: #7895a9 !important; }
+.dark .bg-\[\#90bddb\] { background-color: #08243a !important; }
+.dark .shadow-sm,
+.dark .shadow-\[0_3px_8px_rgba\(53\,91\,121\,.08\)\] { box-shadow: 0 8px 24px rgba(0,0,0,.24) !important; }
+.dark select option { background: #0d263b; color: #e8f1f8; }
