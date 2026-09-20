@@ -2,27 +2,23 @@
 import express from 'express';
 import sql from './db.js';
 import supabaseAdmin from './supabaseAdmin.js';
+import { verifyToken } from './jwt.js';
+
+// Verify the JWT sent by the frontend and return the user, or null if invalid.
+async function getUserFromToken(req) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return null;
+  // Local verification — no network round-trip to Supabase Auth.
+  const user = await verifyToken(token);
+  return user;
+}
 
 const router = express.Router();
 
-// Example: Get a user's profile
-router.get('/profile/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const profile = await sql`
-      SELECT * FROM profiles WHERE id = ${userId}
-    `;
-    
-    if (profile.length === 0) {
-      return res.status(404).json({ error: 'Profile not found' });
-    }
-    
-    res.json(profile[0]);
-  } catch (error) {
-    console.error('Database Error:', error);
-    res.status(500).json({ error: 'Something went wrong' });
-  }
-});
+// ============================================
+// Existing endpoints
+// ============================================
 
 router.get('/test-db', async (req, res) => {
   try {
@@ -34,7 +30,26 @@ router.get('/test-db', async (req, res) => {
   }
 });
 
-// NEW: Registration Endpoint
+router.get('/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const profile = await sql`
+      SELECT * FROM profiles WHERE id = ${userId}
+    `;
+    if (profile.length === 0) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    res.json(profile[0]);
+  } catch (error) {
+    console.error('Database Error:', error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+// ============================================
+// Auth endpoints
+// ============================================
+
 router.post('/register', async (req, res) => {
   try {
     const {
@@ -49,18 +64,14 @@ router.post('/register', async (req, res) => {
       role
     } = req.body;
 
-    // 1. Basic validation
     if (!student_email || !password || !first_name || !last_name) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // 2. Create the user in Supabase Auth
-    // Note: We pass all the profile data inside "user_metadata". 
-    // Our database trigger will automatically pick this up and insert it into the profiles table.
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: student_email,
       password: password,
-      email_confirm: true, // Automatically confirms the user for testing (remove this in production)
+      email_confirm: true,
       user_metadata: {
         first_name,
         last_name,
@@ -74,11 +85,9 @@ router.post('/register', async (req, res) => {
     });
 
     if (authError) {
-      // Handle common errors like "User already registered"
       return res.status(400).json({ error: authError.message });
     }
 
-    // 3. Return success
     res.status(201).json({
       message: 'User registered successfully',
       user: {
@@ -86,60 +95,41 @@ router.post('/register', async (req, res) => {
         email: authData.user.email
       }
     });
-
   } catch (error) {
     console.error('Registration Error:', error);
     res.status(500).json({ error: 'Something went wrong during registration' });
   }
 });
 
-// Login Endpoint
 router.post('/login', async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
-    // Check required fields
     if (!email || !password) {
-      return res.status(400).json({
-        error: 'Email and password are required'
-      });
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Sign in with Supabase
-    const { data, error } =
-      await supabaseAdmin.auth.signInWithPassword({
-        email: email,
-        password: password
-      });
+    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
 
-    // Login failed
     if (error) {
-      return res.status(401).json({
-        error: 'Invalid email or password'
-      });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Get user's profile
     const profile = await sql`
-      SELECT *
-      FROM profiles
-      WHERE id = ${data.user.id}
+      SELECT * FROM profiles WHERE id = ${data.user.id}
     `;
 
     if (profile.length === 0) {
-      return res.status(404).json({
-        error: 'User profile not found'
-      });
+      return res.status(404).json({ error: 'User profile not found' });
     }
 
-    // Check selected role
     if (role && profile[0].role !== role) {
-      return res.status(403).json({
-        error: 'Incorrect account type'
-      });
+      return res.status(403).json({ error: 'Incorrect account type' });
     }
 
-    // Successful login
     res.status(200).json({
       message: 'Login successful',
       user: {
@@ -153,13 +143,163 @@ router.post('/login', async (req, res) => {
       },
       session: data.session
     });
-
   } catch (error) {
     console.error('Login Error:', error);
+    res.status(500).json({ error: 'Something went wrong during login' });
+  }
+});
 
-    res.status(500).json({
-      error: 'Something went wrong during login'
+// ============================================
+// Absence request endpoints
+// ============================================
+
+// POST /api/requests — create a new absence request
+router.post('/requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { type, dateRange, date_range, detail, replacement, reason } = req.body;
+    const finalDateRange = dateRange || date_range;
+
+    if (!type) {
+      return res.status(400).json({ error: 'Request type is required' });
+    }
+
+    // Single query: INSERT + fetch profile in one round-trip.
+    const rows = await sql`
+      WITH inserted AS (
+        INSERT INTO public.absence_requests (user_id, type, date_range, detail, replacement, reason)
+        VALUES (
+          ${user.id},
+          ${type},
+          ${finalDateRange || null},
+          ${detail || null},
+          ${replacement || null},
+          ${reason || null}
+        )
+        RETURNING *
+      )
+      SELECT i.*, p.first_name, p.last_name
+      FROM inserted i
+      JOIN public.profiles p ON p.id = i.user_id
+    `;
+    const row = rows[0];
+
+    res.status(201).json({
+      id: `REQ-${String(row.id).padStart(3, '0')}`,
+      rawId: row.id,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      initials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(),
+      type: row.type,
+      status: row.status,
+      dateRange: row.date_range,
+      detail: row.detail,
+      replacement: row.replacement,
+      reason: row.reason,
+      filed: 'Filed recently',
+      createdAt: row.created_at,
     });
+  } catch (err) {
+    console.error('Create request error:', err);
+    res.status(500).json({ error: 'Could not create request' });
+  }
+});
+
+// GET /api/requests — list requests (students see own, supervisors see all)
+router.get('/requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Single query: it figures out the caller's role AND fetches requests in one shot.
+    const rows = await sql`
+      SELECT
+        r.*,
+        p.first_name,
+        p.last_name,
+        ROW_NUMBER() OVER (ORDER BY r.created_at ASC) AS display_seq
+      FROM public.absence_requests r
+      JOIN public.profiles p ON p.id = r.user_id
+      WHERE (
+        r.user_id = ${user.id}
+        OR EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE id = ${user.id} AND role = 'supervisor'
+        )
+      )
+      ORDER BY r.created_at DESC
+    `;
+
+    const formatted = rows.map((row) => ({
+      id: `REQ-${String(row.display_seq).padStart(3, '0')}`,
+      rawId: row.id,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      initials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(),
+      type: row.type,
+      status: row.status,
+      dateRange: row.date_range,
+      detail: row.detail,
+      replacement: row.replacement,
+      reason: row.reason,
+      filed: 'Filed recently',
+      createdAt: row.created_at,
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('List requests error:', err);
+    res.status(500).json({ error: 'Could not load requests' });
+  }
+});
+
+// PATCH /api/requests/:id/status — supervisor approves or rejects
+router.patch('/requests/:id/status', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Verify the caller is a supervisor
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only supervisors can update request status' });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const updated = await sql`
+      UPDATE public.absence_requests
+      SET status = ${status}, reviewed_by = ${user.id}, reviewed_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    res.json({
+      message: 'Status updated',
+      id: `REQ-${String(updated[0].id).padStart(3, '0')}`,
+      rawId: updated[0].id,
+      status: updated[0].status,
+    });
+  } catch (err) {
+    console.error('Update request status error:', err);
+    res.status(500).json({ error: 'Could not update request status' });
   }
 });
 

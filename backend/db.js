@@ -10,9 +10,9 @@ if (!connectionString) {
 
 const sql = postgres(connectionString, {
   ssl: 'require',
-  idle_timeout: 0.1,      // Key fix: forces quick connection recycling
-  connect_timeout: 30,    // Extended timeout
-  max: 1,                 // Limit to a single connection for testing
+  idle_timeout: 20,        // keep connections warm between requests
+  connect_timeout: 30,
+  max: 5,                  // allow a few concurrent queries
 });
 
 export default sql;

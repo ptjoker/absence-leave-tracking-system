@@ -1,110 +1,128 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 const RequestsContext = createContext({
   requests: [],
-  addRequest: () => {},
-  updateRequestStatus: () => {},
+  loading: false,
+  error: null,
+  addRequest: async () => {},
+  updateRequestStatus: async () => {},
+  refresh: async () => {},
 });
 
-const DEFAULT_REQUESTS = [
-  {
-    id: 'REQ-001',
-    name: 'Nicholas Mathebula',
-    initials: 'NM',
-    type: 'Medical Leave',
-    status: 'Approved',
-    dateRange: 'Sep 08 – Sep 09, 2026',
-    detail: 'Medical appointment and recovery.',
-    filed: 'Filed earlier',
-  },
-  {
-    id: 'REQ-002',
-    name: 'Nicholas Mathebula',
-    initials: 'NM',
-    type: 'Exam Leave',
-    status: 'Pending',
-    dateRange: 'Sep 22 – Sep 23, 2026',
-    detail: 'Scheduled examination.',
-    filed: 'Filed recently',
-  },
-  {
-    id: 'REQ-003',
-    name: 'Nicholas Mathebula',
-    initials: 'NM',
-    type: 'Personal Issues',
-    status: 'Approved',
-    dateRange: 'Sep 04 – Sep 05, 2026',
-    detail: 'Family or personal commitment.',
-    filed: 'Filed earlier',
-  },
-  {
-    id: 'REQ-004',
-    name: 'Nicholas Mathebula',
-    initials: 'NM',
-    type: 'Sick Leave',
-    status: 'Rejected',
-    dateRange: 'Aug 18 – Aug 19, 2026',
-    detail: 'Sick leave request.',
-    filed: 'Filed earlier',
-  },
-];
+const API_BASE = 'http://localhost:3000';
 
-function nextRequestId(requests) {
-  const highest = requests.reduce((max, request) => {
-    const number = Number(String(request.id).replace(/\D/g, '')) || 0;
-    return Math.max(max, number);
-  }, 0);
-  return `REQ-${String(highest + 1).padStart(3, '0')}`;
+function getAuthHeader() {
+  try {
+    const raw = localStorage.getItem('session');
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+    if (!session.access_token) return null;
+    return { Authorization: `Bearer ${session.access_token}` };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeStatus(status) {
+  // Backend returns 'Pending' / 'Approved' / 'Rejected' — same as frontend.
+  return status;
 }
 
 export function RequestsProvider({ children }) {
-  const [requests, setRequests] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem('studentassist-requests');
-      if (stored) return JSON.parse(stored);
-    } catch {}
-    return DEFAULT_REQUESTS;
-  });
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
+    const auth = getAuthHeader();
+    if (!auth) {
+      // Not logged in — nothing to fetch.
+      setRequests([]);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     try {
-      window.localStorage.setItem('studentassist-requests', JSON.stringify(requests));
-    } catch {}
-  }, [requests]);
-
-  // Keep student and supervisor views synchronized when the portal is open in
-  // more than one browser tab/window.
-  useEffect(() => {
-    const sync = (event) => {
-      if (event.key !== 'studentassist-requests' || !event.newValue) return;
-      try { setRequests(JSON.parse(event.newValue)); } catch {}
-    };
-    window.addEventListener('storage', sync);
-    return () => window.removeEventListener('storage', sync);
+      const res = await fetch(`${API_BASE}/api/requests`, { headers: auth });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
+      }
+      const data = await res.json();
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Load requests error:', err);
+      setError(err.message);
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const addRequest = (entry) => {
-    setRequests((current) => [
-      {
-        id: nextRequestId(current),
-        name: 'Nicholas Mathebula',
-        initials: 'NM',
-        status: 'Pending',
-        filed: 'Filed just now',
-        ...entry,
-      },
-      ...current,
-    ]);
+  // Fetch on mount and whenever the auth session changes (login/logout).
+  useEffect(() => {
+    refresh();
+    const onStorage = (e) => {
+      if (e.key === 'session') refresh();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [refresh]);
+
+  const addRequest = async (entry) => {
+    const auth = getAuthHeader();
+    if (!auth) {
+      throw new Error('Not authenticated');
+    }
+    const payload = {
+      type: entry.type,
+      dateRange: entry.dateRange || entry.date_range || null,
+      detail: entry.detail || entry.comments || null,
+      replacement: entry.replacement || null,
+      reason: entry.reason || null,
+    };
+    const res = await fetch(`${API_BASE}/api/requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Could not submit request');
+    }
+    // Refresh the list so the new item appears immediately.
+    await refresh();
   };
 
-  const updateRequestStatus = (id, status) => {
-    setRequests((current) => current.map((request) => (
-      request.id === id ? { ...request, status } : request
-    )));
+const updateRequestStatus = async (id, status) => {
+  const auth = getAuthHeader();
+  if (!auth) {
+    throw new Error('Not authenticated');
+  }
+  // `id` is the display ID (e.g., "REQ-001"). Look up the real rawId from state.
+  const target = requests.find((r) => r.id === id);
+  if (!target || !target.rawId) throw new Error('Request not found');
+  const rawId = target.rawId;
+  const res = await fetch(`${API_BASE}/api/requests/${rawId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ status: normalizeStatus(status) }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Could not update status');
+    }
+    // Optimistic local update, then refresh to stay in sync.
+    setRequests((current) =>
+      current.map((r) => (r.id === id ? { ...r, status } : r))
+    );
+    await refresh();
   };
 
   return (
-    <RequestsContext.Provider value={{ requests, addRequest, updateRequestStatus }}>
+    <RequestsContext.Provider
+      value={{ requests, loading, error, addRequest, updateRequestStatus, refresh }}
+    >
       {children}
     </RequestsContext.Provider>
   );
