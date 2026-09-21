@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { CalendarDays, Check, ChevronDown, Clock3, Filter, Search, ShieldCheck, X, MessageSquare } from 'lucide-react';
-import { PortalShell, StatusBadge, SUPERVISOR } from '@/components/portal/PortalComponents';
+import { PortalShell, StatusBadge} from '@/components/portal/PortalComponents';
 import { useRequests } from '@/context/RequestsContext';
 
 const typeOptions = ['All Types', 'Shift Swap', 'Leave'];
@@ -62,6 +62,10 @@ export default function RequestsPage() {
   const [tab, setTab] = useState('pending');
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
+  const stored = localStorage.getItem('session');
+  const session = stored ? JSON.parse(stored) : null;
+  const user = session?.user || {};
+  const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor';
 
   const operationalRequests = useMemo(() => requests.map((request) => ({
     ...request,
@@ -93,7 +97,7 @@ export default function RequestsPage() {
     <PortalShell supervisor>
       <main className="px-5 py-7 md:px-8 md:py-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">{SUPERVISOR.name}</p><h1 className="serif text-4xl text-[#10253f]">Operational Requests</h1><p className="mt-2 max-w-lg text-sm text-[#3d5a76]">Manage and process team shift swaps and leave applications submitted by student assistants.</p></div>
+          <div><p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">{fullName}</p><h1 className="serif text-4xl text-[#10253f]">Operational Requests</h1><p className="mt-2 max-w-lg text-sm text-[#3d5a76]">Manage and process team shift swaps and leave applications submitted by student assistants.</p></div>
           <div className="flex shrink-0 rounded-lg bg-white p-1 shadow-sm">
             <button type="button" onClick={() => setTab('pending')} className={`focus-ring flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold ${tab === 'pending' ? 'bg-[#f4f8fb] text-[#162c4d]' : 'text-[#8ca0b2]'}`}>Awaiting Review <span className="grid size-5 place-items-center rounded-full bg-[#1f70d0] text-[10px] font-bold text-white">{pendingCount}</span></button>
             <button type="button" onClick={() => setTab('all')} className={`focus-ring rounded-md px-4 py-2 text-sm font-bold ${tab === 'all' ? 'bg-[#f4f8fb] text-[#162c4d]' : 'text-[#8ca0b2]'}`}>All Requests</button>
