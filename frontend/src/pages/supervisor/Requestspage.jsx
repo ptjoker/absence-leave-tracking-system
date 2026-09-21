@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronDown, Clock3, Filter, Search, ShieldCheck, X, MessageSquare } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, Clock3, Filter, Search, ShieldCheck, X, MessageSquare, RefreshCw } from 'lucide-react';
 import { PortalShell, StatusBadge} from '@/components/portal/PortalComponents';
 import { useRequests } from '@/context/RequestsContext';
 
@@ -58,7 +58,7 @@ function FilterDropdown({ label, icon, options, value, onChange }) {
 }
 
 export default function RequestsPage() {
-  const { requests, updateRequestStatus } = useRequests();
+  const { requests, updateRequestStatus, refresh, loading } = useRequests();
   const [tab, setTab] = useState('pending');
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -66,6 +66,15 @@ export default function RequestsPage() {
   const session = stored ? JSON.parse(stored) : null;
   const user = session?.user || {};
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor';
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const operationalRequests = useMemo(() => requests.map((request) => ({
     ...request,
@@ -101,6 +110,16 @@ export default function RequestsPage() {
           <div className="flex shrink-0 rounded-lg bg-white p-1 shadow-sm">
             <button type="button" onClick={() => setTab('pending')} className={`focus-ring flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold ${tab === 'pending' ? 'bg-[#f4f8fb] text-[#162c4d]' : 'text-[#8ca0b2]'}`}>Awaiting Review <span className="grid size-5 place-items-center rounded-full bg-[#1f70d0] text-[10px] font-bold text-white">{pendingCount}</span></button>
             <button type="button" onClick={() => setTab('all')} className={`focus-ring rounded-md px-4 py-2 text-sm font-bold ${tab === 'all' ? 'bg-[#f4f8fb] text-[#162c4d]' : 'text-[#8ca0b2]'}`}>All Requests</button>
+           <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="focus-ring flex items-center gap-2 rounded-lg border border-[#dce8f2] bg-white px-4 py-2.5 text-sm font-semibold text-[#385570] shadow-sm hover:bg-[#f4f8fb] disabled:opacity-50"
+              data-testid="button-refresh-requests"
+            >
+              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Loading...' : 'Refresh'}
+            </button>
           </div>
         </div>
 

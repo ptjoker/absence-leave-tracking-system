@@ -373,4 +373,73 @@ router.patch('/profile', async (req, res) => {
   }
 });
 
+// ============================================
+// Supervisor endpoints
+// ============================================
+
+// GET /api/assistants — list all student assistants with request stats (supervisors only)
+router.get('/assistants', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only supervisors can view assistants' });
+    }
+
+    const rows = await sql`
+      SELECT
+        p.id,
+        p.first_name,
+        p.last_name,
+        p.student_number,
+        p.student_email,
+        p.personal_email,
+        p.course,
+        p.level_of_study,
+        p.cell_number,
+        p.created_at,
+        COALESCE(COUNT(r.id), 0)::int AS total_requests,
+        COALESCE(SUM(CASE WHEN r.status = 'Approved' THEN 1 ELSE 0 END), 0)::int AS approved_requests,
+        COALESCE(SUM(CASE WHEN r.status = 'Pending' THEN 1 ELSE 0 END), 0)::int AS pending_requests,
+        COALESCE(SUM(CASE WHEN r.status = 'Rejected' THEN 1 ELSE 0 END), 0)::int AS rejected_requests
+      FROM public.profiles p
+      LEFT JOIN public.absence_requests r ON r.user_id = p.id
+      WHERE p.role = 'student'
+      GROUP BY p.id
+      ORDER BY p.first_name ASC, p.last_name ASC
+    `;
+
+    const formatted = rows.map((row) => ({
+      id: row.id,
+      firstName: row.first_name || '',
+      lastName: row.last_name || '',
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      initials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(),
+      studentNumber: row.student_number || '',
+      email: row.student_email || '',
+      personalEmail: row.personal_email || '',
+      course: row.course || '',
+      level: row.level_of_study || '',
+      phone: row.cell_number || '',
+      createdAt: row.created_at,
+      totalRequests: row.total_requests,
+      approvedRequests: row.approved_requests,
+      pendingRequests: row.pending_requests,
+      rejectedRequests: row.rejected_requests,
+      status: row.pending_requests > 0 ? 'Active' : 'Active',
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('List assistants error:', err);
+    res.status(500).json({ error: 'Could not load assistants' });
+  }
+});
+
 export default router;
