@@ -442,4 +442,154 @@ router.get('/assistants', async (req, res) => {
   }
 });
 
+// ============================================
+// Shift endpoints
+// ============================================
+
+// POST /api/shifts — create a shift (supervisors only)
+router.post('/shifts', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only supervisors can create shifts' });
+    }
+
+    const { user_id, shift_date, start_time, end_time, role, location, notes } = req.body;
+
+    if (!user_id || !shift_date || !start_time || !end_time) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const rows = await sql`
+      INSERT INTO public.shifts (user_id, shift_date, start_time, end_time, role, location, notes, created_by)
+      VALUES (
+        ${user_id},
+        ${shift_date},
+        ${start_time},
+        ${end_time},
+        ${role || null},
+        ${location || null},
+        ${notes || null},
+        ${user.id}
+      )
+      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at, TO_CHAR(shift_date, 'YYYY-MM-DD') AS shift_date
+    `;
+
+    const shiftRow = rows[0];
+
+    // Join to get the student's name for the response
+    const studentRows = await sql`
+      SELECT first_name, last_name FROM public.profiles WHERE id = ${shiftRow.user_id}
+    `;
+    const student = studentRows[0] || {};
+
+    res.status(201).json({
+      id: shiftRow.id,
+      userId: shiftRow.user_id,
+      studentName: `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown',
+      studentInitials: `${(student.first_name || 'U')[0]}${(student.last_name || '')[0] || ''}`.toUpperCase(),
+      shiftDate: shiftRow.shift_date,
+      startTime: shiftRow.start_time,
+      endTime: shiftRow.end_time,
+      role: shiftRow.role,
+      location: shiftRow.location,
+      notes: shiftRow.notes,
+      createdAt: shiftRow.created_at,
+    });
+  } catch (err) {
+    console.error('Create shift error:', err);
+    res.status(500).json({ error: 'Could not create shift' });
+  }
+});
+
+// GET /api/shifts — list shifts (students see own, supervisors see all)
+router.get('/shifts', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    const role = callerProfile[0]?.role || 'student';
+
+    let rows;
+    if (role === 'supervisor') {
+      rows = await sql`
+        SELECT
+          s.id, s.user_id, s.start_time, s.end_time, s.role, s.location, s.notes, s.created_by, s.created_at,
+          TO_CHAR(s.shift_date, 'YYYY-MM-DD') AS shift_date,
+          p.first_name, p.last_name
+        FROM public.shifts s
+        JOIN public.profiles p ON p.id = s.user_id
+        ORDER BY s.shift_date ASC, s.start_time ASC
+      `;
+    } else {
+      rows = await sql`
+        SELECT
+          s.id, s.user_id, s.start_time, s.end_time, s.role, s.location, s.notes, s.created_by, s.created_at,
+          TO_CHAR(s.shift_date, 'YYYY-MM-DD') AS shift_date,
+          p.first_name, p.last_name
+        FROM public.shifts s
+        JOIN public.profiles p ON p.id = s.user_id
+        WHERE s.user_id = ${user.id}
+        ORDER BY s.shift_date ASC, s.start_time ASC
+      `;
+    }
+
+    const formatted = rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      studentName: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      studentInitials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(),
+      shiftDate: row.shift_date,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      role: row.role,
+      location: row.location,
+      notes: row.notes,
+      createdAt: row.created_at,
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('List shifts error:', err);
+    res.status(500).json({ error: 'Could not load shifts' });
+  }
+});
+
+// DELETE /api/shifts/:id — delete a shift (supervisors only)
+router.delete('/shifts/:id', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only supervisors can delete shifts' });
+    }
+
+    const { id } = req.params;
+    const deleted = await sql`
+      DELETE FROM public.shifts WHERE id = ${id} RETURNING id
+    `;
+
+    if (deleted.length === 0) {
+      return res.status(404).json({ error: 'Shift not found' });
+    }
+
+    res.json({ message: 'Shift deleted', id: deleted[0].id });
+  } catch (err) {
+    console.error('Delete shift error:', err);
+    res.status(500).json({ error: 'Could not delete shift' });
+  }
+});
+
 export default router;
