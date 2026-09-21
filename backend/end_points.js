@@ -130,19 +130,24 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ error: 'Incorrect account type' });
     }
 
-    res.status(200).json({
-      message: 'Login successful',
-      user: {
-        id: data.user.id,
-        email: data.user.email,
-        first_name: profile[0].first_name,
-        last_name: profile[0].last_name,
-        role: profile[0].role,
-        course: profile[0].course,
-        cell_number: profile[0].cell_number
-      },
-      session: data.session
-    });
+res.status(200).json({
+  message: 'Login successful',
+  user: {
+    id: data.user.id,
+    email: data.user.email,
+    first_name: profile[0].first_name,
+    last_name: profile[0].last_name,
+    role: profile[0].role,
+    course: profile[0].course,
+    cell_number: profile[0].cell_number,
+    student_number: profile[0].student_number,
+    level_of_study: profile[0].level_of_study,
+    student_email: profile[0].student_email,
+    personal_email: profile[0].personal_email,
+    created_at: profile[0].created_at
+  },
+  session: data.session
+});
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: 'Something went wrong during login' });
@@ -305,5 +310,67 @@ router.patch('/requests/:id/status', async (req, res) => {
   }
 });
 
+// ============================================
+// Profile endpoints
+// ============================================
+
+// PATCH /api/profile — update the logged-in user's editable profile fields
+router.patch('/profile', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { course, level_of_study, cell_number, personal_email } = req.body;
+
+    // Only update fields that were provided. Empty strings are allowed (to clear a value).
+    const updates = {};
+    if (course !== undefined) updates.course = course || null;
+    if (level_of_study !== undefined) updates.level_of_study = level_of_study || null;
+    if (cell_number !== undefined) updates.cell_number = cell_number || null;
+    if (personal_email !== undefined) updates.personal_email = personal_email || null;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // Build the update query dynamically
+    const updated = await sql`
+      UPDATE public.profiles
+      SET
+        course = COALESCE(${updates.course ?? null}, course),
+        level_of_study = COALESCE(${updates.level_of_study ?? null}, level_of_study),
+        cell_number = COALESCE(${updates.cell_number ?? null}, cell_number),
+        personal_email = ${updates.personal_email ?? null}
+      WHERE id = ${user.id}
+      RETURNING *
+    `;
+
+    if (updated.length === 0) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    res.json({
+      message: 'Profile updated',
+      profile: {
+        id: updated[0].id,
+        first_name: updated[0].first_name,
+        last_name: updated[0].last_name,
+        role: updated[0].role,
+        student_number: updated[0].student_number,
+        student_email: updated[0].student_email,
+        personal_email: updated[0].personal_email,
+        course: updated[0].course,
+        level_of_study: updated[0].level_of_study,
+        cell_number: updated[0].cell_number,
+        created_at: updated[0].created_at,
+      },
+    });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: 'Could not update profile' });
+  }
+});
 
 export default router;
