@@ -4,7 +4,8 @@ import { Link, useLocation } from 'wouter';
 import { useTheme } from '@/context/ThemeContext';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format, endOfMonth, isBefore, startOfDay } from 'date-fns';
+import { format, endOfMonth, isBefore, startOfDay, isSameMonth } from 'date-fns';
+import { PUBLIC_HOLIDAYS_2026, holidayName, isPublicHoliday, isSunday } from '@/lib/schedule';
 
 export const STUDENT = { name: 'Nicholas Mathebula', initials: 'NM', number: 'SA-2024-8842' };
 export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
@@ -15,7 +16,7 @@ export function PortalBrand({ supervisor = false }) {
       <img src="/tut-logo.png" alt="TUT logo" className="size-9 rounded-lg object-contain shadow-sm" />
       <span className="leading-none">
         <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">{supervisor ? 'Supervisor Portal' : 'Student Portal'}</strong>
-        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#6b809a]">Absence &amp; leave tracker</span>
+        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
       </span>
     </Link>
   );
@@ -91,7 +92,7 @@ export function PortalSidebar({ supervisor = false }) {
                 type="button"
                 onClick={() => {
                   localStorage.removeItem('session');
-                  window.location.href = '/login';
+                  window.location.href = '/logout-success';
                 }}
                 className="focus-ring flex-1 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
                 data-testid="button-confirm-logout"
@@ -138,9 +139,9 @@ export function PortalTopbar({ supervisor = false }) {
       <div className="flex items-center gap-3">
         <span className="text-right leading-tight">
           <strong className="block text-sm font-bold text-[#162c4d]">{fullName}</strong>
-          <span className="block text-xs text-[#7890a4]">{supervisor ? 'Supervisor' : email}</span>
+          <span className="block text-xs text-[#7890a4]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
         </span>
-        <span className="relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></span>
+        <Link href={supervisor ? '/supervisor' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
       </div>
     </header>
   );
@@ -196,43 +197,67 @@ export function FieldLabel({ children, required = false, icon }) {
   return <span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]">{icon}{children}{required && <em className="not-italic text-[#d05b48]">*</em>}</span>;
 }
 
-export function DatePicker({ value, onChange, range = false, label, error, id, helper }) {
+export function DatePicker({ value, onChange, range = false, label, error, id, helper, blockedDates = [], showHolidayLegend = true }) {
   const [open, setOpen] = useState(false);
   const today = startOfDay(new Date());
   const monthStart = startOfDay(new Date(today.getFullYear(), today.getMonth(), 1));
   const monthEnd = endOfMonth(today);
-  const disabled = (date) => isBefore(startOfDay(date), today) || date > monthEnd;
+  const blocked = new Set(blockedDates || []);
+  const disabled = (date) => {
+    const day = startOfDay(date);
+    const key = format(day, 'yyyy-MM-dd');
+    if (isBefore(day, today) || day > monthEnd) return true;
+    if (isPublicHoliday(day) || isSunday(day) || blocked.has(key)) return true;
+    if (range && value?.from && !isSameMonth(day, value.from)) return true;
+    return false;
+  };
   const display = range
     ? value?.from ? `${format(value.from, 'MMM d, yyyy')}${value.to ? ` – ${format(value.to, 'MMM d, yyyy')}` : ''}` : ''
     : value ? format(value, 'MMM d, yyyy') : '';
+
+  const selectDate = (next) => {
+    if (!next) return;
+    if (range && next?.from && next?.to && !isSameMonth(next.from, next.to)) {
+      onChange({ from: next.from, to: undefined });
+      return;
+    }
+    onChange(next);
+    if (!range || next?.to) setOpen(false);
+  };
 
   return <div>
     {label && <FieldLabel required icon={<CalendarDays size={14} className="text-[#8aa0b2]" />}>{label}</FieldLabel>}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button id={id} type="button" className={`focus-ring flex w-full items-center justify-between rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-left text-sm outline-none ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] hover:border-[#9cc0dd]'}`} aria-label={label || 'Select date'}>
-          <span className={display ? 'text-[#243e5b]' : 'text-[#9baebe]'}>{display || (range ? 'Select dates in this month' : 'Select a date')}</span><CalendarDays size={16} className="shrink-0 text-[#718196]" />
+          <span className={display ? 'text-[#243e5b]' : 'text-[#000000]'}>{display || (range ? 'Select dates in this month' : 'Select a date')}</span><CalendarDays size={18} className="shrink-0 text-[#000000]" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto p-2">
+      <PopoverContent align="start" className="date-picker-popover w-[min(40vw,680px)] min-w-[430px] p-4">
         <Calendar
           mode={range ? 'range' : 'single'}
           selected={value}
-          onSelect={(next) => { onChange(next); if (!range || next?.to) setOpen(false); }}
+          onSelect={selectDate}
           defaultMonth={monthStart}
           startMonth={monthStart}
           endMonth={monthEnd}
           disabled={disabled}
+          modifiers={{ holiday: (date) => isPublicHoliday(date), blocked: (date) => blocked.has(format(startOfDay(date), 'yyyy-MM-dd')) }}
+          modifiersClassNames={{ holiday: 'calendar-holiday', blocked: 'calendar-blocked' }}
           initialFocus
         />
-        <p className="border-t border-[#e2eaf1] px-2 pb-1 pt-2 text-[10px] font-semibold text-[#718196]">Only future dates in {format(today, 'MMMM yyyy')} are available.</p>
+        <div className="mt-3 grid gap-2 border-t border-[#e2eaf1] px-2 pt-3 text-sm font-semibold text-black sm:grid-cols-2">
+          {showHolidayLegend && <span className="flex items-center gap-2"><span className="size-4 rounded border border-[#2c9b62] bg-[#d9f3e3]" />Green box - Holiday</span>}
+          <span className="flex items-center gap-2"><span className="size-4 rounded bg-[#d9dde2]" />Unavailable / approved</span>
+        </div>
+        <p className="mt-2 px-2 text-sm font-semibold text-black">Sundays and public holidays cannot be selected. {range ? 'Both dates must be in the same month.' : ''}</p>
+        {Object.keys(PUBLIC_HOLIDAYS_2026).some((key) => key.startsWith(format(today, 'yyyy-'))) && <p className="mt-1 px-2 text-xs font-bold text-[#2c7d4e]">Public holidays are shown in green and are unavailable for leave, swaps and shifts.</p>}
       </PopoverContent>
     </Popover>
-    {helper && <p className="mt-1.5 text-xs italic text-[#8aa0b2]">{helper}</p>}
-    {error && <p className="mt-1.5 text-xs font-medium text-[#c54f43]">{error}</p>}
+    {helper && <p className="mt-1.5 text-sm italic text-black">{helper}</p>}
+    {error && <p className="mt-1.5 text-sm font-medium text-[#c54f43]">{error}</p>}
   </div>;
 }
-
 export function SuggestionBox({ title, suggestions }) {
   return <div className="mt-2 rounded-lg border border-[#d8e4ed] bg-[#f4f8fb] px-3.5 py-3"><p className="text-[10px] font-bold uppercase tracking-[.08em] text-[#718196]">Suggested text</p><p className="mt-1 text-xs leading-5 text-[#5f7185]">{suggestions.join(' · ')}</p></div>;
 }
