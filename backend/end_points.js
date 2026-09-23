@@ -592,4 +592,33 @@ router.delete('/shifts/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// Session refresh endpoint
+// ============================================
+
+// POST /api/refresh — exchange a refresh_token for a new access_token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+    if (!refresh_token) {
+      return res.status(400).json({ error: 'Missing refresh_token' });
+    }
+
+    const { data, error } = await supabaseAdmin.auth.refreshSession({ refresh_token });
+
+    if (error) {
+      return res.status(401).json({ error: error.message });
+    }
+
+    res.json({
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      expires_at: data.session.expires_at,
+    });
+  } catch (err) {
+    console.error('Refresh error:', err);
+    res.status(500).json({ error: 'Could not refresh session' });
+  }
+});
+
 export default router;
