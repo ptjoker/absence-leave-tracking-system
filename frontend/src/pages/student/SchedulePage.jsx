@@ -1,335 +1,68 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  MapPin,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react';
-import { PortalShell } from '@/components/portal/PortalComponents';
+import { useMemo, useState } from 'react';
+import { CalendarDays, Clock3, MapPin, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { PortalShell, STUDENT } from '@/components/portal/PortalComponents';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
+import { useRequests } from '@/context/RequestsContext';
+import { generateStudentSchedule, holidayName, isPublicHoliday, approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-
-function ymd(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+function getStudentNumber() {
+  try { return JSON.parse(localStorage.getItem('session') || '{}')?.user?.student_number || STUDENT.number; } catch { return STUDENT.number; }
 }
 
-function buildCalendarGrid(monthDate) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const first = new Date(year, month, 1);
-  const last = new Date(year, month + 1, 0);
-  const startWeekday = first.getDay();
-  const daysInMonth = last.getDate();
-
-  const cells = [];
-
-  const prevMonthLast = new Date(year, month, 0).getDate();
-  for (let i = startWeekday - 1; i >= 0; i--) {
-    const day = prevMonthLast - i;
-    cells.push({ date: new Date(year, month - 1, day), inMonth: false });
-  }
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    cells.push({ date: new Date(year, month, day), inMonth: true });
-  }
-
-  while (cells.length % 7 !== 0) {
-    const lastCell = cells[cells.length - 1].date;
-    const d = new Date(lastCell);
-    d.setDate(d.getDate() + 1);
-    cells.push({ date: d, inMonth: false });
-  }
-
-  return cells;
+function swapMeta(request) {
+  const text = `${request.detail || ''} ${request.reason || ''}`;
+  const match = text.match(/Swap from (.+?) to (.+?) with (.+?)(?:\.|$)/i);
+  return match ? { from: match[1], to: match[2], with: match[3] } : null;
 }
 
 export default function SchedulePage() {
-  const [shifts, setShifts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [monthDate, setMonthDate] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
-
-  const loadShifts = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
-      if (!session?.access_token) {
-        setError('Not authenticated');
-        return;
+  const { requests } = useRequests();
+  const studentNumber = getStudentNumber();
+  const year = 2026;
+  const today = new Date();
+  const [monthDate, setMonthDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selected, setSelected] = useState(today);
+  const schedule = useMemo(() => generateStudentSchedule(studentNumber, year), [studentNumber]);
+  const approvedLeave = useMemo(() => new Set(approvedLeaveDates(requests)), [requests]);
+  const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
+  const swapByDate = useMemo(() => {
+    const map = new Map();
+    approvedSwaps.forEach((request) => {
+      const meta = swapMeta(request);
+      parseDateRangeKeys(request.dateRange).forEach((key) => map.set(key, { request, meta, direction: 'to' }));
+      if (meta?.from) {
+        const fromDate = new Date(meta.from);
+        if (!Number.isNaN(fromDate.getTime())) map.set(format(fromDate, 'yyyy-MM-dd'), { request, meta, direction: 'from' });
       }
-      const res = await fetch('http://localhost:3000/api/shifts', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Could not load shifts');
-        return;
-      }
-      setShifts(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Load shifts error:', err);
-      setError('Could not reach the server.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadShifts();
-  }, []);
-
-  const shiftsByDate = useMemo(() => {
-    const map = {};
-    shifts.forEach((s) => {
-      if (!map[s.shiftDate]) map[s.shiftDate] = [];
-      map[s.shiftDate].push(s);
     });
     return map;
-  }, [shifts]);
+  }, [approvedSwaps]);
 
-  const cells = useMemo(() => buildCalendarGrid(monthDate), [monthDate]);
-  const selectedKey = ymd(selectedDate);
-  const selectedShifts = shiftsByDate[selectedKey] || [];
-  const todayKey = ymd(new Date());
-  const monthLabel = monthDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  const days = eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) });
+  const leading = (startOfMonth(monthDate).getDay() + 6) % 7;
+  const selectedKey = format(selected, 'yyyy-MM-dd');
+  const selectedShift = schedule[selectedKey];
+  const selectedSwap = swapByDate.get(selectedKey);
+  const selectedHoliday = holidayName(selected);
+  const monthIndex = monthDate.getMonth();
+  const canGoPrev = monthIndex > 0;
+  const canGoNext = monthIndex < 11;
 
-  const prevMonth = () => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1));
-  const nextMonth = () => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1));
-  const goToday = () => {
-    const now = new Date();
-    setMonthDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    setSelectedDate(now);
+  const selectMonth = (nextMonth) => {
+    const next = new Date(year, nextMonth, 1);
+    setMonthDate(next);
+    setSelected(next);
   };
 
-  // Upcoming summary
-  const upcoming = useMemo(
-    () => shifts.filter((s) => s.shiftDate >= todayKey),
-    [shifts, todayKey]
-  );
-
-  const nextShift = upcoming[0];
-
-  return (
-    <PortalShell>
-      <main className="px-5 py-7 md:px-8 md:py-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">
-              Student Schedule
-            </p>
-            <h1 className="serif text-4xl text-[#10253f]">My Work Schedule</h1>
-            <p className="mt-2 max-w-xl text-sm text-[#3d5a76]">
-              View your assigned shifts. Days with a shift are highlighted — click any day to see the details.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={loadShifts}
-            disabled={loading}
-            className="focus-ring flex items-center gap-2 rounded-lg border border-[#dce8f2] bg-white px-4 py-2.5 text-sm font-semibold text-[#385570] shadow-sm hover:bg-[#f4f8fb] disabled:opacity-50"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        </div>
-
-        {error && (
-          <div className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-2.5 text-sm font-semibold text-[#d05b48]">
-            {error}
-          </div>
-        )}
-
-        {/* Summary row */}
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-[#f4f8fb] p-4">
-            <p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">
-              Total Shifts
-            </p>
-            <p className="serif mt-1 text-3xl text-[#10253f]">{shifts.length}</p>
-          </div>
-          <div className="rounded-xl bg-[#f4f8fb] p-4">
-            <p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">
-              Upcoming
-            </p>
-            <p className="serif mt-1 text-3xl text-[#10253f]">{upcoming.length}</p>
-          </div>
-          <div className="rounded-xl bg-[#f4f8fb] p-4">
-            <p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">
-              Next Shift
-            </p>
-            <p className="mt-1 text-sm font-bold text-[#243e5b]">
-              {nextShift
-                ? `${new Date(nextShift.shiftDate).toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'short',
-                  })} · ${nextShift.startTime}`
-                : '—'}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-          {/* Calendar */}
-          <section className="rounded-xl bg-white p-5 md:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[#10253f]">{monthLabel}</h2>
-                <p className="text-xs text-[#718196]">Monthly shift calendar</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={prevMonth}
-                  className="rounded-lg border border-[#e2eaf1] bg-white p-2 text-[#52708b] hover:bg-[#f4f8fb]"
-                  aria-label="Previous month"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={goToday}
-                  className="mono rounded-lg border border-[#e2eaf1] px-3 py-2 text-xs font-bold uppercase tracking-[.06em] text-[#385570] hover:bg-[#f4f8fb]"
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={nextMonth}
-                  className="rounded-lg border border-[#e2eaf1] bg-white p-2 text-[#52708b] hover:bg-[#f4f8fb]"
-                  aria-label="Next month"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-[#dce5ec] bg-[#dce5ec]">
-              <div className="col-span-7 grid grid-cols-7 bg-white">
-                {WEEKDAYS.map((d) => (
-                  <div
-                    key={d}
-                    className="p-2 text-center text-[10px] font-bold uppercase text-[#8ca0b2]"
-                  >
-                    {d}
-                  </div>
-                ))}
-              </div>
-              {cells.map((cell, index) => {
-                const key = ymd(cell.date);
-                const hasShift = (shiftsByDate[key] || []).length > 0;
-                const isSelected = key === selectedKey;
-                const isToday = key === todayKey;
-
-                return (
-                  <button
-                    key={`${key}-${index}`}
-                    type="button"
-                    onClick={() => setSelectedDate(cell.date)}
-                    className={`min-h-24 bg-white p-2 text-left align-top transition-colors ${
-                      !cell.inMonth ? 'bg-[#fafbfc] text-[#c3cfd9]' : 'text-[#385570]'
-                    } ${isSelected ? 'ring-2 ring-inset ring-[#1f70d0]' : ''} hover:bg-[#f4f8fb]`}
-                  >
-                    <span
-                      className={`grid size-7 place-items-center rounded-full text-xs font-bold ${
-                        isSelected
-                          ? 'bg-[#1f70d0] text-white'
-                          : isToday
-                          ? 'bg-[#f2aa00] text-white'
-                          : ''
-                      }`}
-                    >
-                      {cell.date.getDate()}
-                    </span>
-                    {hasShift && (
-                      <span className="mt-3 block rounded-md bg-[#e7f1fa] px-1.5 py-1 text-[9px] font-bold text-[#1f70d0]">
-                        Shift
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Side panel */}
-          <aside className="space-y-5">
-            <div className="rounded-xl bg-white p-5 shadow-[0_3px_8px_rgba(53,91,121,.08)]">
-              <div className="flex items-start gap-3">
-                <span className="grid size-10 place-items-center rounded-lg bg-[#e7f1fa] text-[#1f70d0]">
-                  <CalendarDays size={18} />
-                </span>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[.08em] text-[#8ca0b2]">
-                    Selected day
-                  </p>
-                  <h2 className="mt-1 font-bold text-[#10253f]">
-                    {selectedDate.toLocaleDateString('en-GB', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'short',
-                    })}
-                  </h2>
-                </div>
-              </div>
-
-              {selectedShifts.length ? (
-                <div className="mt-5 space-y-3">
-                  {selectedShifts.map((s) => (
-                    <div key={s.id} className="rounded-lg bg-[#f4f8fb] p-3">
-                      <p className="flex items-center gap-2 text-sm font-bold text-[#243e5b]">
-                        <Clock3 size={14} />
-                        {s.startTime} – {s.endTime}
-                      </p>
-                      {s.role && (
-                        <p className="mt-1 text-xs font-semibold text-[#52708b]">{s.role}</p>
-                      )}
-                      {s.location && (
-                        <p className="mt-1 flex items-center gap-2 text-xs text-[#718196]">
-                          <MapPin size={13} />
-                          {s.location}
-                        </p>
-                      )}
-                      {s.notes && (
-                        <p className="mt-2 rounded bg-white px-2 py-1.5 text-[11px] italic text-[#718196]">
-                          {s.notes}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-5 text-sm text-[#718196]">No shift assigned for this date.</p>
-              )}
-            </div>
-
-            <div className="rounded-xl bg-[#f4f8fb] p-5">
-              <p className="text-sm font-bold text-[#10253f]">Schedule notes</p>
-              <ul className="mt-3 space-y-3 text-xs leading-5 text-[#5f7185]">
-                <li className="flex gap-2">
-                  <ShieldCheck size={14} className="mt-0.5 shrink-0 text-[#22b78b]" />
-                  Approved leave and swaps are reflected here.
-                </li>
-                <li className="flex gap-2">
-                  <Clock3 size={14} className="mt-0.5 shrink-0 text-[#1f70d0]" />
-                  Arrive 10 minutes before your shift starts.
-                </li>
-              </ul>
-            </div>
-          </aside>
-        </div>
-      </main>
-    </PortalShell>
-  );
+  return <PortalShell><main className="px-5 py-7 md:px-8 md:py-8">
+    <div className="mb-6"><p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Schedule</p><h1 className="serif text-4xl text-[#10253f]">Library Assistant Shift Management</h1><p className="mt-2 max-w-2xl text-sm text-[#52708b]">Your shifts are generated as a stable individual roster: each student assistant works 2–3 days per week, on either a morning or afternoon shift. Sundays and public holidays are never scheduled.</p></div>
+    <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <section className="rounded-xl bg-[#f4f8fb] p-5 md:p-6">
+        <div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-[#10253f]">{format(monthDate,'MMMM yyyy')}</h2><p className="text-sm text-black">Monthly shift calendar · {year}</p></div><div className="flex gap-2"><button disabled={!canGoPrev} onClick={()=>selectMonth(monthIndex-1)} className="focus-ring rounded-lg border bg-white p-2 text-black disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month"><ChevronLeft size={20}/></button><button disabled={!canGoNext} onClick={()=>selectMonth(monthIndex+1)} className="focus-ring rounded-lg border bg-white p-2 text-black disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next month"><ChevronRight size={20}/></button></div></div>
+        <div className="mt-5 grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-[#dce5ec] bg-[#dce5ec]"><div className="col-span-7 grid grid-cols-7 bg-white">{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=><div key={d} className="p-2 text-center text-sm font-bold uppercase text-black">{d}</div>)}</div>{Array.from({length:leading}).map((_,i)=><div key={'lead'+i} className="min-h-24 bg-[#f8fafc]"/>)}{days.map(day=>{const k=format(day,'yyyy-MM-dd'); const shift=schedule[k]; const holiday=isPublicHoliday(day); const leave=approvedLeave.has(k); const swap=swapByDate.get(k); return <button key={k} disabled={holiday || leave || Boolean(swap)} onClick={()=>setSelected(day)} className={`min-h-28 p-2 text-left align-top ${isSameDay(day,selected)?'ring-2 ring-inset ring-[#1f70d0]':''} ${holiday?'bg-[#d9f3e3]':'bg-white'} ${leave||swap?.direction==='from'?'opacity-70':''} disabled:cursor-not-allowed`}><div className="flex items-start justify-between"><span className={`grid size-8 place-items-center rounded-full text-sm font-bold ${isSameDay(day,selected)?'bg-[#1f70d0] text-white':'text-black'}`}>{format(day,'d')}</span>{holiday&&<span className="rounded px-1.5 py-0.5 text-xs font-bold text-[#246b45]">Holiday</span>}</div>{holiday?<span className="mt-2 block text-xs font-bold leading-4 text-[#246b45]">{holidayName(day)}</span>:leave?<span className="mt-2 block rounded-md bg-[#d9dde2] px-2 py-1 text-xs font-bold text-black">Approved leave</span>:swap?<span className="mt-2 block rounded-md bg-[#d9dde2] px-2 py-1 text-xs font-bold text-black">{swap.direction==='from'?'Swapped out':'Swapped to'} {swap.meta?.to || ''}</span>:shift?<span className="mt-2 block rounded-md bg-[#e7f1fa] px-2 py-1 text-xs font-bold text-[#1f70d0]">{shift.shift} · {shift.time}</span>:<span className="mt-2 block text-xs font-semibold text-black">No shift</span>}</button>})}</div>
+        <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-black"><span className="flex items-center gap-2"><span className="size-4 rounded border border-[#2c9b62] bg-[#d9f3e3]"/>Green box - Holiday</span><span className="flex items-center gap-2"><span className="size-4 rounded bg-[#d9dde2]"/>Approved leave / swap</span><span className="flex items-center gap-2"><span className="size-4 rounded bg-[#e7f1fa]"/>Assigned shift</span></div>
+      </section>
+      <aside className="space-y-5"><div className="rounded-xl bg-white p-5 shadow-[0_3px_8px_rgba(53,91,121,.08)]"><div className="flex items-start gap-3"><span className="grid size-10 place-items-center rounded-lg bg-[#e7f1fa] text-[#1f70d0]"><CalendarDays size={20}/></span><div><p className="text-sm font-bold uppercase tracking-[.08em] text-black">Selected day</p><h2 className="mt-1 font-bold text-[#10253f]">{format(selected,'EEEE, MMM d')}</h2></div></div>{selectedHoliday?<div className="mt-5 rounded-lg bg-[#d9f3e3] p-4"><p className="text-sm font-bold text-[#246b45]">{selectedHoliday}</p><p className="mt-1 text-sm text-black">Public holiday — no leave, shift swap or work can be scheduled.</p></div>:approvedLeave.has(selectedKey)?<div className="mt-5 rounded-lg bg-[#d9dde2] p-4"><p className="text-sm font-bold text-black">Approved leave</p><p className="mt-1 text-sm text-black">This day is unavailable for another leave or swap request.</p></div>:selectedSwap?<div className="mt-5 rounded-lg bg-[#d9dde2] p-4"><p className="text-sm font-bold text-black">Approved shift swap</p><p className="mt-1 text-sm text-black">{selectedSwap.direction==='from' ? `Swapped out to ${selectedSwap.meta?.to || 'the approved date'}.` : `Swapped from ${selectedSwap.meta?.from || 'the original date'} to this date with ${selectedSwap.meta?.with || 'the colleague'}.`}</p></div>:selectedShift?<div className="mt-5 space-y-3"><div className="rounded-lg bg-[#f4f8fb] p-3"><p className="flex items-center gap-2 text-sm font-bold text-[#243e5b]"><Clock3 size={18}/>{selectedShift.time}</p><p className="mt-1 text-sm text-black"><MapPin size={16} className="mr-1 inline"/>TUT Library · {selectedShift.shift} shift</p></div></div>:<p className="mt-5 text-sm font-semibold text-black">No shift assigned for this date.</p>}</div><div className="rounded-xl bg-[#f4f8fb] p-5"><p className="text-sm font-bold text-[#10253f]">Schedule notes</p><ul className="mt-3 space-y-3 text-sm leading-5 text-black"><li className="flex gap-2"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-[#22b78b]"/>Approved leave and swaps are reflected here.</li><li className="flex gap-2"><Clock3 size={16} className="mt-0.5 shrink-0 text-[#1f70d0]"/>Arrive 10 minutes before your shift starts.</li><li className="flex gap-2"><CalendarDays size={16} className="mt-0.5 shrink-0 text-[#246b45]"/>Public holidays are automatically excluded.</li></ul></div></aside>
+    </div>
+  </main></PortalShell>;
 }
