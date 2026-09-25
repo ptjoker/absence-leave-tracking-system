@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { apiFetch } from '@/lib/api';
 
 const RequestsContext = createContext({
   requests: [],
@@ -9,19 +10,6 @@ const RequestsContext = createContext({
   refresh: async () => {},
 });
 
-const API_BASE = 'http://localhost:3000';
-
-function getAuthHeader() {
-  try {
-    const raw = localStorage.getItem('session');
-    if (!raw) return null;
-    const session = JSON.parse(raw);
-    if (!session.access_token) return null;
-    return { Authorization: `Bearer ${session.access_token}` };
-  } catch {
-    return null;
-  }
-}
 
 function normalizeStatus(status) {
   // Backend returns 'Pending' / 'Approved' / 'Rejected' — same as frontend.
@@ -33,17 +21,16 @@ export function RequestsProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const refresh = useCallback(async () => {
-    const auth = getAuthHeader();
-    if (!auth) {
-      // Not logged in — nothing to fetch.
+    const refresh = useCallback(async () => {
+    // Not logged in — nothing to fetch.
+    if (!localStorage.getItem('session')) {
       setRequests([]);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/requests`, { headers: auth });
+      const res = await apiFetch('/api/requests');
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Request failed (${res.status})`);
@@ -70,10 +57,6 @@ export function RequestsProvider({ children }) {
   }, [refresh]);
 
   const addRequest = async (entry) => {
-    const auth = getAuthHeader();
-    if (!auth) {
-      throw new Error('Not authenticated');
-    }
     const payload = {
       type: entry.type,
       dateRange: entry.dateRange || entry.date_range || null,
@@ -81,9 +64,9 @@ export function RequestsProvider({ children }) {
       replacement: entry.replacement || null,
       reason: entry.reason || null,
     };
-    const res = await fetch(`${API_BASE}/api/requests`, {
+    const res = await apiFetch('/api/requests', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...auth },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -94,18 +77,14 @@ export function RequestsProvider({ children }) {
     await refresh();
   };
 
-const updateRequestStatus = async (id, status) => {
-  const auth = getAuthHeader();
-  if (!auth) {
-    throw new Error('Not authenticated');
-  }
-  // `id` is the display ID (e.g., "REQ-001"). Look up the real rawId from state.
-  const target = requests.find((r) => r.id === id);
-  if (!target || !target.rawId) throw new Error('Request not found');
-  const rawId = target.rawId;
-  const res = await fetch(`${API_BASE}/api/requests/${rawId}/status`, {
+  const updateRequestStatus = async (id, status) => {
+    // `id` is the display ID (e.g., "REQ-001"). Look up the real rawId from state.
+    const target = requests.find((r) => r.id === id);
+    if (!target || !target.rawId) throw new Error('Request not found');
+    const rawId = target.rawId;
+    const res = await apiFetch(`/api/requests/${rawId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...auth },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: normalizeStatus(status) }),
     });
     if (!res.ok) {

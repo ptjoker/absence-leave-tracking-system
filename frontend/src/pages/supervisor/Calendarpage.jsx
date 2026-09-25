@@ -13,6 +13,7 @@ import {
   Save,
 } from 'lucide-react';
 import { PortalShell } from '@/components/portal/PortalComponents';
+import { apiFetch } from '@/lib/api';
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -119,15 +120,7 @@ export default function CalendarPage() {
     setLoading(true);
     setError('');
     try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
-      if (!session?.access_token) {
-        setError('Not authenticated');
-        return;
-      }
-      const res = await fetch('http://localhost:3000/api/shifts', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const res = await apiFetch('/api/shifts');
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Could not load shifts');
@@ -149,13 +142,8 @@ export default function CalendarPage() {
     // Fetch students once so the form has a roster to choose from.
   useEffect(() => {
     const loadStudents = async () => {
-      try {
-        const raw = localStorage.getItem('session');
-        const session = raw ? JSON.parse(raw) : null;
-        if (!session?.access_token) return;
-        const res = await fetch('http://localhost:3000/api/assistants', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
+           try {
+        const res = await apiFetch('/api/assistants');
         if (!res.ok) return;
         const data = await res.json();
         setStudents(Array.isArray(data) ? data : []);
@@ -192,20 +180,11 @@ export default function CalendarPage() {
     if (!form.shift_date) return setFormError('Please pick a date.');
     if (!form.start_time || !form.end_time) return setFormError('Start and end time are required.');
 
-    setSaving(true);
+        setSaving(true);
     try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
-      if (!session?.access_token) {
-        setFormError('Not authenticated');
-        return;
-      }
-      const res = await fetch('http://localhost:3000/api/shifts', {
+      const res = await apiFetch('/api/shifts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
       const data = await res.json();

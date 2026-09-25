@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Mail, Phone, MapPin, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, ShieldCheck, Pencil, X, Check, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
+import { apiFetch } from '@/lib/api';
 
 const LEVELS = [
   { value: 'first', label: 'First Year' },
@@ -101,13 +102,10 @@ export default function ProfilePage() {
     setSaving(true);
     setError('');
     setSuccess('');
-    try {
-      const res = await fetch('http://localhost:3000/api/profile', {
+        try {
+      const res = await apiFetch('/api/profile', {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(draft),
       });
       const data = await res.json();

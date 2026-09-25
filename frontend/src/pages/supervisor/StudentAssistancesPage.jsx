@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { PortalShell, StatusBadge } from '@/components/portal/PortalComponents';
+import { apiFetch } from '@/lib/api';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -116,15 +117,7 @@ export default function StudentAssistancesPage() {
     setLoading(true);
     setError('');
     try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
-      if (!session?.access_token) {
-        setError('Not authenticated');
-        return;
-      }
-      const res = await fetch('http://localhost:3000/api/assistants', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const res = await apiFetch('/api/assistants');
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Could not load assistants');

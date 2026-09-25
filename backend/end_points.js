@@ -604,16 +604,35 @@ router.post('/refresh', async (req, res) => {
       return res.status(400).json({ error: 'Missing refresh_token' });
     }
 
-    const { data, error } = await supabaseAdmin.auth.refreshSession({ refresh_token });
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
 
-    if (error) {
-      return res.status(401).json({ error: error.message });
+    if (!supabaseUrl || !anonKey) {
+      console.error('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+      return res.status(500).json({ error: 'Server auth configuration error' });
+    }
+
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ refresh_token }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(401).json({ error: data.error_description || data.error || 'Refresh failed' });
     }
 
     res.json({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-      expires_at: data.session.expires_at,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+      expires_in: data.expires_in,
     });
   } catch (err) {
     console.error('Refresh error:', err);

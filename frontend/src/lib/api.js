@@ -67,7 +67,7 @@ async function refreshSession() {
  * - Clears session and redirects to /login on unrecoverable auth failure
  */
 export async function apiFetch(path, options = {}) {
-  let session = getSession();
+ let session = getSession();
   if (!session) {
     throw new Error('Not authenticated');
   }
