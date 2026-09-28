@@ -1,9 +1,9 @@
-// src/app/logIn.jsx
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Image, // 👈 1. Added missing Image import
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -15,7 +15,9 @@ import {
   View,
 } from 'react-native';
 
-import logoImg from "@/assets/images/logo.png";
+import logoImg from '@/assets/images/logo.png';
+import { apiFetch, saveSession } from '@/lib/api';
+
 
 export default function LogInScreen() {
   const router = useRouter();
@@ -26,13 +28,50 @@ export default function LogInScreen() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogIn = () => {
-    // Add your authentication logic here
-    console.log(`Logging in as ${selectedRole} with:`, { email, password, rememberMe });
-    
-    // Example: Navigate to home page after successful login
-    // router.replace('/home');
+  const handleLogIn = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Missing details', 'Please enter your email and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password, role: selectedRole }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Login failed', data.error || 'Invalid email or password.');
+        return;
+      }
+
+      // Save the session for later requests.
+      await saveSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at,
+        user: data.user,
+      });
+
+      // Route based on role.
+      if (data.user.role === 'supervisor') {
+        // We'll wire supervisor screens later. For now, go to dashboard too.
+        router.replace('/studDash');
+      } else {
+        router.replace('/studDash');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      Alert.alert('Connection error', 'Could not reach the server. Check the WiFi and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -161,11 +200,12 @@ export default function LogInScreen() {
 
             {/* Log In Button */}
             <TouchableOpacity
-              style={styles.logInButton}
+              style={[styles.logInButton, loading && { opacity: 0.6 }]}
               activeOpacity={0.8}
               onPress={handleLogIn}
+              disabled={loading}
             >
-              <Text style={styles.logInButtonText}>Log in</Text>
+              <Text style={styles.logInButtonText}>{loading ? 'Logging in…' : 'Log in'}</Text>
             </TouchableOpacity>
 
           </View>
