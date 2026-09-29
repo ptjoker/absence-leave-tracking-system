@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -14,7 +16,19 @@ import {
   View,
 } from 'react-native';
 
-import logoImg from "@/assets/images/logo.png"; // Import the image
+import logoImg from "@/assets/images/logo.png";
+import { apiFetch } from '@/lib/api';
+
+const LEVEL_OPTIONS = [
+  { label: 'First Year', value: 'first' },
+  { label: 'Second Year', value: 'second' },
+  { label: 'Third Year', value: 'third' },
+  { label: 'Postgraduate', value: 'postgraduate' },
+];
+
+function levelLabel(value) {
+  return LEVEL_OPTIONS.find((o) => o.value === value)?.label || '';
+}
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -22,20 +36,73 @@ export default function SignUpScreen() {
   // State for form fields
   const [activeTab, setActiveTab] = useState('Student');
   const [studentNo, setStudentNo] = useState('');
-  const [name, setName] = useState('John');
-  const [surname, setSurname] = useState('Doe');
-  const [course, setCourse] = useState('Dip Computer Science');
-  const [levelOfStudy, setLevelOfStudy] = useState('Year 1 Undergraduate');
-  const [email, setEmail] = useState('john.doe@university.edu');
-  const [phone, setPhone] = useState('+1 (555) 000-0000');
+  const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [course, setCourse] = useState('');
+  const [levelOfStudy, setLevelOfStudy] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showLevelPicker, setShowLevelPicker] = useState(false);
 
+  const handleRegister = async () => {
+    // Basic validation
+    if (!studentNo.trim() || !name.trim() || !surname.trim() || !course.trim() || !levelOfStudy || !email.trim() || !phone.trim() || !password) {
+      Alert.alert('Missing details', 'Please fill in all required fields.');
+      return;
+    }
+    if (!email.includes('@')) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+    if (!phone.trim()) {
+      Alert.alert('Missing cell number', 'Please enter your cell number.');
+      return;
+    }
+    if (password.length < 8) {
+      Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      return;
+    }
 
-  const handleRegister = () => {
-    // Add your student registration logic here
-    console.log('Registering Student:', { studentNo, name, surname, course, levelOfStudy, email, phone, password });
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: name.trim(),
+          last_name: surname.trim(),
+          student_email: email.trim(),
+          student_number: studentNo.trim(),
+          course: course.trim(),
+          level_of_study: levelOfStudy,
+          cell_number: phone.trim(),
+          password,
+          role: 'student',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Registration failed', data.error || 'Please try again.');
+        return;
+      }
+
+      Alert.alert(
+        'Account created',
+        'Your account was created successfully. Please log in to continue.',
+        [{ text: 'OK', onPress: () => router.replace('/logIn') }]
+      );
+    } catch (err) {
+      console.error('Register error:', err);
+      Alert.alert('Connection error', 'Could not reach the server. Check the WiFi and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,10 +118,10 @@ export default function SignUpScreen() {
           {/* Hero Image */}
          <View style={styles.header}>
                      <Image
-                                   source={logoImg}
-                                   style={styles.iconContainer}
-                                   resizeMode="cover"
-                                 />
+                        source={logoImg}
+                        style={styles.iconContainer}
+                        resizeMode="cover"
+                      />
                      <View style={styles.headerTextContainer}>
                           <Text style={styles.headerTitle}>StudentAssistance</Text>
                           <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
@@ -107,7 +174,7 @@ export default function SignUpScreen() {
             {/* Form Fields */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
-                <Ionicons name="hash-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Ionicons name="list-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Student Number <Text style={styles.required}>*</Text></Text>
               </View>
               <TextInput
@@ -124,7 +191,7 @@ export default function SignUpScreen() {
                 <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Name <Text style={styles.required}>*</Text></Text>
               </View>
-              <TextInput style={styles.input} value={name} onChangeText={setName} />
+              <TextInput style={styles.input} placeholder="e.g. Sbongile" placeholderTextColor="#6B7280" value={name} onChangeText={setName} />
             </View>
 
             <View style={styles.inputGroup}>
@@ -132,7 +199,7 @@ export default function SignUpScreen() {
                 <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Surname <Text style={styles.required}>*</Text></Text>
               </View>
-              <TextInput style={styles.input} value={surname} onChangeText={setSurname} />
+              <TextInput style={styles.input} placeholder="e.g. Nkosi" placeholderTextColor="#6B7280" value={surname} onChangeText={setSurname} />
             </View>
 
             <View style={styles.inputGroup}>
@@ -140,7 +207,7 @@ export default function SignUpScreen() {
                 <Ionicons name="book-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Course <Text style={styles.required}>*</Text></Text>
               </View>
-              <TextInput style={styles.input} value={course} onChangeText={setCourse} />
+              <TextInput style={styles.input} placeholder="e.g. Dip Computer Science" placeholderTextColor="#6B7280" value={course} onChangeText={setCourse} />
             </View>
 
             {/* Level of Study (Dropdown Look) */}
@@ -149,8 +216,14 @@ export default function SignUpScreen() {
                 <Ionicons name="layers-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Level of Study <Text style={styles.required}>*</Text></Text>
               </View>
-              <TouchableOpacity style={styles.dropdownInput} activeOpacity={0.8}>
-                <Text style={styles.dropdownText}>{levelOfStudy}</Text>
+              <TouchableOpacity
+                style={styles.dropdownInput}
+                activeOpacity={0.8}
+                onPress={() => setShowLevelPicker(true)}
+              >
+                <Text style={levelOfStudy ? styles.dropdownText : styles.dropdownPlaceholder}>
+                  {levelOfStudy ? levelLabel(levelOfStudy) : 'Select level of study'}
+                </Text>
                 <Ionicons name="chevron-down" size={18} color="#374151" />
               </TouchableOpacity>
             </View>
@@ -162,6 +235,8 @@ export default function SignUpScreen() {
               </View>
               <TextInput
                 style={styles.input}
+                placeholder="e.g. 123456789@tut4life.ac.za"
+                placeholderTextColor="#6B7280"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -176,6 +251,8 @@ export default function SignUpScreen() {
               </View>
               <TextInput
                 style={styles.input}
+                placeholder="e.g. 076 123 4567"
+                placeholderTextColor="#6B7280"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
@@ -204,8 +281,15 @@ export default function SignUpScreen() {
             </View>
 
             {/* Submit Button */}
-            <TouchableOpacity style={styles.submitButton} onPress={handleRegister} activeOpacity={0.8}>
-              <Text style={styles.submitButtonText}>Complete Registration</Text>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && { opacity: 0.6 }]}
+              onPress={handleRegister}
+              activeOpacity={0.8}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Registering…' : 'Complete Registration'}
+              </Text>
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.submitIcon} />
             </TouchableOpacity>
 
@@ -254,6 +338,46 @@ export default function SignUpScreen() {
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Level of Study Picker Modal */}
+      <Modal
+        visible={showLevelPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLevelPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLevelPicker(false)}
+        >
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Select Level of Study</Text>
+            {LEVEL_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={styles.modalOption}
+                onPress={() => {
+                  setLevelOfStudy(option.value);
+                  setShowLevelPicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.modalOptionText,
+                    levelOfStudy === option.value && styles.modalOptionTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                {levelOfStudy === option.value && (
+                  <Ionicons name="checkmark" size={20} color="#1E429F" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -440,6 +564,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1F2937',
   },
+    dropdownPlaceholder: {
+    fontSize: 15,
+    color: '#6B7280',
+  },
   
   // --- Password Field ---
   passwordWrapper: {
@@ -545,6 +673,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+    // --- Level Picker Modal ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+  },
+  modalSheet: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  modalOptionText: {
+    fontSize: 15,
+    color: '#374151',
+  },
+  modalOptionTextActive: {
+    color: '#1E429F',
+    fontWeight: '700',
   },
   brandingLogoRow: {
     flexDirection: 'row',
