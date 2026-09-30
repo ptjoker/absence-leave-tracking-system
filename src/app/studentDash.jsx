@@ -1,78 +1,28 @@
+// src/app/home.jsx (or dashboard.jsx, wherever you want this page)
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Dimensions,
   Image,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { apiFetch, clearSession, getSession } from '@/lib/api';
 
 const { width } = Dimensions.get('window');
-
 
 export default function HomeScreen() {
   const router = useRouter();
 
-  const [user, setUser] = useState(null);
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const session = await getSession();
-        if (!session?.user) {
-          // Not logged in — bounce to welcome.
-          router.replace('/');
-          return;
-        }
-        setUser(session.user);
-
-        const res = await apiFetch('/api/requests');
-        if (res.status === 401) {
-          await clearSession();
-          router.replace('/');
-          return;
-        }
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error || 'Could not load requests');
-          return;
-        }
-        const data = await res.json();
-        setRequests(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('Dashboard load error:', err);
-        setError('Could not reach the server.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [router]);
-
-  const handleLogout = async () => {
-    await clearSession();
-    router.replace('/');
-  };
-
-  const recentRequests = requests.slice(0, 3);
-  const pendingCount = requests.filter((r) => r.status === 'Pending').length;
-  const approvedCount = requests.filter((r) => r.status === 'Approved').length;
-  const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Student';
-  const firstName = user?.first_name || 'Student';
-  const initials = user
-    ? `${(user.first_name || 'U')[0]}${(user.last_name || '')[0] || ''}`.toUpperCase()
-    : 'U';
+  // Mock data for recent requests
+  const recentRequests = [
+    { id: '1', code: 'REQ-001', type: 'Medical Leave', status: 'Approved', avatar: 'NM' },
+    { id: '2', code: 'REQ-001', type: 'Medical Leave', status: 'Approved', avatar: 'NM' },
+    { id: '3', code: 'REQ-003', type: 'Sick Leave', status: 'Pending', avatar: 'NM' },
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -93,7 +43,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.headerIcon}>
             <Ionicons name="notifications-outline" size={24} color="#1E4E8C" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon} onPress={handleLogout}>
+          <TouchableOpacity style={styles.headerIcon} onPress={() => router.replace('/')}>
             <Ionicons name="log-out-outline" size={24} color="#1E4E8C" />
           </TouchableOpacity>
         </View>
@@ -110,7 +60,7 @@ export default function HomeScreen() {
               <Text style={styles.heroBadgeText}>STUDENT PORTAL</Text>
             </View>
             <Text style={styles.heroTitle}>Welcome back,</Text>
-            <Text style={styles.heroTitle}>{firstName}</Text>
+            <Text style={styles.heroTitle}>Nicholas</Text>
             <Text style={styles.heroSubtitle}>
               Manage leave requests and track student attendance metrics.
             </Text>
@@ -194,67 +144,32 @@ export default function HomeScreen() {
               <Ionicons name="document-text-outline" size={20} color="#1E4E8C" />
               <Text style={styles.recentTitle}>Recent Requests</Text>
             </View>
-              {pendingCount > 0 && (
-              <View style={styles.newBadge}>
-                <Text style={styles.newBadgeText}>{pendingCount} NEW</Text>
-              </View>
-            )}
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>3 NEW</Text>
+            </View>
           </View>
           <Text style={styles.recentSubtitle}>Latest submissions from your department.</Text>
 
           {/* Request List */}
-          {loading ? (
-            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-              <ActivityIndicator size="large" color="#1E4E8C" />
-              <Text style={{ marginTop: 8, color: '#6B7280', fontSize: 12 }}>
-                Loading requests…
-              </Text>
-            </View>
-          ) : error ? (
-            <Text style={{ color: '#EF4444', fontSize: 12, textAlign: 'center', paddingVertical: 20 }}>
-              {error}
-            </Text>
-          ) : recentRequests.length === 0 ? (
-            <Text style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>
-              No requests yet. Submit your first one from the web portal.
-            </Text>
-          ) : (
-            <View style={styles.requestList}>
-              {recentRequests.map((item, index) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.requestItem,
-                    index !== recentRequests.length - 1 && styles.requestItemBorder,
-                  ]}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{item.initials || initials}</Text>
-                  </View>
-                  <View style={styles.requestInfo}>
-                    <Text style={styles.requestCode}>{item.id}</Text>
-                    <Text style={styles.requestType}>{item.type}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      item.status === 'Approved' ? styles.statusApproved : styles.statusPending,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        item.status === 'Approved' ? styles.statusTextApproved : styles.statusTextPending,
-                      ]}
-                    >
-                      {item.status}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={styles.requestArrow} />
+          <View style={styles.requestList}>
+            {recentRequests.map((item, index) => (
+              <View key={item.id} style={[styles.requestItem, index !== recentRequests.length - 1 && styles.requestItemBorder]}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{item.avatar}</Text>
                 </View>
-              ))}
-            </View>
-          )}
+                <View style={styles.requestInfo}>
+                  <Text style={styles.requestCode}>{item.code}</Text>
+                  <Text style={styles.requestType}>{item.type}</Text>
+                </View>
+                <View style={[styles.statusBadge, item.status === 'Approved' ? styles.statusApproved : styles.statusPending]}>
+                  <Text style={[styles.statusText, item.status === 'Approved' ? styles.statusTextApproved : styles.statusTextPending]}>
+                    {item.status}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={styles.requestArrow} />
+              </View>
+            ))}
+          </View>
 
           <TouchableOpacity style={styles.seeAllButton}>
             <Text style={styles.seeAllText}>SEE ALL ACTIVITY</Text>

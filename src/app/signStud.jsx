@@ -163,7 +163,7 @@ export default function SignUpScreen() {
                 style={[styles.tab, activeTab === 'Supervisor' && styles.activeTab]}
                 onPress={() => {
                   setActiveTab('Supervisor');
-                  router.push('/supReg'); // Navigates to Supervisor Registration
+                  router.push('signSup'); // Navigates to Supervisor Registration
                 }}
               >
                 <Ionicons name="person-outline" size={16} color={activeTab === 'Supervisor' ? '#1E429F' : '#6B7280'} />

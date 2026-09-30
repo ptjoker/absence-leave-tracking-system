@@ -92,11 +92,11 @@ export default function SignUpScreen() {
                 style={[styles.tab, activeTab === 'Student' && styles.activeTab]}
                 onPress={() => {
                   setActiveTab('Student Assistant');
-                  router.push('/signUp'); // Navigates to Supervisor Registration
+                  router.push('/signStud'); // Navigates to Supervisor Registration
                 }}
               >
                 <Ionicons name="school-outline" size={16} color={activeTab === 'Student' ? '#1E429F' : '#6B7280'} />
-                <Text style={[styles.tabText, activeTab === 'Student' && styles.activeTabText]}>Student/Assistant</Text>
+                <Text style={[styles.tabText, activeTab === 'Student' && styles.activeTabText]}>Student Assistant</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
