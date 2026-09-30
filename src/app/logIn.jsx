@@ -88,8 +88,8 @@ export default function LogInScreen() {
             resizeMode="contain" // 👈 2. Changed to contain so the logo fits nicely
           />
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>StudentAssistance</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
         </View>
 
