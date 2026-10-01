@@ -1,13 +1,14 @@
 // src/app/logOut.jsx
+import logoImg from "@/assets/images/logo.png"; // Import the logo image  
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,21 +25,17 @@ export default function LogOut() {
       
       {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="calendar" size={20} color="#FFFFFF" />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>StudentAssist</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
+        <Image
+            source={logoImg}
+            style={styles.iconContainer}
+            resizeMode="contain" 
+          />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
         </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#1E3A8A" />
-          </TouchableOpacity>
-        </View>
-      </View>
+        
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
@@ -153,7 +150,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 9,
     fontWeight: '600',
-    color: '#718096',
+    color: 'red',
     letterSpacing: 1,
   },
   headerRight: {

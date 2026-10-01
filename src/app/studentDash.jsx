@@ -28,16 +28,17 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Top Header Bar */}
       <View style={styles.headerBar}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="calendar" size={18} color="#FFFFFF" />
+
+        <Image
+            source={logoImg}
+            style={styles.iconContainer}
+            resizeMode="contain" 
+          />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
-          <View>
-            <Text style={styles.headerTitle}>StudentAssist</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
-          </View>
-        </View>
-        
+
         {/* Right side icons - Notice there is NO back arrow here */}
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIcon}>
@@ -218,45 +219,46 @@ const styles = StyleSheet.create({
     backgroundColor: '#A0C1DD',
   },
   // --- Header ---
-  headerBar: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  logoContainer: {
-    backgroundColor: '#2563EB',
-    padding: 8,
-    borderRadius: 8,
+  iconContainer: {
+    width: 40,
+    height: 40,
     marginRight: 10,
+  },
+  headerTextContainer: {
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#1A202C',
   },
   headerSubtitle: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#718096',
     letterSpacing: 1,
+    marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  headerIcon: {
-    marginLeft: 15,
-  },
-  scrollContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+  iconButton: {
+    marginLeft: 16,
   },
   // --- Hero Banner ---
   heroBanner: {

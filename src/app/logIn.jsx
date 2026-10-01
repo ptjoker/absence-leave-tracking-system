@@ -85,7 +85,7 @@ export default function LogInScreen() {
           <Image
             source={logoImg}
             style={styles.iconContainer}
-            resizeMode="contain" // 👈 2. Changed to contain so the logo fits nicely
+            resizeMode="contain" 
           />
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>iCenter</Text>
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#6B7280',
+    color: 'red',
     letterSpacing: 1,
     marginTop: 2,
   },
