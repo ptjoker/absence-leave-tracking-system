@@ -5,6 +5,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -19,6 +20,167 @@ import logoImg from '@/assets/images/logo.png';
 import { apiFetch, saveSession } from '@/lib/api';
 
 
+// ============================================================
+// FORGOT PASSWORD MODAL (inlined into this file)
+// ============================================================
+function ForgotPasswordModal({ visible, onClose }) {
+  const router = useRouter();
+
+  const [userId, setUserId] = useState('');
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = () => {
+    if (!userId.trim() || !email.trim()) {
+      Alert.alert('Missing details', 'Please enter both your User ID and email address.');
+      return;
+    }
+    if (!email.includes('@')) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+
+    // Simulate a request — replace with your API call later
+    setTimeout(() => {
+      setLoading(false);
+      Alert.alert(
+        'Reset Link Sent',
+        `If an account exists for ${email.trim()}, you will receive password reset instructions shortly.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setUserId('');
+              setEmail('');
+              onClose();
+            },
+          },
+        ]
+      );
+    }, 800);
+  };
+
+  const handleClose = () => {
+    setUserId('');
+    setEmail('');
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlayTouchable}
+          activeOpacity={1}
+          onPress={handleClose}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.modalSheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
+              <Ionicons name="close-circle" size={28} color="#A0AEC0" />
+            </TouchableOpacity>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="lock-open-outline" size={32} color="#1E429F" />
+              </View>
+
+              <Text style={styles.modalTitle}>Forgot your password?</Text>
+              <Text style={styles.modalSubtitle}>
+                Enter your User ID and registered email address. We'll send you instructions to reset your password.
+              </Text>
+
+              <View style={styles.modalInputGroup}>
+                <View style={styles.modalLabelRow}>
+                  <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.modalLabelIcon} />
+                  <Text style={styles.modalLabel}>
+                    User ID <Text style={styles.modalRequired}>*</Text>
+                  </Text>
+                </View>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Staff No. or Student No."
+                  placeholderTextColor="#6B7280"
+                  value={userId}
+                  onChangeText={setUserId}
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <View style={styles.modalLabelRow}>
+                  <Ionicons name="mail-outline" size={14} color="#6B7280" style={styles.modalLabelIcon} />
+                  <Text style={styles.modalLabel}>
+                    Email Address <Text style={styles.modalRequired}>*</Text>
+                  </Text>
+                </View>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="e.g. 123456789@tut4life.ac.za"
+                  placeholderTextColor="#6B7280"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.modalSubmitButton, loading && { opacity: 0.6 }]}
+                onPress={handleSubmit}
+                activeOpacity={0.8}
+                disabled={loading}
+              >
+                <Text style={styles.modalSubmitButtonText}>
+                  {loading ? 'Sending…' : 'Send Reset Link'}
+                </Text>
+                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.modalSubmitIcon} />
+              </TouchableOpacity>
+
+              <View style={styles.modalDivider} />
+
+              <View style={styles.modalHelpBox}>
+                <Ionicons name="information-circle-outline" size={22} color="#1E429F" style={styles.modalHelpIcon} />
+                <View style={styles.modalHelpTextContainer}>
+                  <Text style={styles.modalHelpTitle}>Need more help?</Text>
+                  <Text style={styles.modalHelpDesc}>
+                    If you don't remember your User ID or email, please{' '}
+                    <Text style={styles.modalLinkText}>contact IT Support</Text>.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.modalFooter}>
+                <Text style={styles.modalFooterText}>Remember your password? </Text>
+                <TouchableOpacity onPress={handleClose}>
+                  <Text style={styles.modalFooterLink}>Sign In</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+
+// ============================================================
+// MAIN LOGIN SCREEN
+// ============================================================
 export default function LogInScreen() {
   const router = useRouter();
   
@@ -29,6 +191,7 @@ export default function LogInScreen() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isForgotModalVisible, setIsForgotModalVisible] = useState(false);
 
   const handleLogIn = async () => {
     if (!email.trim() || !password) {
@@ -61,7 +224,6 @@ export default function LogInScreen() {
 
       // Route based on role.
       if (data.user.role === 'supervisor') {
-        // We'll wire supervisor screens later. For now, go to dashboard too.
         router.replace('/supervisorDash');
       } else {
         router.replace('/studentDash');
@@ -82,14 +244,20 @@ export default function LogInScreen() {
       >
         {/* Top Header Bar */}
         <View style={styles.header}>
-          <Image
-            source={logoImg}
-            style={styles.iconContainer}
-            resizeMode="contain" // 👈 2. Changed to contain so the logo fits nicely
-          />
+          {/* ✅ UPDATED: Logo is now clickable and navigates to index.jsx */}
+          <TouchableOpacity
+            onPress={() => router.push('/')}
+            activeOpacity={0.7}
+          >
+            <Image
+              source={logoImg}
+              style={styles.iconContainer}
+              resizeMode="contain" 
+            />
+          </TouchableOpacity>
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>StudentAssistance</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
         </View>
 
@@ -108,7 +276,6 @@ export default function LogInScreen() {
 
           {/* Role Selection Cards */}
           <View style={styles.rolesContainer}>
-            {/* Student Assistant Card */}
             <TouchableOpacity 
               style={[styles.roleCard, selectedRole === 'student' && styles.roleCardActive]}
               onPress={() => setSelectedRole('student')}
@@ -123,7 +290,6 @@ export default function LogInScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Supervisor Card */}
             <TouchableOpacity 
               style={[styles.roleCard, selectedRole === 'supervisor' && styles.roleCardActive]}
               onPress={() => setSelectedRole('supervisor')}
@@ -193,7 +359,7 @@ export default function LogInScreen() {
                 <Text style={styles.checkboxLabel}>Remember me</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => setIsForgotModalVisible(true)}>
                 <Text style={styles.forgotPassword}>Forgot password?</Text>
               </TouchableOpacity>
             </View>
@@ -208,9 +374,23 @@ export default function LogInScreen() {
               <Text style={styles.logInButtonText}>{loading ? 'Logging in…' : 'Log in'}</Text>
             </TouchableOpacity>
 
+            {/* Don't have an account? Sign Up */}
+            <View style={styles.signUpRow}>
+              <Text style={styles.signUpText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => router.push('/signStud')}>
+                <Text style={styles.signUpLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Forgot Password popup */}
+      <ForgotPasswordModal
+        visible={isForgotModalVisible}
+        onClose={() => setIsForgotModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -248,7 +428,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#6B7280',
+    color: 'red',
     letterSpacing: 1,
     marginTop: 2,
   },
@@ -399,5 +579,178 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  // Sign Up Row Styles
+  signUpRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  signUpText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  signUpLink: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
+  // ============================================================
+  // FORGOT PASSWORD MODAL STYLES
+  // ============================================================
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalOverlayTouchable: {
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'center',
+  },
+  modalSheet: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 32,
+    paddingBottom: 24,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 12,
+    zIndex: 10,
+  },
+  iconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 26,
+    paddingHorizontal: 4,
+  },
+  modalInputGroup: {
+    marginBottom: 16,
+  },
+  modalLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalLabelIcon: {
+    marginRight: 6,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  modalRequired: {
+    color: '#EF4444',
+  },
+  modalInput: {
+    backgroundColor: '#93B4D4',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  modalSubmitButton: {
+    flexDirection: 'row',
+    backgroundColor: '#1E429F',
+    borderRadius: 10,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  modalSubmitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalSubmitIcon: {
+    marginLeft: 8,
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 18,
+  },
+  modalHelpBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 18,
+  },
+  modalHelpIcon: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  modalHelpTextContainer: {
+    flex: 1,
+  },
+  modalHelpTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  modalHelpDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    lineHeight: 17,
+  },
+  modalLinkText: {
+    color: '#1E429F',
+    fontWeight: '600',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalFooterText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  modalFooterLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E429F',
   },
 });

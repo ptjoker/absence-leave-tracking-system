@@ -2,12 +2,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import {
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,17 +30,15 @@ export default function SecureSignOut() {
       
       {/* Top Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="school" size={20} color="#FFFFFF" />
+        <Image
+            source={logoImg}
+            style={styles.iconContainer}
+            resizeMode="contain" 
+          />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
-          <Text style={styles.headerTitle}>StudentAssistant</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="notifications-outline" size={22} color="#1E3A8A" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -128,36 +126,31 @@ const styles = StyleSheet.create({
   // --- Header ---
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 15,
     backgroundColor: '#FFFFFF',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  iconContainer: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    marginRight: 12,
   },
-  logoContainer: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#2563EB',
-    borderRadius: 6,
+  headerTextContainer: {
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#1A202C',
+    color: '#111827',
   },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    marginLeft: 16,
+  headerSubtitle: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'red',
+    letterSpacing: 1,
+    marginTop: 2,
   },
   // --- Content ---
   scrollContent: {

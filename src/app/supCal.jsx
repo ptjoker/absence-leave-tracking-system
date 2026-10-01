@@ -4,16 +4,16 @@ import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -319,15 +319,15 @@ export default function SupervisorDashboard() {
       {/* --- UPDATED Header (matches design in the image) --- */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Image
-            source={logoImg}
-            style={styles.iconContainer}
-            resizeMode="contain" 
-          />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>StudentAssistance</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
-          </View>
+        <Image
+              source={logoImg}
+              style={styles.iconContainer}
+              resizeMode="contain" 
+            />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>iCenter</Text>
+              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+            </View>
         </View>
 
         <View style={styles.headerRight}>
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 9,
     fontWeight: '600',
-    color: '#718096',
+    color: 'red',
     letterSpacing: 1,
     marginTop: 2,
   },

@@ -54,15 +54,15 @@ export default function SignUpScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Image
+         <Image
                 source={logoImg}
                 style={styles.iconContainer}
-                resizeMode="cover"
-            />
-            <View style={styles.headerTextContainer}>
-                 <Text style={styles.headerTitle}>StudentAssistance</Text>
-                 <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
-             </View>
+                resizeMode="contain" 
+              />
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerTitle}>iCenter</Text>
+                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+              </View>
           </View>
 
           {/* Hero Image */}
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#6B7280',
+    color: 'red',
     letterSpacing: 1,
     marginTop: 2,
   },

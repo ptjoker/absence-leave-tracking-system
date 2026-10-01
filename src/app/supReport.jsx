@@ -5,16 +5,16 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import {
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -298,11 +298,15 @@ export default function SupervisorReports() {
       {/* Top Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Image source={logoImg} style={styles.iconContainer} resizeMode="contain" />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>StudentAssistance</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
-          </View>
+            <Image
+              source={logoImg}
+              style={styles.iconContainer}
+              resizeMode="contain" 
+            />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>iCenter</Text>
+              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+            </View>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconButton}>
@@ -494,12 +498,40 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center' },
-  iconContainer: { width: 40, height: 40, marginRight: 10 },
-  headerTextContainer: { justifyContent: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: '#1A202C' },
-  headerSubtitle: { fontSize: 9, fontWeight: '600', color: '#718096', letterSpacing: 1, marginTop: 2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  headerLeft: {
+     flexDirection: 'row',
+     alignItems: 'center' 
+    },
+
+  iconContainer: { 
+    width: 40,
+    height: 40,
+    marginRight: 10 
+  },
+
+  headerTextContainer: {
+     justifyContent: 'center' 
+    },
+
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A202C'
+  },
+
+  headerSubtitle: { 
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'red',
+    letterSpacing: 1,
+    marginTop: 2 
+  },
+
+  headerRight: { 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
+  
   iconButton: { marginLeft: 16 },
 
   scrollContent: { padding: 20, paddingBottom: 100 },
