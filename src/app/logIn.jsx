@@ -244,11 +244,17 @@ export default function LogInScreen() {
       >
         {/* Top Header Bar */}
         <View style={styles.header}>
-          <Image
-            source={logoImg}
-            style={styles.iconContainer}
-            resizeMode="contain" 
-          />
+          {/* ✅ UPDATED: Logo is now clickable and navigates to index.jsx */}
+          <TouchableOpacity
+            onPress={() => router.push('/')}
+            activeOpacity={0.7}
+          >
+            <Image
+              source={logoImg}
+              style={styles.iconContainer}
+              resizeMode="contain" 
+            />
+          </TouchableOpacity>
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>iCenter</Text>
             <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
@@ -368,7 +374,7 @@ export default function LogInScreen() {
               <Text style={styles.logInButtonText}>{loading ? 'Logging in…' : 'Log in'}</Text>
             </TouchableOpacity>
 
-            {/* ✅ ADDED: Don't have an account? Sign Up */}
+            {/* Don't have an account? Sign Up */}
             <View style={styles.signUpRow}>
               <Text style={styles.signUpText}>Don't have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/signStud')}>
@@ -575,7 +581,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ✅ ADDED: Sign Up Row Styles
+  // Sign Up Row Styles
   signUpRow: {
     flexDirection: 'row',
     justifyContent: 'center',
