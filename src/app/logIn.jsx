@@ -62,9 +62,9 @@ export default function LogInScreen() {
       // Route based on role.
       if (data.user.role === 'supervisor') {
         // We'll wire supervisor screens later. For now, go to dashboard too.
-        router.replace('/studDash');
+        router.replace('/supervisorDash');
       } else {
-        router.replace('/studDash');
+        router.replace('/studentDash');
       }
     } catch (err) {
       console.error('Login error:', err);

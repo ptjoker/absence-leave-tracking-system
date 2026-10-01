@@ -151,9 +151,10 @@ export default function SignUpScreen() {
             <View style={styles.tabContainer}>
               <TouchableOpacity 
                 style={[styles.tab, activeTab === 'Student' && styles.activeTab]}
-                onPress={() => {setActiveTab('Student');
-                  router.push('/signUp');} // Navigates to Student Registration
-                }
+                onPress={() => {
+                  setActiveTab('Student');
+                  // Already on signStud — no navigation needed.
+                }}
               >
                 <Ionicons name="school-outline" size={16} color={activeTab === 'Student' ? '#1E429F' : '#6B7280'} />
                 <Text style={[styles.tabText, activeTab === 'Student' && styles.activeTabText]}>Student/Assistant</Text>
@@ -163,7 +164,7 @@ export default function SignUpScreen() {
                 style={[styles.tab, activeTab === 'Supervisor' && styles.activeTab]}
                 onPress={() => {
                   setActiveTab('Supervisor');
-                  router.push('signSup'); // Navigates to Supervisor Registration
+                  router.push('/signSup');
                 }}
               >
                 <Ionicons name="person-outline" size={16} color={activeTab === 'Supervisor' ? '#1E429F' : '#6B7280'} />
