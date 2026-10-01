@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker'; // ✅ added for dropdown
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
   Image,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -26,10 +26,6 @@ const LEVEL_OPTIONS = [
   { label: 'Postgraduate', value: 'postgraduate' },
 ];
 
-function levelLabel(value) {
-  return LEVEL_OPTIONS.find((o) => o.value === value)?.label || '';
-}
-
 export default function SignUpScreen() {
   const router = useRouter();
   
@@ -43,14 +39,15 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // ✅ added
   
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // ✅ added
   const [loading, setLoading] = useState(false);
-  const [showLevelPicker, setShowLevelPicker] = useState(false);
 
   const handleRegister = async () => {
     // Basic validation
-    if (!studentNo.trim() || !name.trim() || !surname.trim() || !course.trim() || !levelOfStudy || !email.trim() || !phone.trim() || !password) {
+    if (!studentNo.trim() || !name.trim() || !surname.trim() || !course.trim() || !levelOfStudy || !email.trim() || !phone.trim() || !password || !confirmPassword) {
       Alert.alert('Missing details', 'Please fill in all required fields.');
       return;
     }
@@ -64,6 +61,11 @@ export default function SignUpScreen() {
     }
     if (password.length < 8) {
       Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      return;
+    }
+    // ✅ added: confirm password match check
+    if (password !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'Please make sure both passwords are identical.');
       return;
     }
 
@@ -152,7 +154,7 @@ export default function SignUpScreen() {
               <TouchableOpacity 
                 style={[styles.tab, activeTab === 'Student' && styles.activeTab]}
                 onPress={() => {setActiveTab('Student');
-                  router.push('/signUp');} // Navigates to Student Registration
+                  router.push('/signUp');}
                 }
               >
                 <Ionicons name="school-outline" size={16} color={activeTab === 'Student' ? '#1E429F' : '#6B7280'} />
@@ -163,7 +165,7 @@ export default function SignUpScreen() {
                 style={[styles.tab, activeTab === 'Supervisor' && styles.activeTab]}
                 onPress={() => {
                   setActiveTab('Supervisor');
-                  router.push('signSup'); // Navigates to Supervisor Registration
+                  router.push('signSup');
                 }}
               >
                 <Ionicons name="person-outline" size={16} color={activeTab === 'Supervisor' ? '#1E429F' : '#6B7280'} />
@@ -210,22 +212,29 @@ export default function SignUpScreen() {
               <TextInput style={styles.input} placeholder="e.g. Dip Computer Science" placeholderTextColor="#6B7280" value={course} onChangeText={setCourse} />
             </View>
 
-            {/* Level of Study (Dropdown Look) */}
+            {/* ✅ UPDATED: Level of Study is now a dropdown */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Ionicons name="layers-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Level of Study <Text style={styles.required}>*</Text></Text>
               </View>
-              <TouchableOpacity
-                style={styles.dropdownInput}
-                activeOpacity={0.8}
-                onPress={() => setShowLevelPicker(true)}
-              >
-                <Text style={levelOfStudy ? styles.dropdownText : styles.dropdownPlaceholder}>
-                  {levelOfStudy ? levelLabel(levelOfStudy) : 'Select level of study'}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color="#374151" />
-              </TouchableOpacity>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={levelOfStudy}
+                  onValueChange={(value) => setLevelOfStudy(value)}
+                  style={styles.picker}
+                  dropdownIconColor="#374151"
+                >
+                  <Picker.Item label="Select level of study" value="" color="#6B7280" />
+                  {LEVEL_OPTIONS.map((option) => (
+                    <Picker.Item
+                      key={option.value}
+                      label={option.label}
+                      value={option.value}
+                    />
+                  ))}
+                </Picker>
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
@@ -276,6 +285,27 @@ export default function SignUpScreen() {
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* ✅ ADDED: Confirm Password Field */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Text style={styles.label}>Confirm Password</Text>
+              </View>
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="••••••••"
+                  placeholderTextColor="#6B7280"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                />
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                  <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -338,46 +368,6 @@ export default function SignUpScreen() {
 
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Level of Study Picker Modal */}
-      <Modal
-        visible={showLevelPicker}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLevelPicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowLevelPicker(false)}
-        >
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Select Level of Study</Text>
-            {LEVEL_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={styles.modalOption}
-                onPress={() => {
-                  setLevelOfStudy(option.value);
-                  setShowLevelPicker(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.modalOptionText,
-                    levelOfStudy === option.value && styles.modalOptionTextActive,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-                {levelOfStudy === option.value && (
-                  <Ionicons name="checkmark" size={20} color="#1E429F" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -568,6 +558,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#6B7280',
   },
+
+  // ✅ ADDED: Picker wrapper styles
+  pickerWrapper: {
+    backgroundColor: '#93B4D4',
+    borderRadius: 8,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    height: 52,
+  },
+  picker: {
+    width: '100%',
+    height: '100%',
+    color: '#1F2937',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
   
   // --- Password Field ---
   passwordWrapper: {
@@ -673,45 +679,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 20,
-  },
-    // --- Level Picker Modal ---
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 30,
-  },
-  modalSheet: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalOptionText: {
-    fontSize: 15,
-    color: '#374151',
-  },
-  modalOptionTextActive: {
-    color: '#1E429F',
-    fontWeight: '700',
   },
   brandingLogoRow: {
     flexDirection: 'row',
