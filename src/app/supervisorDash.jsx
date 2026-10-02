@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import logoImg from "@/assets/images/logo.png";
 
@@ -83,6 +83,7 @@ const StatCard = ({ title, value, iconName }) => (
 
 export default function SupervisorDashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets(); // ✅ Safe area insets
 
   const [requests, setRequests] = useState(initialRequests);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -112,7 +113,7 @@ export default function SupervisorDashboard() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       
       {/* Top Header */}
       <View style={styles.header}>
@@ -142,7 +143,14 @@ export default function SupervisorDashboard() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      {/* ✅ ScrollView padding now includes insets.bottom */}
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 100 + insets.bottom },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
@@ -233,8 +241,13 @@ export default function SupervisorDashboard() {
 
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
-      <View style={styles.bottomNav}>
+      {/* ✅ Bottom Navigation — padding now adapts to device */}
+      <View
+        style={[
+          styles.bottomNav,
+          { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 },
+        ]}
+      >
         <TouchableOpacity style={styles.navItem}>
           <Ionicons name="grid-outline" size={22} color="#1E3A8A" />
           <Text style={styles.navTextActive}>Home</Text>
@@ -466,7 +479,7 @@ const styles = StyleSheet.create({
   // --- Content ---
   scrollContent: {
     padding: 20,
-    paddingBottom: 100,
+    // paddingBottom is now set dynamically with insets
   },
   welcomeSection: {
     marginBottom: 24,
@@ -659,7 +672,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     paddingVertical: 10,
-    paddingBottom: 20,
+    // paddingBottom now applied dynamically with insets
     justifyContent: 'space-around',
     alignItems: 'center',
   },
