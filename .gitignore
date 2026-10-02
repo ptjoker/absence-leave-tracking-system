@@ -23,5 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-#Enviroment Files(Added by Thabang)
+#Enviroment Files
 .env
