@@ -17,8 +17,9 @@ import SupervisorRequestsPage from '@/pages/supervisor/Requestspage';
 import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage';
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import { ModeToggle, PortalShell } from '@/components/portal/PortalComponents';
-const queryClient = new QueryClient();
 
+const queryClient = new QueryClient();
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 /* Fixed, page-independent background photo shown behind every route. */
 function PhotoBackdrop() {
   return <div aria-hidden="true" className="app-photo-backdrop" />;
@@ -234,7 +235,7 @@ function LoginPage() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/api/login', {
+      const response = await fetch(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role }),
@@ -297,7 +298,7 @@ function SignupPage() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/api/register', {
+      const response = await fetch(`${API_BASE}/api/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
