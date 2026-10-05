@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import logoImg from '@/assets/images/logo.png';
 import { apiFetch, clearSession, getSession } from '@/lib/api';
 
 const { width } = Dimensions.get('window');
@@ -66,6 +67,11 @@ export default function HomeScreen() {
   const recentRequests = requests.slice(0, 3);
   const pendingCount = requests.filter((r) => r.status === 'Pending').length;
   const approvedCount = requests.filter((r) => r.status === 'Approved').length;
+  const rejectedCount = requests.filter((r) => r.status === 'Rejected').length;
+  const totalCount = requests.length;
+  const approvalRate = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
+  const mostRecentPending = requests.find((r) => r.status === 'Pending');
+  const mostRecentPendingId = mostRecentPending?.id || '—';
   const firstName = user?.first_name || 'Student';
   const initials = user
     ? `${(user.first_name || 'U')[0]}${(user.last_name || '')[0] || ''}`.toUpperCase()
@@ -149,8 +155,10 @@ export default function HomeScreen() {
               <Ionicons name="trending-up" size={16} color="#D97706" />
               <Text style={styles.performanceLabel}>PERFORMANCE</Text>
             </View>
-            <Text style={styles.performanceValue}>94%</Text>
-            <Text style={styles.performanceSub}>Semester Attendance Rate</Text>
+            <Text style={styles.performanceValue}>{approvalRate}%</Text>
+            <Text style={styles.performanceSub}>
+              Approval Rate ({approvedCount} of {totalCount})
+            </Text>
           </View>
           {/* Circular Progress Placeholder */}
           <View style={styles.circularProgress}>
@@ -165,13 +173,15 @@ export default function HomeScreen() {
             <View style={styles.statIconContainer}>
               <Ionicons name="time-outline" size={20} color="#2563EB" />
             </View>
-            <View style={styles.statBadge}>
-              <Text style={styles.statBadgeText}>+12%</Text>
-            </View>
+            {pendingCount > 0 && (
+              <View style={styles.statBadge}>
+                <Text style={styles.statBadgeText}>{pendingCount} New</Text>
+              </View>
+            )}
             <Text style={styles.statLabel}>PENDING</Text>
             <View style={styles.statValueRow}>
-              <Text style={styles.statValue}>REQ-03</Text>
-              <Text style={styles.statSubValue}>New</Text>
+              <Text style={styles.statValue}>{pendingCount}</Text>
+              <Text style={styles.statSubValue}>{mostRecentPendingId}</Text>
             </View>
           </View>
 
@@ -181,7 +191,7 @@ export default function HomeScreen() {
               <Ionicons name="checkmark-circle-outline" size={20} color="#2563EB" />
             </View>
             <Text style={styles.statLabel}>APPROVED</Text>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{approvedCount}</Text>
           </View>
         </View>
 
@@ -301,7 +311,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#A0C1DD',
   },
   // --- Header ---
-  header: {
+  headerBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',

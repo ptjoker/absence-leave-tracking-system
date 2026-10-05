@@ -1,8 +1,8 @@
-// src/app/supervisorDash.jsx
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Modal,
@@ -10,66 +10,14 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import logoImg from "@/assets/images/logo.png";
+import logoImg from '@/assets/images/logo.png';
+import { apiFetch, clearSession, getSession } from '@/lib/api';
 
-// Initial review requests with full info
-const initialRequests = [
-  {
-    id: 1,
-    name: 'Mathebula Nicholas',
-    initials: 'MN',
-    studentId: 'ST-2024-045',
-    email: 'mathebula.nicholas@university.edu',
-    reason: 'Academic Commitment',
-    type: 'LEAVE',
-    date: '25 AUG 2026',
-    period: '25 Aug - 28 Aug 2026',
-    duration: '4 days',
-    color: '#E9D8FD',
-    avatarColor: '#8B5CF6',
-    description:
-      'Requesting leave for the upcoming academic commitment. I have an exam scheduled and a workshop that overlaps with my regular shift hours. Please approve to allow adequate preparation time.',
-    status: 'PENDING',
-  },
-  {
-    id: 2,
-    name: 'Hlongwane Jan',
-    initials: 'HJ',
-    studentId: 'ST-2024-021',
-    email: 'hlongwane.jan@university.edu',
-    reason: 'Exam Period',
-    type: 'SHIFT SWAP',
-    date: '20 AUG 2026',
-    period: '20 Aug - 22 Aug 2026',
-    duration: '3 days',
-    color: '#E9D8FD',
-    avatarColor: '#8B5CF6',
-    description:
-      'Requesting shift swap for the exam period. I have three consecutive exams and need the time to prepare. I have already found a colleague to cover my shifts.',
-    status: 'PENDING',
-  },
-  {
-    id: 3,
-    name: 'Jeyane Duduzile',
-    initials: 'JD',
-    studentId: 'ST-2024-078',
-    email: 'jeyane.duduzile@university.edu',
-    reason: 'Medical Leave',
-    type: 'LEAVE',
-    date: '18 AUG 2026',
-    period: '18 Aug - 20 Aug 2026',
-    duration: '3 days',
-    color: '#E9D8FD',
-    avatarColor: '#8B5CF6',
-    description:
-      'Requesting medical leave due to a recent procedure. Medical certificate will be uploaded to the portal. I will keep my supervisor updated on my recovery status.',
-    status: 'PENDING',
-  },
-];
+
 
 const StatCard = ({ title, value, iconName }) => (
   <View style={styles.statCard}>
@@ -84,12 +32,88 @@ const StatCard = ({ title, value, iconName }) => (
 export default function SupervisorDashboard() {
   const router = useRouter();
 
-  const [requests, setRequests] = useState(initialRequests);
+  const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [assistantCount, setAssistantCount] = useState(0);
+
+  // Load requests + assistant count on mount.
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const session = await getSession();
+        if (!session?.user) {
+          router.replace('/logIn');
+          return;
+        }
+        setUser(session.user);
+
+        const res = await apiFetch('/api/requests');
+        if (res.status === 401) {
+          await clearSession();
+          router.replace('/logIn');
+          return;
+        }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setError(body.error || 'Could not load requests');
+          return;
+        }
+        const data = await res.json();
+
+        const mapped = (Array.isArray(data) ? data : []).map((r) => ({
+          id: r.rawId,
+          displayId: r.id,
+          name: r.name,
+          initials: r.initials,
+          studentId: r.studentNumber || '',
+          email: r.email || '',
+          reason: r.reason || r.type || '',
+          type: (r.type || '').toLowerCase().includes('shift') ? 'SHIFT SWAP' : 'LEAVE',
+          date: r.createdAt
+            ? new Date(r.createdAt)
+                .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                .toUpperCase()
+            : '',
+          period: r.dateRange || '',
+          duration: '',
+          color: '#E9D8FD',
+          avatarColor: '#8B5CF6',
+          description: r.detail || r.reason || 'No description provided.',
+          status:
+            r.status === 'Pending'
+              ? 'PENDING'
+              : r.status === 'Approved'
+              ? 'APPROVED'
+              : 'DECLINED',
+        }));
+
+        setRequests(mapped);
+
+        // Fetch assistant count separately (doesn't block the list).
+        try {
+          const aRes = await apiFetch('/api/assistants');
+          if (aRes.ok) {
+            const aData = await aRes.json();
+            setAssistantCount(Array.isArray(aData) ? aData.length : 0);
+          }
+        } catch {}
+      } catch (err) {
+        console.error('Supervisor dashboard load error:', err);
+        setError('Could not reach the server.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [router]);
 
   // Count pending dynamically
   const pendingCount = requests.filter((r) => r.status === 'PENDING').length;
+  const approvedCount = requests.filter((r) => r.status === 'APPROVED').length;
 
   // Open modal with the selected request
   const handleRequestPress = (item) => {
@@ -97,18 +121,37 @@ export default function SupervisorDashboard() {
     setIsModalVisible(true);
   };
 
-  // Approve or decline handler
-  const handleDecision = (id, newStatus) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-    );
-    setIsModalVisible(false);
-    setSelectedRequest(null);
+  // Approve or decline handler — persists to backend.
+  const handleDecision = async (id, newStatus) => {
+    const backendStatus = newStatus === 'APPROVED' ? 'Approved' : 'Rejected';
 
-    Alert.alert(
-      newStatus === 'APPROVED' ? 'Request Approved' : 'Request Declined',
-      `The request has been ${newStatus.toLowerCase()} successfully.`
-    );
+    try {
+      const res = await apiFetch(`/api/requests/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: backendStatus }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert('Error', body.error || 'Could not update request');
+        return;
+      }
+
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      );
+      setIsModalVisible(false);
+      setSelectedRequest(null);
+
+      Alert.alert(
+        newStatus === 'APPROVED' ? 'Request Approved' : 'Request Declined',
+        `The request has been ${newStatus.toLowerCase()} successfully.`
+      );
+    } catch (err) {
+      console.error('Decision error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    }
   };
 
   return (
@@ -131,7 +174,7 @@ export default function SupervisorDashboard() {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => router.push('/supNotif')}
+            onPress={() => router.push('/supNotification')}
           >
             <Ionicons name="notifications-outline" size={22} color="#1E3A8A" />
           </TouchableOpacity>
@@ -155,9 +198,9 @@ export default function SupervisorDashboard() {
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
           <StatCard title="PENDING REVIEW" value={String(pendingCount)} iconName="time-outline" />
-          <StatCard title="APPROVED" value="12" iconName="checkmark-circle-outline" />
-          <StatCard title="ASSISTANTS" value="18" iconName="people-outline" />
-          <StatCard title="CLOSURES" value="2" iconName="calendar-outline" />
+          <StatCard title="APPROVED" value={String(approvedCount)} iconName="checkmark-circle-outline" />
+          <StatCard title="ASSISTANTS" value={String(assistantCount)} iconName="people-outline" />
+          <StatCard title="SHIFT SWAPS" value={String(requests.filter((r) => r.type === 'SHIFT SWAP').length)} iconName="swap-horizontal-outline" />
         </View>
 
         {/* Section Header */}
@@ -173,7 +216,17 @@ export default function SupervisorDashboard() {
 
         {/* Review List */}
         <View style={styles.listContainer}>
-          {requests.length === 0 ? (
+          {loading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#1E3A8A" />
+              <Text style={styles.emptyStateText}>Loading requests…</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
+              <Text style={[styles.emptyStateText, { color: '#DC2626' }]}>{error}</Text>
+            </View>
+          ) : requests.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="checkmark-done-circle-outline" size={48} color="#CBD5E0" />
               <Text style={styles.emptyStateText}>No pending requests</Text>

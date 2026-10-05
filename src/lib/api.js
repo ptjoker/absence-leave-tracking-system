@@ -1,9 +1,8 @@
 // src/lib/api.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚠️ CHANGE THIS if your laptop's Wi-Fi IP changes.
-// Run `ipconfig` on your laptop to find the current IPv4 address.
-export const API_BASE = 'https://spas-latex-lib-cow.trycloudflare.com';
+//Connection to the backend, This is the URL of the backend server. It is used to make API requests to the backend.
+export const API_BASE = 'https://absence-tracker-backend.onrender.com';
 
 const SESSION_KEY = 'session';
 
