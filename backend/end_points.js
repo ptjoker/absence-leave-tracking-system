@@ -503,31 +503,32 @@ router.get('/requests', async (req, res) => {
       ORDER BY r.created_at DESC
     `;
 
-    const formatted = rows.map((row) => ({
-      id: `REQ-${String(row.display_seq).padStart(3, '0')}`,
-      rawId: row.id,
-      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
-      initials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(),
-      email: row.student_email || '',
-      type: row.type,
-      status: row.status,
-      dateRange: row.date_range,
-      detail: row.detail,
-      replacement: row.replacement,
-      reason: row.reason,
-      filed: 'Filed recently',
-      createdAt: row.created_at
-    }));
+    const formatted = rows.map((row) => ({ 
+  id: `REQ-${String(row.display_seq).padStart(3, '0')}`, 
+  rawId: row.id, 
+  name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown', 
+  initials: `${(row.first_name || 'U')[0]}${(row.last_name || '')[0] || ''}`.toUpperCase(), 
+  email: row.student_email || '', 
+  type: row.type, 
+  status: row.status, 
+  dateRange: row.date_range, 
+  detail: row.detail, 
+  replacement: row.replacement, 
+  reason: row.reason, 
+  declineReason: row.decline_reason || null,
+  filed: 'Filed recently', 
+  createdAt: row.created_at 
+}));
 
-    res.json(formatted);
+res.json(formatted); 
 
-  } catch (err) {
-    console.error('List requests error:', err);
+} catch (err) { 
+  console.error('List requests error:', err); 
 
-    res.status(500).json({
-      error: 'Could not load requests'
-    });
-  }
+  res.status(500).json({ 
+    error: 'Could not load requests' 
+  }); 
+}
 });
 
 
@@ -556,7 +557,7 @@ router.patch('/requests/:id/status', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason } = req.body;
 
     if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
       return res.status(400).json({
@@ -564,15 +565,27 @@ router.patch('/requests/:id/status', async (req, res) => {
       });
     }
 
+    // A reason is mandatory when declining; it is cleared for any other status.
+const declineReason = status === 'Rejected'
+  ? String(reason || '').trim().slice(0, 300)
+  : '';
+
+if (status === 'Rejected' && !declineReason) {
+  return res.status(400).json({
+    error: 'A reason is required to decline a request'
+  });
+}
+
     const updated = await sql`
-      UPDATE public.absence_requests
-      SET
-        status = ${status},
-        reviewed_by = ${user.id},
-        reviewed_at = NOW()
-      WHERE id = ${id}
-      RETURNING *
-    `;
+  UPDATE public.absence_requests 
+  SET 
+    status = ${status}, 
+    reviewed_by = ${user.id}, 
+    reviewed_at = NOW(),
+    decline_reason = ${declineReason || null}
+  WHERE id = ${id} 
+  RETURNING *
+`;
 
     if (updated.length === 0) {
       return res.status(404).json({
@@ -580,12 +593,13 @@ router.patch('/requests/:id/status', async (req, res) => {
       });
     }
 
-    res.json({
-      message: 'Status updated',
-      id: `REQ-${String(updated[0].id).padStart(3, '0')}`,
-      rawId: updated[0].id,
-      status: updated[0].status
-    });
+    res.json({ 
+  message: 'Status updated', 
+  id: `REQ-${String(updated[0].id).padStart(3, '0')}`, 
+  rawId: updated[0].id, 
+  status: updated[0].status,
+  declineReason: updated[0].decline_reason || null
+});
 
   } catch (err) {
     console.error('Update request status error:', err);
