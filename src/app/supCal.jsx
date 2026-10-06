@@ -1,4 +1,4 @@
-// src/app/supervisorDash.jsx
+// src/app/supCal.jsx
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
@@ -13,34 +13,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import logoImg from "@/assets/images/logo.png"; // Same logo path as other pages
+import logoImg from '@/assets/images/logo.png';
 
-// Combined list of assistants
-const assistants = [
-  { id: 1, name: 'Mathebula Nicholas', initials: 'MN', role: 'Student Assistant', status: 'ACTIVE', color: '#A78BFA' },
-  { id: 2, name: 'Jiyane Duduzile', initials: 'JD', role: 'Student Assistant', status: 'ACTIVE', color: '#A78BFA' },
-  { id: 3, name: 'Segomotsa Lencwe', initials: 'SM', role: 'Student Assistant', status: 'PENDING', color: '#A78BFA' },
-];
-
-// Initial dummy data for shifts per day
-const initialShiftRecords = {
-  '2026-08-05': [
-    { id: 1, assistant: 'Mathebula Nicholas', initials: 'MN', position: 'Icenter', time: '08:00 - 12:00', hours: '4h', color: '#A78BFA' },
-    { id: 2, assistant: 'Jiyane Duduzile', initials: 'JD', position: 'Help desk', time: '12:00 - 16:00', hours: '4h', color: '#A78BFA' },
-    { id: 3, assistant: 'Segomotsa Lencwe', initials: 'SM', position: 'Icenter', time: '16:00 - 18:00', hours: '2h', color: '#A78BFA' },
-  ],
-  '2026-08-06': [
-    { id: 1, assistant: 'Mathebula Nicholas', initials: 'MN', position: 'Icenter', time: '09:00 - 13:00', hours: '4h', color: '#A78BFA' },
-  ],
-  '2026-08-07': [
-    { id: 1, assistant: 'Jiyane Duduzile', initials: 'JD', position: 'Help desk', time: '10:00 - 14:00', hours: '4h', color: '#A78BFA' },
-    { id: 2, assistant: 'Segomotsa Lencwe', initials: 'SM', position: 'Icenter', time: '14:00 - 18:00', hours: '4h', color: '#A78BFA' },
-  ],
-};
 
 const formatDate = (date) => {
   if (!date) return '';
