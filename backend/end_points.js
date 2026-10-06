@@ -350,6 +350,13 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
+
+    if (profile[0].account_status === 'disabled') {
+  return res.status(403).json({
+    error: 'This account has been disabled. Please contact an administrator.'
+  });
+}
+
     if (role && profile[0].role !== role) {
       return res.status(403).json({
         error: 'Incorrect account type'
@@ -557,7 +564,7 @@ router.patch('/requests/:id/status', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const { status } = req.body;
 
     if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
       return res.status(400).json({
@@ -565,27 +572,15 @@ router.patch('/requests/:id/status', async (req, res) => {
       });
     }
 
-    // A reason is mandatory when declining; it is cleared for any other status.
-const declineReason = status === 'Rejected'
-  ? String(reason || '').trim().slice(0, 300)
-  : '';
-
-if (status === 'Rejected' && !declineReason) {
-  return res.status(400).json({
-    error: 'A reason is required to decline a request'
-  });
-}
-
     const updated = await sql`
-  UPDATE public.absence_requests 
-  SET 
-    status = ${status}, 
-    reviewed_by = ${user.id}, 
-    reviewed_at = NOW(),
-    decline_reason = ${declineReason || null}
-  WHERE id = ${id} 
-  RETURNING *
-`;
+      UPDATE public.absence_requests
+      SET
+        status = ${status},
+        reviewed_by = ${user.id},
+        reviewed_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `;
 
     if (updated.length === 0) {
       return res.status(404).json({
@@ -593,13 +588,12 @@ if (status === 'Rejected' && !declineReason) {
       });
     }
 
-    res.json({ 
-  message: 'Status updated', 
-  id: `REQ-${String(updated[0].id).padStart(3, '0')}`, 
-  rawId: updated[0].id, 
-  status: updated[0].status,
-  declineReason: updated[0].decline_reason || null
-});
+    res.json({
+      message: 'Status updated',
+      id: `REQ-${String(updated[0].id).padStart(3, '0')}`,
+      rawId: updated[0].id,
+      status: updated[0].status
+    });
 
   } catch (err) {
     console.error('Update request status error:', err);
@@ -1136,6 +1130,86 @@ router.post('/refresh', async (req, res) => {
 // ============================================
 // Admin endpoints
 // ============================================
+
+
+// GET /api/admin/overview
+router.get('/admin/overview', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized'
+      });
+    }
+
+    const callerProfile = await sql`
+      SELECT role
+      FROM public.profiles
+      WHERE id = ${user.id}
+      LIMIT 1
+    `;
+
+    if (callerProfile.length === 0) {
+      return res.status(404).json({
+        error: 'Admin profile not found'
+      });
+    }
+
+    if (callerProfile[0].role !== 'admin') {
+      return res.status(403).json({
+        error: 'Only admins can view the admin overview'
+      });
+    }
+
+    const totals = await sql`
+      SELECT
+        COUNT(*) FILTER (WHERE role = 'student')::int AS total_student_assistants,
+        COUNT(*) FILTER (WHERE role = 'supervisor')::int AS total_supervisors,
+        COUNT(*) FILTER (
+          WHERE role = 'student' AND account_status = 'active'
+        )::int AS active_student_assistants,
+        COUNT(*) FILTER (
+          WHERE role = 'supervisor' AND account_status = 'active'
+        )::int AS active_supervisors,
+        COUNT(*) FILTER (
+          WHERE role = 'student' AND account_status = 'disabled'
+        )::int AS disabled_student_assistants,
+        COUNT(*) FILTER (
+          WHERE role = 'supervisor' AND account_status = 'disabled'
+        )::int AS disabled_supervisors
+      FROM public.profiles
+      WHERE role IN ('student', 'supervisor')
+    `;
+
+    res.json({
+      success: true,
+      overview: {
+        totalStudentAssistants: totals[0].total_student_assistants,
+        totalSupervisors: totals[0].total_supervisors,
+        activeAccounts:
+          totals[0].active_student_assistants +
+          totals[0].active_supervisors,
+        disabledAccounts:
+          totals[0].disabled_student_assistants +
+          totals[0].disabled_supervisors,
+        activeStudentAssistants: totals[0].active_student_assistants,
+        activeSupervisors: totals[0].active_supervisors,
+        disabledStudentAssistants: totals[0].disabled_student_assistants,
+        disabledSupervisors: totals[0].disabled_supervisors
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin overview error:', error);
+
+    res.status(500).json({
+      error: 'Could not load admin overview'
+    });
+  }
+});
+
+
 
 // GET /api/admin/assistants
 router.get('/admin/assistants', async (req, res) => {
@@ -1679,6 +1753,98 @@ router.post('/admin/supervisors', async (req, res) => {
 });
 
 
+
+// ============================================
+// Admin - Activate / Deactivate Student Assistant
+// ============================================
+
+// PATCH /api/admin/assistants/:id/status
+router.patch('/admin/assistants/:id/status', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized'
+      });
+    }
+
+    const callerProfile = await sql`
+      SELECT role
+      FROM public.profiles
+      WHERE id = ${user.id}
+      LIMIT 1
+    `;
+
+    if (callerProfile.length === 0) {
+      return res.status(404).json({
+        error: 'Admin profile not found'
+      });
+    }
+
+    if (callerProfile[0].role !== 'admin') {
+      return res.status(403).json({
+        error: 'Only admins can activate or deactivate student assistants'
+      });
+    }
+
+    const { id } = req.params;
+    const { account_status } = req.body;
+
+    if (!['active', 'disabled'].includes(account_status)) {
+      return res.status(400).json({
+        error: 'Account status must be active or disabled'
+      });
+    }
+
+    const updatedRows = await sql`
+      UPDATE public.profiles
+      SET account_status = ${account_status}
+      WHERE id = ${id}
+        AND role = 'student'
+      RETURNING
+        id,
+        first_name,
+        last_name,
+        student_email,
+        role,
+        account_status
+    `;
+
+    if (updatedRows.length === 0) {
+      return res.status(404).json({
+        error: 'Student assistant not found'
+      });
+    }
+
+    const profile = updatedRows[0];
+
+    res.json({
+      success: true,
+      message:
+        account_status === 'disabled'
+          ? 'Student assistant account deactivated successfully'
+          : 'Student assistant account activated successfully',
+      assistant: {
+        id: profile.id,
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        studentEmail: profile.student_email || '',
+        role: profile.role,
+        accountStatus: profile.account_status
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin assistant status error:', error);
+
+    res.status(500).json({
+      error: 'Could not update student assistant account status'
+    });
+  }
+});
+
+
 // ============================================
 // Admin - Remove Student Assistant Account
 // ============================================
@@ -1807,6 +1973,97 @@ router.delete('/admin/assistants/:id', async (req, res) => {
 
     res.status(500).json({
       error: 'Could not remove student assistant account'
+    });
+  }
+});
+
+
+// ============================================
+// Admin - Activate / Deactivate Supervisor
+// ============================================
+
+// PATCH /api/admin/supervisors/:id/status
+router.patch('/admin/supervisors/:id/status', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized'
+      });
+    }
+
+    const callerProfile = await sql`
+      SELECT role
+      FROM public.profiles
+      WHERE id = ${user.id}
+      LIMIT 1
+    `;
+
+    if (callerProfile.length === 0) {
+      return res.status(404).json({
+        error: 'Admin profile not found'
+      });
+    }
+
+    if (callerProfile[0].role !== 'admin') {
+      return res.status(403).json({
+        error: 'Only admins can activate or deactivate supervisors'
+      });
+    }
+
+    const { id } = req.params;
+    const { account_status } = req.body;
+
+    if (!['active', 'disabled'].includes(account_status)) {
+      return res.status(400).json({
+        error: 'Account status must be active or disabled'
+      });
+    }
+
+    const updatedRows = await sql`
+      UPDATE public.profiles
+      SET account_status = ${account_status}
+      WHERE id = ${id}
+        AND role = 'supervisor'
+      RETURNING
+        id,
+        first_name,
+        last_name,
+        student_email,
+        role,
+        account_status
+    `;
+
+    if (updatedRows.length === 0) {
+      return res.status(404).json({
+        error: 'Supervisor not found'
+      });
+    }
+
+    const profile = updatedRows[0];
+
+    res.json({
+      success: true,
+      message:
+        account_status === 'disabled'
+          ? 'Supervisor account deactivated successfully'
+          : 'Supervisor account activated successfully',
+      supervisor: {
+        id: profile.id,
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        studentEmail: profile.student_email || '',
+        role: profile.role,
+        accountStatus: profile.account_status
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin supervisor status error:', error);
+
+    res.status(500).json({
+      error: 'Could not update supervisor account status'
     });
   }
 });
