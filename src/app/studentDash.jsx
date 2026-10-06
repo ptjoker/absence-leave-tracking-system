@@ -1,49 +1,103 @@
-// src/app/home.jsx (or dashboard.jsx, wherever you want this page)
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+
+import logoImg from '@/assets/images/logo.png';
+import { apiFetch, clearSession, getSession } from '@/lib/api';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
 
-  // Mock data for recent requests
-  const recentRequests = [
-    { id: '1', code: 'REQ-001', type: 'Medical Leave', status: 'Approved', avatar: 'NM' },
-    { id: '2', code: 'REQ-001', type: 'Medical Leave', status: 'Approved', avatar: 'NM' },
-    { id: '3', code: 'REQ-003', type: 'Sick Leave', status: 'Pending', avatar: 'NM' },
-  ];
+  const [user, setUser] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const session = await getSession();
+        if (!session?.user) {
+          router.replace('/logIn');
+          return;
+        }
+        setUser(session.user);
+
+        const res = await apiFetch('/api/requests');
+        if (res.status === 401) {
+          await clearSession();
+          router.replace('/logIn');
+          return;
+        }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          setError(body.error || 'Could not load requests');
+          return;
+        }
+        const data = await res.json();
+        setRequests(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Dashboard load error:', err);
+        setError('Could not reach the server.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await clearSession();
+    router.replace('/logIn');
+  };
+
+  const recentRequests = requests.slice(0, 3);
+  const pendingCount = requests.filter((r) => r.status === 'Pending').length;
+  const approvedCount = requests.filter((r) => r.status === 'Approved').length;
+  const rejectedCount = requests.filter((r) => r.status === 'Rejected').length;
+  const totalCount = requests.length;
+  const approvalRate = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0;
+  const mostRecentPending = requests.find((r) => r.status === 'Pending');
+  const mostRecentPendingId = mostRecentPending?.id || '—';
+  const firstName = user?.first_name || 'Student';
+  const initials = user
+    ? `${(user.first_name || 'U')[0]}${(user.last_name || '')[0] || ''}`.toUpperCase()
+    : 'U';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Top Header Bar */}
       <View style={styles.headerBar}>
-        <View style={styles.headerLeft}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="calendar" size={18} color="#FFFFFF" />
+
+        <Image
+            source={logoImg}
+            style={styles.iconContainer}
+            resizeMode="contain" 
+          />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
-          <View>
-            <Text style={styles.headerTitle}>StudentAssist</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
-          </View>
-        </View>
-        
+
         {/* Right side icons - Notice there is NO back arrow here */}
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIcon}>
             <Ionicons name="notifications-outline" size={24} color="#1E4E8C" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon} onPress={() => router.replace('/')}>
+          <TouchableOpacity style={styles.headerIcon} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color="#1E4E8C" />
           </TouchableOpacity>
         </View>
@@ -60,7 +114,7 @@ export default function HomeScreen() {
               <Text style={styles.heroBadgeText}>STUDENT PORTAL</Text>
             </View>
             <Text style={styles.heroTitle}>Welcome back,</Text>
-            <Text style={styles.heroTitle}>Nicholas</Text>
+            <Text style={styles.heroTitle}>{firstName}</Text> 
             <Text style={styles.heroSubtitle}>
               Manage leave requests and track student attendance metrics.
             </Text>
@@ -101,8 +155,10 @@ export default function HomeScreen() {
               <Ionicons name="trending-up" size={16} color="#D97706" />
               <Text style={styles.performanceLabel}>PERFORMANCE</Text>
             </View>
-            <Text style={styles.performanceValue}>94%</Text>
-            <Text style={styles.performanceSub}>Semester Attendance Rate</Text>
+            <Text style={styles.performanceValue}>{approvalRate}%</Text>
+            <Text style={styles.performanceSub}>
+              Approval Rate ({approvedCount} of {totalCount})
+            </Text>
           </View>
           {/* Circular Progress Placeholder */}
           <View style={styles.circularProgress}>
@@ -117,13 +173,15 @@ export default function HomeScreen() {
             <View style={styles.statIconContainer}>
               <Ionicons name="time-outline" size={20} color="#2563EB" />
             </View>
-            <View style={styles.statBadge}>
-              <Text style={styles.statBadgeText}>+12%</Text>
-            </View>
+            {pendingCount > 0 && (
+              <View style={styles.statBadge}>
+                <Text style={styles.statBadgeText}>{pendingCount} New</Text>
+              </View>
+            )}
             <Text style={styles.statLabel}>PENDING</Text>
             <View style={styles.statValueRow}>
-              <Text style={styles.statValue}>REQ-03</Text>
-              <Text style={styles.statSubValue}>New</Text>
+              <Text style={styles.statValue}>{pendingCount}</Text>
+              <Text style={styles.statSubValue}>{mostRecentPendingId}</Text>
             </View>
           </View>
 
@@ -133,7 +191,7 @@ export default function HomeScreen() {
               <Ionicons name="checkmark-circle-outline" size={20} color="#2563EB" />
             </View>
             <Text style={styles.statLabel}>APPROVED</Text>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{approvedCount}</Text>
           </View>
         </View>
 
@@ -144,32 +202,67 @@ export default function HomeScreen() {
               <Ionicons name="document-text-outline" size={20} color="#1E4E8C" />
               <Text style={styles.recentTitle}>Recent Requests</Text>
             </View>
-            <View style={styles.newBadge}>
-              <Text style={styles.newBadgeText}>3 NEW</Text>
-            </View>
+            {pendingCount > 0 && (
+              <View style={styles.newBadge}>
+                <Text style={styles.newBadgeText}>{pendingCount} NEW</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.recentSubtitle}>Latest submissions from your department.</Text>
 
-          {/* Request List */}
-          <View style={styles.requestList}>
-            {recentRequests.map((item, index) => (
-              <View key={item.id} style={[styles.requestItem, index !== recentRequests.length - 1 && styles.requestItemBorder]}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.avatar}</Text>
+                   {/* Request List */}
+          {loading ? (
+            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+              <ActivityIndicator size="large" color="#1E4E8C" />
+              <Text style={{ marginTop: 8, color: '#6B7280', fontSize: 12 }}>
+                Loading requests…
+              </Text>
+            </View>
+          ) : error ? (
+            <Text style={{ color: '#EF4444', fontSize: 12, textAlign: 'center', paddingVertical: 20 }}>
+              {error}
+            </Text>
+          ) : recentRequests.length === 0 ? (
+            <Text style={{ color: '#6B7280', fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>
+              No requests yet.
+            </Text>
+          ) : (
+            <View style={styles.requestList}>
+              {recentRequests.map((item, index) => (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.requestItem,
+                    index !== recentRequests.length - 1 && styles.requestItemBorder,
+                  ]}
+                >
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{item.initials || initials}</Text>
+                  </View>
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.requestCode}>{item.id}</Text>
+                    <Text style={styles.requestType}>{item.type}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      item.status === 'Approved' ? styles.statusApproved : styles.statusPending,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        item.status === 'Approved' ? styles.statusTextApproved : styles.statusTextPending,
+                      ]}
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={styles.requestArrow} />
                 </View>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.requestCode}>{item.code}</Text>
-                  <Text style={styles.requestType}>{item.type}</Text>
-                </View>
-                <View style={[styles.statusBadge, item.status === 'Approved' ? styles.statusApproved : styles.statusPending]}>
-                  <Text style={[styles.statusText, item.status === 'Approved' ? styles.statusTextApproved : styles.statusTextPending]}>
-                    {item.status}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={styles.requestArrow} />
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
 
           <TouchableOpacity style={styles.seeAllButton}>
             <Text style={styles.seeAllText}>SEE ALL ACTIVITY</Text>
@@ -223,40 +316,41 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 12,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  logoContainer: {
-    backgroundColor: '#2563EB',
-    padding: 8,
-    borderRadius: 8,
+  iconContainer: {
+    width: 40,
+    height: 40,
     marginRight: 10,
+  },
+  headerTextContainer: {
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#1A202C',
   },
   headerSubtitle: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#718096',
     letterSpacing: 1,
+    marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  headerIcon: {
-    marginLeft: 15,
-  },
-  scrollContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+  iconButton: {
+    marginLeft: 16,
   },
   // --- Hero Banner ---
   heroBanner: {

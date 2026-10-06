@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker'; // ✅ added for dropdown
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -14,32 +16,95 @@ import {
   View,
 } from 'react-native';
 
+import logoImg from "@/assets/images/logo.png";
+import { apiFetch } from '@/lib/api';
 
-import logoImg from "@/assets/images/logo.png"; // Import the image
+const LEVEL_OPTIONS = [
+  { label: 'First Year', value: 'first' },
+  { label: 'Second Year', value: 'second' },
+  { label: 'Third Year', value: 'third' },
+  { label: 'Postgraduate', value: 'postgraduate' },
+];
+
 export default function SignUpScreen() {
   const router = useRouter();
   
   // State for form fields
-  const [activeTab, setActiveTab] = useState('Supervisor');
-  const [staffNo, setStaffNo] = useState('');
-  const [name, setName] = useState('Jane');
-  const [surname, setSurname] = useState('Smith');
-  const [email, setEmail] = useState('jane.smith@university.edu');
-  const [phone, setPhone] = useState('+1 (555) 000-0000');
+  const [activeTab, setActiveTab] = useState('Student');
+  const [studentNo, setStudentNo] = useState('');
+  const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [course, setCourse] = useState('');
+  const [levelOfStudy, setLevelOfStudy] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // ✅ added
   
-  // State for password visibility
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // ✅ added
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
-    if (password !== confirmPassword) {
-      alert("Passwords don't match!");
+  const handleRegister = async () => {
+    // Basic validation
+    if (!studentNo.trim() || !name.trim() || !surname.trim() || !course.trim() || !levelOfStudy || !email.trim() || !phone.trim() || !password || !confirmPassword) {
+      Alert.alert('Missing details', 'Please fill in all required fields.');
       return;
     }
-    // Add your registration logic here
-    console.log('Registering:', { staffNo, name, surname, email, phone, password });
+    if (!email.includes('@')) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+    if (!phone.trim()) {
+      Alert.alert('Missing cell number', 'Please enter your cell number.');
+      return;
+    }
+    if (password.length < 8) {
+      Alert.alert('Weak password', 'Password must be at least 8 characters.');
+      return;
+    }
+    // ✅ added: confirm password match check
+    if (password !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'Please make sure both passwords are identical.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: name.trim(),
+          last_name: surname.trim(),
+          student_email: email.trim(),
+          student_number: studentNo.trim(),
+          course: course.trim(),
+          level_of_study: levelOfStudy,
+          cell_number: phone.trim(),
+          password,
+          role: 'student',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Registration failed', data.error || 'Please try again.');
+        return;
+      }
+
+      Alert.alert(
+        'Account created',
+        'Your account was created successfully. Please log in to continue.',
+        [{ text: 'OK', onPress: () => router.replace('/logIn') }]
+      );
+    } catch (err) {
+      console.error('Register error:', err);
+      Alert.alert('Connection error', 'Could not reach the server. Check the WiFi and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,20 +117,18 @@ export default function SignUpScreen() {
           contentContainerStyle={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Image
-                source={logoImg}
-                style={styles.iconContainer}
-                resizeMode="cover"
+          {/* Hero Image */}
+         <View style={styles.header}>
+          <Image
+              source={logoImg}
+              style={styles.iconContainer}
+              resizeMode="contain" 
             />
             <View style={styles.headerTextContainer}>
-                 <Text style={styles.headerTitle}>StudentAssistance</Text>
-                 <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
-             </View>
-          </View>
-
-          {/* Hero Image */}
+              <Text style={styles.headerTitle}>iCenter</Text>
+              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+            </View>  
+        </View>
           <View style={styles.imageContainer}>
             <Image
               source={{ uri: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop' }}
@@ -77,22 +140,22 @@ export default function SignUpScreen() {
           {/* Form Container */}
           <View style={styles.formContainer}>
             
-            {/* Faculty Access Label */}
+            {/* Portal Access Label */}
             <View style={styles.facultyAccessRow}>
-              <Ionicons name="shield-checkmark" size={16} color="#1E429F" />
-              <Text style={styles.facultyAccessText}>FACULTY ACCESS</Text>
+              <Ionicons name="person-add-outline" size={16} color="#1E429F" />
+              <Text style={styles.facultyAccessText}>PORTAL ACCESS</Text>
             </View>
 
-            <Text style={styles.title}>Supervisor Registration</Text>
-            <Text style={styles.subtitle}>Provide your staff details to join the portal.</Text>
+            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.subtitle}>Select your role and provide your academic details to join the portal.</Text>
 
             {/* Tabs */}
             <View style={styles.tabContainer}>
               <TouchableOpacity 
                 style={[styles.tab, activeTab === 'Student' && styles.activeTab]}
                 onPress={() => {
-                  setActiveTab('Student Assistant');
-                  router.push('/signUp'); // Navigates to Supervisor Registration
+                  setActiveTab('Student');
+                  // Already on signStud — no navigation needed.
                 }}
               >
                 <Ionicons name="school-outline" size={16} color={activeTab === 'Student' ? '#1E429F' : '#6B7280'} />
@@ -103,7 +166,7 @@ export default function SignUpScreen() {
                 style={[styles.tab, activeTab === 'Supervisor' && styles.activeTab]}
                 onPress={() => {
                   setActiveTab('Supervisor');
-                  router.push('/supReg'); // Navigates to Supervisor Registration
+                  router.push('/signSup');
                 }}
               >
                 <Ionicons name="person-outline" size={16} color={activeTab === 'Supervisor' ? '#1E429F' : '#6B7280'} />
@@ -114,15 +177,15 @@ export default function SignUpScreen() {
             {/* Form Fields */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
-                <Ionicons name="id-card-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Staff No. <Text style={styles.required}>*</Text></Text>
+                <Ionicons name="list-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Text style={styles.label}>Student Number <Text style={styles.required}>*</Text></Text>
               </View>
               <TextInput
                 style={styles.input}
-                placeholder="e.g. STF-882910"
+                placeholder="e.g. 202100123"
                 placeholderTextColor="#6B7280"
-                value={staffNo}
-                onChangeText={setStaffNo}
+                value={studentNo}
+                onChangeText={setStudentNo}
               />
             </View>
 
@@ -131,32 +194,59 @@ export default function SignUpScreen() {
                 <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Name <Text style={styles.required}>*</Text></Text>
               </View>
-              <TextInput
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-              />
+              <TextInput style={styles.input} placeholder="e.g. Sbongile" placeholderTextColor="#6B7280" value={name} onChangeText={setName} />
             </View>
 
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
-                <Ionicons name="business-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
                 <Text style={styles.label}>Surname <Text style={styles.required}>*</Text></Text>
               </View>
-              <TextInput
-                style={styles.input}
-                value={surname}
-                onChangeText={setSurname}
-              />
+              <TextInput style={styles.input} placeholder="e.g. Nkosi" placeholderTextColor="#6B7280" value={surname} onChangeText={setSurname} />
             </View>
 
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
-                <Ionicons name="at-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>University email <Text style={styles.required}>*</Text></Text>
+                <Ionicons name="book-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Text style={styles.label}>Course <Text style={styles.required}>*</Text></Text>
+              </View>
+              <TextInput style={styles.input} placeholder="e.g. Dip Computer Science" placeholderTextColor="#6B7280" value={course} onChangeText={setCourse} />
+            </View>
+
+            {/* ✅ UPDATED: Level of Study is now a dropdown */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Ionicons name="layers-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Text style={styles.label}>Level of Study <Text style={styles.required}>*</Text></Text>
+              </View>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={levelOfStudy}
+                  onValueChange={(value) => setLevelOfStudy(value)}
+                  style={styles.picker}
+                  dropdownIconColor="#374151"
+                >
+                  <Picker.Item label="Select level of study" value="" color="#6B7280" />
+                  {LEVEL_OPTIONS.map((option) => (
+                    <Picker.Item
+                      key={option.value}
+                      label={option.label}
+                      value={option.value}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <View style={styles.labelRow}>
+                <Ionicons name="mail-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+                <Text style={styles.label}>Student Email <Text style={styles.required}>*</Text></Text>
               </View>
               <TextInput
                 style={styles.input}
+                placeholder="e.g. 123456789@tut4life.ac.za"
+                placeholderTextColor="#6B7280"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -167,26 +257,28 @@ export default function SignUpScreen() {
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Ionicons name="call-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Cellphone number <Text style={styles.required}>*</Text></Text>
+                <Text style={styles.label}>Cell Number <Text style={styles.required}>*</Text></Text>
               </View>
               <TextInput
                 style={styles.input}
+                placeholder="e.g. 076 123 4567"
+                placeholderTextColor="#6B7280"
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
               />
             </View>
 
-            {/* --- NEW PASSWORD FIELDS --- */}
+            {/* Password Field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
+                <Text style={styles.label}>Password</Text>
               </View>
               <View style={styles.passwordWrapper}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="Enter your password"
+                  placeholder="••••••••"
                   placeholderTextColor="#6B7280"
                   value={password}
                   onChangeText={setPassword}
@@ -198,15 +290,16 @@ export default function SignUpScreen() {
               </View>
             </View>
 
+            {/* ✅ ADDED: Confirm Password Field */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
                 <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Confirm Password <Text style={styles.required}>*</Text></Text>
+                <Text style={styles.label}>Confirm Password</Text>
               </View>
               <View style={styles.passwordWrapper}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="Confirm your password"
+                  placeholder="••••••••"
                   placeholderTextColor="#6B7280"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
@@ -217,11 +310,17 @@ export default function SignUpScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            {/* --- END PASSWORD FIELDS --- */}
 
             {/* Submit Button */}
-            <TouchableOpacity style={styles.submitButton} onPress={handleRegister} activeOpacity={0.8}>
-              <Text style={styles.submitButtonText}>Complete Registration</Text>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && { opacity: 0.6 }]}
+              onPress={handleRegister}
+              activeOpacity={0.8}
+              disabled={loading}
+            >
+              <Text style={styles.submitButtonText}>
+                {loading ? 'Registering…' : 'Complete Registration'}
+              </Text>
               <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.submitIcon} />
             </TouchableOpacity>
 
@@ -241,8 +340,8 @@ export default function SignUpScreen() {
               <View style={styles.helpTextContainer}>
                 <Text style={styles.helpTitle}>Need help with registration?</Text>
                 <Text style={styles.helpDesc}>
-                  If you encounter any issues with the institutional verification or cannot find your department, please{' '}
-                  <Text style={styles.linkText}>reach out to our faculty support desk</Text>.
+                  If you encounter any issues with the institutional verification or cannot find your course, please{' '}
+                  <Text style={styles.linkText}>reach out to our admissions helpdesk</Text>.
                 </Text>
               </View>
             </View>
@@ -254,8 +353,20 @@ export default function SignUpScreen() {
                 <Text style={styles.footerLink}>Sign In</Text>
               </TouchableOpacity>
             </View>
-
           </View>
+
+          {/* Bottom Branding */}
+          <View style={styles.bottomBranding}>
+            <View style={styles.brandingLogoRow}>
+              <Ionicons name="school-outline" size={20} color="#1F2937" />
+              <Text style={styles.brandingTitle}>EduRegister</Text>
+            </View>
+            <Text style={styles.brandingCopyright}>© 2024 EduRegister Portal Ltd. All rights reserved.</Text>
+            <Text style={styles.brandingTagline}>
+              Empowering academic institutions with seamless user management and registration workflows.
+            </Text>
+          </View>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -275,42 +386,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // --- Header ---
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-  },
-  iconContainer: {
-    width: 45,
-    height: 45,
-    backgroundColor: '#2B4E9B',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  headerTextContainer: {
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6B7280',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
   // --- Hero Image ---
   imageContainer: {
     width: '100%',
-    height: 180,
+    height: 200,
     position: 'relative',
   },
   heroImage: {
@@ -365,6 +444,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 24,
+    lineHeight: 20,
   },
 
   // --- Tabs ---
@@ -380,7 +460,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 8,
   },
   activeTab: {
@@ -421,16 +501,82 @@ const styles = StyleSheet.create({
   required: {
     color: '#EF4444',
   },
+
+   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
+  },
+  iconContainer: {
+    width: 45,
+    height: 45,
+    backgroundColor: '#2B4E9B',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  headerTextContainer: {
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  headerSubtitle: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'red',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+
   input: {
-    backgroundColor: '#93B4D4', // Muted blue to match screenshot
+    backgroundColor: '#93B4D4',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
     color: '#1F2937',
   },
+  dropdownInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#93B4D4',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownText: {
+    fontSize: 15,
+    color: '#1F2937',
+  },
+    dropdownPlaceholder: {
+    fontSize: 15,
+    color: '#6B7280',
+  },
+
+  // ✅ ADDED: Picker wrapper styles
+  pickerWrapper: {
+    backgroundColor: '#93B4D4',
+    borderRadius: 8,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    height: 52,
+  },
+  picker: {
+    width: '100%',
+    height: '100%',
+    color: '#1F2937',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
   
-  // --- Password Fields ---
+  // --- Password Field ---
   passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,14 +611,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // --- Divider ---
+  // --- Divider & Terms ---
   divider: {
     height: 1,
     backgroundColor: '#E5E7EB',
     marginBottom: 20,
   },
-
-  // --- Terms ---
   termsText: {
     fontSize: 12,
     color: '#6B7280',
@@ -519,7 +663,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   footerText: {
     fontSize: 14,
@@ -529,5 +673,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#1E429F',
+  },
+
+  // --- Bottom Branding ---
+  bottomBranding: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  brandingLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  brandingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginLeft: 6,
+  },
+  brandingCopyright: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  brandingTagline: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: 20,
   },
 });

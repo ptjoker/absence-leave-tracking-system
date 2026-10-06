@@ -26,14 +26,15 @@ export default function WelcomeScreen() {
         {/* Header Section */}
         <View style={styles.header}>
           <Image
-              source={logoImg}
-              style={styles.iconContainer}
-              resizeMode="cover"
-            />
+            source={logoImg}
+            style={styles.iconContainer}
+            resizeMode="contain" 
+          />
           <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>StudentAssistance</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE TRACKER</Text>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
           </View>
+        
         </View>
 
         {/* Main Content Area */}
@@ -58,7 +59,7 @@ export default function WelcomeScreen() {
           <TouchableOpacity 
             style={styles.primaryButton} 
             activeOpacity={0.8}
-            onPress={() => router.push('/signUp')} 
+            onPress={() => router.push('/signStud')} 
           >
             <Text style={styles.primaryButtonText}>Sign Up</Text>
           </TouchableOpacity>
@@ -138,10 +139,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#111827',
   },
-  headerSubtitle: {
+headerSubtitle: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#6B7280',
+    color: 'red',
     letterSpacing: 1,
     marginTop: 2,
   },
