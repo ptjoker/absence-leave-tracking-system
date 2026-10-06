@@ -1,10 +1,12 @@
 // src/app/supRequest.jsx
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +16,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import logoImg from "@/assets/images/logo.png"; // Same logo path as supervisorDash.jsx
+import logoImg from "@/assets/images/logo.png";
+import { apiFetch } from '@/lib/api';
 
-// Reusable Submission Card Component
-const SubmissionCard = ({ item, onApprove, onReject }) => (
+const SubmissionCard = ({ item, onApprove, onReject, disabled }) => (
   <View style={styles.card}>
-    {/* Header Row */}
     <View style={styles.cardHeader}>
       <View style={styles.cardHeaderLeft}>
         <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
@@ -34,56 +35,55 @@ const SubmissionCard = ({ item, onApprove, onReject }) => (
 
     <View style={styles.divider} />
 
-    {/* Body */}
     <View style={styles.cardBody}>
       <Text style={styles.requestText}>{item.reason}</Text>
     </View>
 
-    {/* Meta Row */}
     <View style={styles.metaRow}>
       <View style={styles.dateContainer}>
         <Ionicons name="calendar-outline" size={16} color="#718096" style={styles.metaIcon} />
         <Text style={styles.dateText}>{item.date}</Text>
       </View>
       <View style={[
-        styles.statusBadge, 
-        item.status === 'APPROVED' && styles.statusApproved,
-        item.status === 'REJECTED' && styles.statusRejected,
-        item.status === 'PENDING' && styles.statusPending,
+        styles.statusBadge,
+        item.status === 'Approved' && styles.statusApproved,
+        item.status === 'Rejected' && styles.statusRejected,
+        item.status === 'Pending' && styles.statusPending,
       ]}>
-        <Ionicons 
-          name={item.status === 'PENDING' ? 'time-outline' : item.status === 'APPROVED' ? 'checkmark-circle-outline' : 'close-circle-outline'} 
-          size={12} 
-          color={item.status === 'APPROVED' ? '#16A34A' : item.status === 'REJECTED' ? '#DC2626' : '#B45309'} 
+        <Ionicons
+          name={item.status === 'Pending' ? 'time-outline' : item.status === 'Approved' ? 'checkmark-circle-outline' : 'close-circle-outline'}
+          size={12}
+          color={item.status === 'Approved' ? '#16A34A' : item.status === 'Rejected' ? '#DC2626' : '#B45309'}
           style={{ marginRight: 4 }}
         />
         <Text style={[
           styles.statusText,
-          item.status === 'APPROVED' && styles.statusTextApproved,
-          item.status === 'REJECTED' && styles.statusTextRejected,
-          item.status === 'PENDING' && styles.statusTextPending,
+          item.status === 'Approved' && styles.statusTextApproved,
+          item.status === 'Rejected' && styles.statusTextRejected,
+          item.status === 'Pending' && styles.statusTextPending,
         ]}>
-          {item.status}
+          {item.status.toUpperCase()}
         </Text>
       </View>
     </View>
 
-    {/* Action Buttons */}
-    {item.status === 'PENDING' && (
+    {item.status === 'Pending' && (
       <View style={styles.actionRow}>
-        <TouchableOpacity 
-          style={styles.actionButton} 
-          onPress={() => onReject(item.id)}
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => onReject(item)}
+          disabled={disabled}
         >
           <Ionicons name="close-circle-outline" size={20} color="#DC2626" style={{ marginRight: 6 }} />
           <Text style={styles.rejectText}>REJECT</Text>
         </TouchableOpacity>
-        
+
         <View style={styles.actionDivider} />
-        
-        <TouchableOpacity 
-          style={styles.actionButton} 
-          onPress={() => onApprove(item.id)}
+
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => onApprove(item)}
+          disabled={disabled}
         >
           <Ionicons name="checkmark-circle-outline" size={20} color="#16A34A" style={{ marginRight: 6 }} />
           <Text style={styles.approveText}>APPROVE</Text>
@@ -96,54 +96,103 @@ const SubmissionCard = ({ item, onApprove, onReject }) => (
 export default function SupervisorRequests() {
   const router = useRouter();
 
-  // Initial State for Submissions
-  const [submissions, setSubmissions] = useState([
-    {
-      id: 1,
-      name: 'Hlongwane Jan',
-      initials: 'HJ',
-      avatarColor: '#A78BFA',
-      type: 'SHIFT SWAP',
-      reason: 'Requesting to swap Friday Evening (6PM) shift with Saturday Morning (8AM) due to academic exam preparation.',
-      date: 'Oct 27 - Oct 28',
-      status: 'PENDING',
-    },
-    {
-      id: 2,
-      name: 'Jordan Smith',
-      initials: 'JS',
-      avatarColor: '#3B82F6',
-      type: 'LEAVE',
-      reason: 'Emergency family leave requested for three days. Documents will be uploaded to the portal by end of week.',
-      date: 'Oct 30 - Nov 02',
-      status: 'PENDING',
-    },
-  ]);
+  const [submissions, setSubmissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Handle Approve/Reject Actions
-  const handleAction = (id, newStatus) => {
-    setSubmissions(prev => 
-      prev.map(item => 
-        item.id === id ? { ...item, status: newStatus } : item
-      )
-    );
+  const loadRequests = async () => {
+    try {
+      const res = await apiFetch('/api/requests');
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Could not load requests.');
+        return;
+      }
+
+      const formatted = data.map((r) => ({
+        id: r.rawId || r.id,
+        name: r.name || 'Unknown',
+        initials: r.initials || '?',
+        avatarColor: '#A78BFA',
+        type: r.type || 'REQUEST',
+        reason: r.reason || r.detail || 'No details provided.',
+        date: r.dateRange || 'No date',
+        status: r.status || 'Pending',
+      }));
+
+      setSubmissions(formatted);
+    } catch (err) {
+      console.error('Load requests error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadRequests();
+  };
+
+  const handleAction = async (item, newStatus) => {
+    setBusyId(item.id);
+    try {
+      const res = await apiFetch(`/api/requests/${item.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Update failed', data.error || 'Please try again.');
+        return;
+      }
+
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.id === item.id ? { ...s, status: newStatus } : s
+        )
+      );
+    } catch (err) {
+      console.error('Update error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const filtered = submissions.filter((s) =>
+    s.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const pendingCount = submissions.filter((s) => s.status === 'Pending').length;
+  const approvedCount = submissions.filter((s) => s.status === 'Approved').length;
+  const total = submissions.length;
+  const approvalRate = total > 0 ? ((approvedCount / total) * 100).toFixed(1) : '0.0';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      
-      {/* Top Header (UPDATED to match supervisorDash.jsx) */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-        <Image
-              source={logoImg}
-              style={styles.iconContainer}
-              resizeMode="contain" 
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
-            </View>
+          <Image
+            source={logoImg}
+            style={styles.iconContainer}
+            resizeMode="contain"
+          />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>iCenter</Text>
+            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+          </View>
         </View>
 
         <View style={styles.headerRight}>
@@ -156,114 +205,108 @@ export default function SupervisorRequests() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Approval Rate Card */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.approvalCard}>
           <View style={styles.approvalIconContainer}>
             <Ionicons name="pie-chart-outline" size={20} color="#1E3A8A" />
           </View>
           <View style={styles.approvalTextContainer}>
             <Text style={styles.approvalLabel}>APPROVAL RATE</Text>
-            <Text style={styles.approvalValue}>82.5%</Text>
+            <Text style={styles.approvalValue}>{approvalRate}%</Text>
           </View>
         </View>
 
-        {/* Search Bar */}
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={20} color="#A0AEC0" style={styles.searchIcon} />
-          <TextInput 
+          <TextInput
             style={styles.searchInput}
             placeholder="Search by student name..."
             placeholderTextColor="#A0AEC0"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
 
-        {/* Filters */}
-        <View style={styles.filtersRow}>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="filter-outline" size={16} color="#4A5568" style={{ marginRight: 6 }} />
-            <Text style={styles.filterText}>Filter Type</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="calendar-outline" size={16} color="#4A5568" style={{ marginRight: 6 }} />
-            <Text style={styles.filterText}>This Month</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Section Title */}
         <View style={styles.sectionHeader}>
           <Ionicons name="swap-horizontal-outline" size={18} color="#1E3A8A" style={{ marginRight: 6 }} />
-          <Text style={styles.sectionTitle}>RECENT SUBMISSIONS</Text>
+          <Text style={styles.sectionTitle}>
+            RECENT SUBMISSIONS {pendingCount > 0 ? `(${pendingCount} PENDING)` : ''}
+          </Text>
         </View>
 
-        {/* Submissions List */}
-        {submissions.map((item) => (
-          <SubmissionCard 
-            key={item.id} 
-            item={item} 
-            onApprove={(id) => handleAction(id, 'APPROVED')}
-            onReject={(id) => handleAction(id, 'REJECTED')}
+        {loading && (
+          <Text style={{ textAlign: 'center', color: '#4A5568', paddingVertical: 20 }}>
+            Loading requests…
+          </Text>
+        )}
+
+        {!loading && filtered.length === 0 && (
+          <Text style={{ textAlign: 'center', color: '#4A5568', paddingVertical: 20 }}>
+            No requests to review.
+          </Text>
+        )}
+
+        {filtered.map((item) => (
+          <SubmissionCard
+            key={item.id}
+            item={item}
+            onApprove={(i) => handleAction(i, 'Approved')}
+            onReject={(i) => handleAction(i, 'Rejected')}
+            disabled={busyId === item.id}
           />
         ))}
 
-        {/* View All History Link */}
-        <TouchableOpacity style={styles.viewAllButton}>
-          <Text style={styles.viewAllText}>VIEW ALL HISTORY</Text>
-          <Ionicons name="chevron-forward" size={16} color="#1E3A8A" style={{ marginLeft: 4 }} />
-        </TouchableOpacity>
-
-        {/* Footer Note */}
         <View style={styles.footerNote}>
           <Ionicons name="information-circle-outline" size={18} color="#4A5568" style={{ marginRight: 10, marginTop: 2 }} />
           <Text style={styles.footerNoteText}>
             All changes are logged for institutional audit compliance. Decisions made here are final and notified to students immediately.
           </Text>
         </View>
-
       </ScrollView>
 
-      {/* --- BOTTOM NAVIGATION --- */}
       <View style={styles.bottomNav}>
-        {/* Home Tab */}
-        <TouchableOpacity 
-          style={styles.navItem} 
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => router.push('/supervisorDash')}
         >
           <Ionicons name="grid-outline" size={24} color="#6B7280" />
           <Text style={styles.navText}>Home</Text>
         </TouchableOpacity>
-        
-        {/* Requests Tab (Active) */}
+
         <TouchableOpacity style={styles.navItem}>
           <View style={styles.navIconContainer}>
             <Ionicons name="document-text" size={24} color="#2563EB" />
-            <View style={styles.navBadge}>
-              <Text style={styles.navBadgeText}>1</Text>
-            </View>
+            {pendingCount > 0 && (
+              <View style={styles.navBadge}>
+                <Text style={styles.navBadgeText}>{pendingCount}</Text>
+              </View>
+            )}
           </View>
           <Text style={[styles.navText, styles.navTextActive]}>Requests</Text>
         </TouchableOpacity>
 
-        {/* Calendar Tab -> Navigates to supCal.jsx */}
-        <TouchableOpacity 
-          style={styles.navItem} 
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => router.push('/supCal')}
         >
           <Ionicons name="calendar-outline" size={24} color="#6B7280" />
           <Text style={styles.navText}>Calendar</Text>
         </TouchableOpacity>
 
-        {/* Reports Tab */}
-        <TouchableOpacity 
-          style={styles.navItem} 
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => router.push('/supReport')}
         >
           <Ionicons name="bar-chart-outline" size={24} color="#6B7280" />
           <Text style={styles.navText}>Reports</Text>
         </TouchableOpacity>
       </View>
-
     </SafeAreaView>
   );
 }
@@ -271,9 +314,8 @@ export default function SupervisorRequests() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#8FB3D9', 
+    backgroundColor: '#8FB3D9',
   },
-  // --- Header (updated to match supervisorDash.jsx) ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -378,29 +420,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: '#1A202C',
-  },
-  filtersRow: {
-    flexDirection: 'row',
-    marginBottom: 24,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  filterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4A5568',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -548,25 +567,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#16A34A',
   },
-  viewAllButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginBottom: 10,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-  },
   footerNote: {
     flexDirection: 'row',
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 8,
     padding: 16,
     alignItems: 'flex-start',
+    marginTop: 10,
   },
   footerNoteText: {
     flex: 1,

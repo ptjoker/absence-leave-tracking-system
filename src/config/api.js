@@ -1,4 +1,4 @@
-export const API_BASE = 'https://runner-mango-washcloth.ngrok-free.dev';
+export const API_BASE = 'https://absence-tracker-backend.onrender.com';
 
 export async function apiCall(path, { method = 'GET', body, token } = {}) {
   const headers = {
