@@ -1,312 +1,133 @@
-// src/app/signOut.jsx
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import {
-  Platform,
-  ScrollView,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function SecureSignOut() {
-  const router = useRouter();
-
-  // Handle Confirm Logout -> Navigate to logOut.jsx
-  const handleConfirmLogout = () => {
-    // TODO: Clear user session / tokens here
-    router.replace('/logOut');
-  };
-
-  // Handle Cancel Logout -> Go back to previous screen
-  const handleCancelLogout = () => {
-    router.back();
-  };
-
+export default function LogoutModal({ visible, onClose, onConfirm }) {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      
-      {/* Top Header */}
-      <View style={styles.header}>
-        <Image
-            source={logoImg}
-            style={styles.iconContainer}
-            resizeMode="contain" 
-          />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>iCenter</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
+          
+          {/* Icon */}
+          <View style={styles.modalIconContainer}>
+            <Feather name="log-out" size={24} color="#EF4444" />
           </View>
-      </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Top Icon & Titles */}
-        <View style={styles.topSection}>
-          <View style={styles.shieldIconContainer}>
-            <Ionicons name="shield-checkmark" size={40} color="#1E3A8A" />
-          </View>
-          <Text style={styles.pageTitle}>Secure Sign Out</Text>
-          <Text style={styles.pageSubtitle}>STUDENT PORTAL SESSION MANAGEMENT</Text>
-        </View>
-
-        {/* Main Card */}
-        <View style={styles.mainCard}>
-          <Text style={styles.cardTitle}>Are you sure?</Text>
-          <Text style={styles.cardSubtitle}>
-            Confirming will end your current session. You will need to re-authenticate to access your student records.
+          {/* Text Content */}
+          <Text style={styles.modalTitle}>Log out?</Text>
+          <Text style={styles.modalSubtitle}>
+            {"You'll need to sign in again to access your dashboard."}
           </Text>
 
-          {/* Warning Box 1: Unsaved Changes */}
-          <View style={styles.warningBoxBlue}>
-            <View style={styles.warningIconContainerBlue}>
-              <Ionicons name="warning" size={18} color="#2563EB" />
-            </View>
-            <View style={styles.warningTextContainer}>
-              <Text style={styles.warningTitleBlue}>UNSAVED CHANGES</Text>
-              <Text style={styles.warningTextBlue}>
-                Please ensure any open request forms or schedule changes have been submitted before logging out to avoid data loss.
-              </Text>
-            </View>
-          </View>
-
-          {/* Warning Box 2: Public Computer */}
-          <View style={styles.warningBoxGrey}>
-            <View style={styles.warningIconContainerGrey}>
-              <Ionicons name="desktop-outline" size={18} color="#9CA3AF" />
-            </View>
-            <View style={styles.warningTextContainer}>
-              <Text style={styles.warningTitleGrey}>PUBLIC COMPUTER?</Text>
-              <Text style={styles.warningTextGrey}>
-                If you are using a public or shared device, remember to close all browser windows after signing out for maximum security.
-              </Text>
-            </View>
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.actionsContainer}>
-            {/* Confirm Logout Button -> Navigates to logOut.jsx */}
+          {/* Buttons */}
+          <View style={styles.modalActionRow}>
             <TouchableOpacity 
-              style={styles.confirmButton} 
-              onPress={() => router.push('/endSession')}
+              style={styles.modalCancelButton}
+              onPress={onClose}
             >
-                <Ionicons name="log-out-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.confirmButtonText}>Confirm Logout</Text>
+              <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
-
-            {/* Cancel Button */}
+            
             <TouchableOpacity 
-              style={styles.cancelButton} 
-              onPress={handleCancelLogout}
+              style={styles.modalLogoutButton}
+              onPress={onConfirm}   // ✅ FIXED: Passes the onConfirm handler
             >
-              <Ionicons name="close-circle-outline" size={20} color="#4A5568" style={{ marginRight: 8 }} />
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.modalLogoutText}>Log out</Text>
             </TouchableOpacity>
-          </View>
-
-          {/* Footer Note */}
-          <View style={styles.footerNote}>
-            <Ionicons name="lock-closed-outline" size={12} color="#A0AEC0" style={{ marginRight: 6 }} />
-            <Text style={styles.footerNoteText}>UNIVERSITY SECURITY STANDARD PROTOCOL</Text>
           </View>
 
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </Modal>
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: '#8FB3D9',
-  },
-  // --- Header ---
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-  },
-  iconContainer: {
-    width: 45,
-    height: 45,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  headerTextContainer: {
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'red',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
-  // --- Content ---
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 40,
-  },
-  // --- Top Section ---
-  topSection: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  shieldIconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Dark overlay
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    padding: 20,
   },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A202C',
-    marginBottom: 8,
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-  },
-  pageSubtitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#2563EB',
-    letterSpacing: 1.5,
-  },
-  // --- Main Card ---
-  mainCard: {
+  modalContainer: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 24,
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  cardTitle: {
-    fontSize: 22,
+  modalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEE2E2', // Light red background
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#1A202C',
+    color: '#111827', // Dark text
+    marginBottom: 8,
     textAlign: 'center',
-    marginBottom: 10,
   },
-  cardSubtitle: {
+  modalSubtitle: {
     fontSize: 14,
-    color: '#4A5568',
+    color: '#6B7280', // Muted text
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
   },
-  // --- Warning Boxes ---
-  warningBoxBlue: {
+  modalActionRow: {
     flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
+    width: '100%',
+    // Removed gap: 12 (Replaced with margins below for compatibility)
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  warningIconContainerBlue: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  warningTitleBlue: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  warningTextBlue: {
-    fontSize: 12,
-    color: '#1E40AF',
-    lineHeight: 16,
-  },
-  warningBoxGrey: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  warningIconContainerGrey: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  warningTitleGrey: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#4B5563',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  warningTextGrey: {
-    fontSize: 12,
-    color: '#6B7280',
-    lineHeight: 16,
-  },
-  // --- Action Buttons ---
-  actionsContainer: {
-    marginBottom: 20,
-  },
-  confirmButton: {
-    flexDirection: 'row',
-    backgroundColor: '#2563EB',
-    borderRadius: 10,
-    paddingVertical: 16,
-    justifyContent: 'center',
+    borderColor: '#E5E7EB', // Light gray border
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 12,
+    marginRight: 6, // ✅ Added (replaces gap)
   },
-  confirmButtonText: {
+  modalCancelText: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalLogoutButton: {
+    flex: 1,
+    backgroundColor: '#2563EB', // Primary blue
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginLeft: 6, // ✅ Added (replaces gap)
+  },
+  modalLogoutText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  cancelButton: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    paddingVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#4A5568',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  // --- Footer Note ---
-  footerNote: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  footerNoteText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#A0AEC0',
-    letterSpacing: 0.5,
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

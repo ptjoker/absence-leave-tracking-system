@@ -1,14 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker'; // ✅ added for dropdown
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
+  ImageBackground,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -16,692 +13,407 @@ import {
   View,
 } from 'react-native';
 
-import logoImg from "@/assets/images/logo.png";
-import { apiFetch } from '@/lib/api';
-
-const LEVEL_OPTIONS = [
-  { label: 'First Year', value: 'first' },
-  { label: 'Second Year', value: 'second' },
-  { label: 'Third Year', value: 'third' },
-  { label: 'Postgraduate', value: 'postgraduate' },
-];
+// --- Theme Colors ---
+const COLORS = {
+  primary: '#2563EB',
+  darkBlue: '#1E3A8A',
+  textMain: '#111827',
+  textMuted: '#6B7280',
+  bg: '#FFFFFF',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+  inputBg: '#F9FAFB',
+  toggleBg: '#F3F4F6',
+  danger: '#EF4444',
+};
 
 export default function SignUpScreen() {
   const router = useRouter();
-  
-  // State for form fields
-  const [activeTab, setActiveTab] = useState('Student');
-  const [studentNo, setStudentNo] = useState('');
-  const [name, setName] = useState('');
-  const [surname, setSurname] = useState('');
-  const [course, setCourse] = useState('');
-  const [levelOfStudy, setLevelOfStudy] = useState('');
+  const [accountType, setAccountType] = useState('student');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [studentNumber, setStudentNumber] = useState('');
+  const [course, setCourse] = useState('');
+  const [currentYear, setCurrentYear] = useState('');
+  const [cellNumber, setCellNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); // ✅ added
-  
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // ✅ added
-  const [loading, setLoading] = useState(false);
-
-  const handleRegister = async () => {
-    // Basic validation
-    if (!studentNo.trim() || !name.trim() || !surname.trim() || !course.trim() || !levelOfStudy || !email.trim() || !phone.trim() || !password || !confirmPassword) {
-      Alert.alert('Missing details', 'Please fill in all required fields.');
-      return;
-    }
-    if (!email.includes('@')) {
-      Alert.alert('Invalid email', 'Please enter a valid email address.');
-      return;
-    }
-    if (!phone.trim()) {
-      Alert.alert('Missing cell number', 'Please enter your cell number.');
-      return;
-    }
-    if (password.length < 8) {
-      Alert.alert('Weak password', 'Password must be at least 8 characters.');
-      return;
-    }
-    // ✅ added: confirm password match check
-    if (password !== confirmPassword) {
-      Alert.alert('Passwords do not match', 'Please make sure both passwords are identical.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await apiFetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          first_name: name.trim(),
-          last_name: surname.trim(),
-          student_email: email.trim(),
-          student_number: studentNo.trim(),
-          course: course.trim(),
-          level_of_study: levelOfStudy,
-          cell_number: phone.trim(),
-          password,
-          role: 'student',
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        Alert.alert('Registration failed', data.error || 'Please try again.');
-        return;
-      }
-
-      Alert.alert(
-        'Account created',
-        'Your account was created successfully. Please log in to continue.',
-        [{ text: 'OK', onPress: () => router.replace('/logIn') }]
-      );
-    } catch (err) {
-      console.error('Register error:', err);
-      Alert.alert('Connection error', 'Could not reach the server. Check the WiFi and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+
+      {/* Background Image with 70% White Overlay */}
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        style={styles.backgroundImage}
+        resizeMode="cover"
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Hero Image */}
-         <View style={styles.header}>
-          <Image
-              source={logoImg}
-              style={styles.iconContainer}
-              resizeMode="contain" 
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
-            </View>  
-        </View>
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop' }}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
+        <View style={styles.overlay} />
+
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+          {/* --- HEADER --- */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="school" size={28} color={COLORS.primary} />
+              <View style={styles.logoTextContainer}>
+                <Text style={styles.logoTitle}>iCenter</Text>
+                <Text style={styles.logoSubtitle}>ABSENCE AND LEAVE TRACKER</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.themeToggle}>
+              <Feather name="moon" size={14} color={COLORS.textMuted} />
+              <Text style={styles.themeText}>
+                Change mode <Text style={{ color: '#F59E0B' }}>Dark</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Form Container */}
-          <View style={styles.formContainer}>
-            
-            {/* Portal Access Label */}
-            <View style={styles.facultyAccessRow}>
-              <Ionicons name="person-add-outline" size={16} color="#1E429F" />
-              <Text style={styles.facultyAccessText}>PORTAL ACCESS</Text>
+          {/* --- WELCOME SECTION (Left side on web) --- */}
+          <View style={styles.welcomeSection}>
+            <View style={styles.tag}>
+              <Text style={styles.tagDot}>●</Text>
+              <Text style={styles.tagText}>JOIN THE PORTAL</Text>
             </View>
+            <Text style={styles.welcomeTitle}>A better way to keep your records in order.</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Create one account for the attendance details that matter — with the right tools for your role and the people you work with.
+            </Text>
+            <View style={styles.securityNote}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.primary} />
+              <Text style={styles.securityText}>
+                Your information is protected by institutional security.
+              </Text>
+            </View>
+          </View>
 
-            <Text style={styles.title}>Create your account</Text>
-            <Text style={styles.subtitle}>Select your role and provide your academic details to join the portal.</Text>
+          {/* --- REGISTRATION CARD (Right side on web) --- */}
+          <View style={styles.card}>
+            <Text style={styles.cardTag}>ACCOUNT REGISTRATION</Text>
+            <Text style={styles.cardTitle}>Create your account</Text>
 
-            {/* Tabs */}
-            <View style={styles.tabContainer}>
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'Student' && styles.activeTab]}
-                onPress={() => {
-                  setActiveTab('Student');
-                  // Already on signStud — no navigation needed.
-                }}
+            {/* Account Type Toggle */}
+            <View style={styles.toggleContainer}>
+              <TouchableOpacity
+                style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
+                onPress={() => setAccountType('student')}
               >
-                <Ionicons name="school-outline" size={16} color={activeTab === 'Student' ? '#1E429F' : '#6B7280'} />
-                <Text style={[styles.tabText, activeTab === 'Student' && styles.activeTabText]}>Student/Assistant</Text>
+                <Feather name="user" size={14} color={accountType === 'student' ? COLORS.primary : COLORS.textMuted} />
+                <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
+                  Student assistant
+                </Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.tab, activeTab === 'Supervisor' && styles.activeTab]}
-                onPress={() => {
-                  setActiveTab('Supervisor');
-                  router.push('/signSup');
-                }}
+              <TouchableOpacity
+                style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
+                onPress={() => setAccountType('supervisor')}
               >
-                <Ionicons name="person-outline" size={16} color={activeTab === 'Supervisor' ? '#1E429F' : '#6B7280'} />
-                <Text style={[styles.tabText, activeTab === 'Supervisor' && styles.activeTabText]}>Supervisor</Text>
+                <Feather name="users" size={14} color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted} />
+                <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
+                  Supervisor
+                </Text>
               </TouchableOpacity>
             </View>
 
             {/* Form Fields */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="list-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Student Number <Text style={styles.required}>*</Text></Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
+                <Text style={styles.label}>First name <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Sarah"
+                    placeholderTextColor="#9CA3AF"
+                    value={firstName}
+                    onChangeText={setFirstName}
+                  />
+                </View>
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 202100123"
-                placeholderTextColor="#6B7280"
-                value={studentNo}
-                onChangeText={setStudentNo}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Name <Text style={styles.required}>*</Text></Text>
-              </View>
-              <TextInput style={styles.input} placeholder="e.g. Sbongile" placeholderTextColor="#6B7280" value={name} onChangeText={setName} />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Surname <Text style={styles.required}>*</Text></Text>
-              </View>
-              <TextInput style={styles.input} placeholder="e.g. Nkosi" placeholderTextColor="#6B7280" value={surname} onChangeText={setSurname} />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="book-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Course <Text style={styles.required}>*</Text></Text>
-              </View>
-              <TextInput style={styles.input} placeholder="e.g. Dip Computer Science" placeholderTextColor="#6B7280" value={course} onChangeText={setCourse} />
-            </View>
-
-            {/* ✅ UPDATED: Level of Study is now a dropdown */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="layers-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Level of Study <Text style={styles.required}>*</Text></Text>
-              </View>
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={levelOfStudy}
-                  onValueChange={(value) => setLevelOfStudy(value)}
-                  style={styles.picker}
-                  dropdownIconColor="#374151"
-                >
-                  <Picker.Item label="Select level of study" value="" color="#6B7280" />
-                  {LEVEL_OPTIONS.map((option) => (
-                    <Picker.Item
-                      key={option.value}
-                      label={option.label}
-                      value={option.value}
-                    />
-                  ))}
-                </Picker>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
+                <Text style={styles.label}>Last name <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Nkosi"
+                    placeholderTextColor="#9CA3AF"
+                    value={lastName}
+                    onChangeText={setLastName}
+                  />
+                </View>
               </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="mail-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Student Email <Text style={styles.required}>*</Text></Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 123456789@tut4life.ac.za"
-                placeholderTextColor="#6B7280"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="call-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Cell Number <Text style={styles.required}>*</Text></Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 076 123 4567"
-                placeholderTextColor="#6B7280"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            {/* Password Field */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Password</Text>
-              </View>
-              <View style={styles.passwordWrapper}>
+              <Text style={styles.label}>University email <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder="••••••••"
-                  placeholderTextColor="#6B7280"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
+                  style={styles.input}
+                  placeholder="studentnumber@tut4life.ac.za"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Student number <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="hash" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 20240123"
+                  placeholderTextColor="#9CA3AF"
+                  value={studentNumber}
+                  onChangeText={setStudentNumber}
+                />
+              </View>
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
+                <Text style={styles.label}>Course or department <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <Feather name="book" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Information Te..."
+                    placeholderTextColor="#9CA3AF"
+                    value={course}
+                    onChangeText={setCourse}
+                  />
+                </View>
+              </View>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
+                <Text style={styles.label}>Current year <Text style={styles.required}>*</Text></Text>
+                <TouchableOpacity style={styles.inputWrapper}>
+                  <Text style={[styles.input, !currentYear && { color: '#9CA3AF' }]}>
+                    {currentYear || 'Select year'}
+                  </Text>
+                  <Feather name="chevron-down" size={16} color={COLORS.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* ✅ ADDED: Confirm Password Field */}
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Confirm Password</Text>
-              </View>
-              <View style={styles.passwordWrapper}>
+              <Text style={styles.label}>Cell number <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="phone" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.passwordInput}
-                  placeholder="••••••••"
-                  placeholderTextColor="#6B7280"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
+                  style={styles.input}
+                  placeholder="e.g. 076 123 4567"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  value={cellNumber}
+                  onChangeText={setCellNumber}
                 />
-                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
-                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Submit Button */}
-            <TouchableOpacity
-              style={[styles.submitButton, loading && { opacity: 0.6 }]}
-              onPress={handleRegister}
-              activeOpacity={0.8}
-              disabled={loading}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
+                <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <Feather name="lock" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your passwo..."
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <Feather name="eye" size={16} color={COLORS.textMuted} />
+                </View>
+              </View>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
+                <Text style={styles.label}>Confirm password <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <Feather name="lock" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your passwo..."
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                  />
+                  <Feather name="eye" size={16} color={COLORS.textMuted} />
+                </View>
+              </View>
+            </View>
+
+            {/* Terms Checkbox */}
+            <TouchableOpacity 
+              style={styles.checkboxContainer} 
+              onPress={() => setAgreeTerms(!agreeTerms)}
             >
-              <Text style={styles.submitButtonText}>
-                {loading ? 'Registering…' : 'Complete Registration'}
+              <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                {agreeTerms && <Feather name="check" size={12} color="#FFF" />}
+              </View>
+              <Text style={styles.checkboxText}>
+                I agree to the StudentAssist <Text style={styles.linkText}>terms and privacy policy</Text> .
               </Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.submitIcon} />
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.divider} />
+            {/* Submit Button */}
+            <TouchableOpacity style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>
+                Create {accountType === 'student' ? 'student' : 'supervisor'} account
+              </Text>
+              <Feather name="arrow-right" size={16} color="#FFF" />
+            </TouchableOpacity>
 
-            {/* Terms & Privacy */}
-            <Text style={styles.termsText}>
-              By clicking "Complete Registration", you agree to the EduRegister Portal{' '}
-              <Text style={styles.linkText}>Terms of Service</Text> and{' '}
-              <Text style={styles.linkText}>Privacy Policy</Text>.
-            </Text>
-
-            {/* Help Box */}
-            <View style={styles.helpBox}>
-              <Ionicons name="information-circle-outline" size={24} color="#1E429F" style={styles.helpIcon} />
-              <View style={styles.helpTextContainer}>
-                <Text style={styles.helpTitle}>Need help with registration?</Text>
-                <Text style={styles.helpDesc}>
-                  If you encounter any issues with the institutional verification or cannot find your course, please{' '}
-                  <Text style={styles.linkText}>reach out to our admissions helpdesk</Text>.
-                </Text>
-              </View>
-            </View>
-
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
+            {/* Card Footer */}
+            <View style={styles.cardFooter}>
+              <Text style={styles.cardFooterText}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/logIn')}>
-                <Text style={styles.footerLink}>Sign In</Text>
+                <Text style={styles.registerLink}>Sign in</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Bottom Branding */}
-          <View style={styles.bottomBranding}>
-            <View style={styles.brandingLogoRow}>
-              <Ionicons name="school-outline" size={20} color="#1F2937" />
-              <Text style={styles.brandingTitle}>EduRegister</Text>
-            </View>
-            <Text style={styles.brandingCopyright}>© 2024 EduRegister Portal Ltd. All rights reserved.</Text>
-            <Text style={styles.brandingTagline}>
-              Empowering academic institutions with seamless user management and registration workflows.
-            </Text>
+          {/* --- PAGE FOOTER --- */}
+          <View style={styles.pageFooter}>
+            <Text style={styles.footerText}>Need help? </Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Contact iCenter support</Text>
+            </TouchableOpacity>
+            <Text style={styles.footerText}> • </Text>
+            <TouchableOpacity>
+              <Text style={styles.footerLink}>Return home</Text>
+            </TouchableOpacity>
           </View>
 
         </ScrollView>
-      </KeyboardAvoidingView>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#A0C1DD',
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)', // 70% white overlay
   },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContainer: {
+  scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
-  },
-
-  // --- Hero Image ---
-  imageContainer: {
-    width: '100%',
-    height: 200,
-    position: 'relative',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imageBadge: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    backgroundColor: '#1E429F',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  imageBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-
-  // --- Form Container ---
-  formContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    marginTop: -20,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    flex: 1,
-  },
-  facultyAccessRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  facultyAccessText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E429F',
-    letterSpacing: 1,
-    marginLeft: 6,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-
-  // --- Tabs ---
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    padding: 4,
-    marginBottom: 24,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginLeft: 6,
-  },
-  activeTabText: {
-    color: '#1E429F',
-  },
-
-  // --- Input Fields ---
-  inputGroup: {
-    marginBottom: 18,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  labelIcon: {
-    marginRight: 6,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  required: {
-    color: '#EF4444',
-  },
-
-   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-  },
-  iconContainer: {
-    width: 45,
-    height: 45,
-    backgroundColor: '#2B4E9B',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  headerTextContainer: {
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: 'red',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
-
-  input: {
-    backgroundColor: '#93B4D4',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#1F2937',
-  },
-  dropdownInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 20,
     justifyContent: 'space-between',
-    backgroundColor: '#93B4D4',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  dropdownText: {
-    fontSize: 15,
-    color: '#1F2937',
-  },
-    dropdownPlaceholder: {
-    fontSize: 15,
-    color: '#6B7280',
   },
 
-  // ✅ ADDED: Picker wrapper styles
-  pickerWrapper: {
-    backgroundColor: '#93B4D4',
-    borderRadius: 8,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    height: 52,
-  },
-  picker: {
-    width: '100%',
-    height: '100%',
-    color: '#1F2937',
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-  },
-  
-  // --- Password Field ---
-  passwordWrapper: {
+  // Header
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#93B4D4',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#1F2937',
-  },
-
-  // --- Submit Button ---
-  submitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#1E429F',
-    borderRadius: 10,
-    paddingVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
     marginBottom: 24,
   },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+  logoContainer: { flexDirection: 'row', alignItems: 'center' },
+  logoTextContainer: { marginLeft: 8 },
+  logoTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.darkBlue },
+  logoSubtitle: { fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 },
+  themeToggle: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  submitIcon: {
-    marginLeft: 8,
-  },
+  themeText: { fontSize: 10, color: COLORS.textMuted, marginLeft: 4 },
 
-  // --- Divider & Terms ---
-  divider: {
-    height: 1,
-    backgroundColor: '#E5E7EB',
-    marginBottom: 20,
+  // Welcome Section
+  welcomeSection: { marginBottom: 24 },
+  tag: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  tagDot: { color: COLORS.primary, fontSize: 10, marginRight: 6 },
+  tagText: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1 },
+  welcomeTitle: {
+    fontSize: 28, fontWeight: 'bold', color: COLORS.darkBlue,
+    fontFamily: 'serif', marginBottom: 12, lineHeight: 34,
   },
-  termsText: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  linkText: {
-    color: '#1E429F',
-    fontWeight: '600',
-  },
+  welcomeSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 20, marginBottom: 16 },
+  securityNote: { flexDirection: 'row', alignItems: 'flex-start' },
+  securityText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 8 },
 
-  // --- Help Box ---
-  helpBox: {
-    flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 30,
+  // Card
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  helpIcon: {
-    marginRight: 12,
-    marginTop: 2,
-  },
-  helpTextContainer: {
-    flex: 1,
-  },
-  helpTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  helpDesc: {
-    fontSize: 12,
-    color: '#6B7280',
-    lineHeight: 18,
-  },
+  cardTag: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
+  cardTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif', marginBottom: 20 },
 
-  // --- Footer ---
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 30,
+  // Toggle
+  toggleContainer: {
+    flexDirection: 'row', backgroundColor: COLORS.toggleBg,
+    borderRadius: 8, padding: 4, marginBottom: 20,
   },
-  footerText: {
-    fontSize: 14,
-    color: '#6B7280',
+  toggleButton: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 8, borderRadius: 6,
   },
-  footerLink: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E429F',
+  toggleButtonActive: {
+    backgroundColor: '#FFF',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1, shadowRadius: 2, elevation: 2,
   },
+  toggleText: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginLeft: 6 },
+  toggleTextActive: { color: COLORS.primary },
 
-  // --- Bottom Branding ---
-  bottomBranding: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  // Form Layout
+  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  halfWidth: { width: '48%' },
+  inputGroup: { marginBottom: 16 },
+  label: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 6 },
+  required: { color: COLORS.danger },
+  inputWrapper: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12,
   },
-  brandingLogoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+  inputIcon: { marginRight: 8 },
+  input: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.textMain },
+
+  // Checkbox
+  checkboxContainer: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20, marginTop: 8 },
+  checkbox: {
+    width: 18, height: 18, borderRadius: 4, borderWidth: 1,
+    borderColor: COLORS.textMuted, justifyContent: 'center',
+    alignItems: 'center', marginRight: 8, marginTop: 2,
   },
-  brandingTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginLeft: 6,
+  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  checkboxText: { fontSize: 12, color: COLORS.textMuted, flex: 1, lineHeight: 18 },
+  linkText: { color: COLORS.primary, fontWeight: 'bold' },
+
+  // Button
+  primaryButton: {
+    backgroundColor: COLORS.primary, flexDirection: 'row',
+    justifyContent: 'center', alignItems: 'center',
+    paddingVertical: 14, borderRadius: 8, marginBottom: 20,
   },
-  brandingCopyright: {
-    fontSize: 11,
-    color: '#6B7280',
-    marginBottom: 4,
+  primaryButtonText: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginRight: 8 },
+
+  // Card Footer
+  cardFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  cardFooterText: { fontSize: 12, color: COLORS.textMuted },
+  registerLink: { fontSize: 12, color: COLORS.primary, fontWeight: 'bold' },
+
+  // Page Footer
+  pageFooter: {
+    flexDirection: 'row', justifyContent: 'center',
+    alignItems: 'center', marginTop: 24, flexWrap: 'wrap',
   },
-  brandingTagline: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 16,
-    paddingHorizontal: 20,
-  },
+  footerText: { fontSize: 11, color: COLORS.textMuted },
+  footerLink: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
 });

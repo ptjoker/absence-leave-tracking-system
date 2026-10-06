@@ -1,966 +1,356 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { usePathname, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
+  ImageBackground, // <-- Added
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import logoImg from '@/assets/images/logo.png';
-import { apiFetch, clearSession, getSession } from '@/lib/api';
+// --- Theme Colors ---
+const COLORS = {
+  primary: '#2563EB',
+  darkBlue: '#1E3A8A',
+  textMain: '#111827',
+  textMuted: '#6B7280',
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+  pendingBg: '#FEF3C7',
+  pendingText: '#D97706',
+  iconBg: '#EFF6FF',
+  danger: '#EF4444',
+};
 
+// --- Mock Data ---
+const metrics = [
+  { id: 1, title: 'PENDING APPROVALS', value: '1', icon: 'clock', color: COLORS.primary },
+  { id: 2, title: 'APPROVED', value: '6', icon: 'check-circle', color: COLORS.primary },
+  { id: 3, title: 'ASSISTANTS', value: '3', icon: 'users', color: COLORS.primary },
+  { id: 4, title: 'TOTAL REQUESTS', value: '15', icon: 'clipboard', color: COLORS.primary },
+];
 
-
-const StatCard = ({ title, value, iconName }) => (
-  <View style={styles.statCard}>
-    <View style={styles.statHeader}>
-      <Text style={styles.statTitle}>{title}</Text>
-      <Ionicons name={iconName} size={16} color="#8FB3D9" />
-    </View>
-    <Text style={styles.statValue}>{value}</Text>
-  </View>
-);
+// --- Bottom Nav Items (Mapped to Pages) ---
+const NAV_ITEMS = [
+  { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
+  { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
+  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
+  { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
+  { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
+];
 
 export default function SupervisorDashboard() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const router = useRouter();
-  const insets = useSafeAreaInsets(); // ✅ Safe area insets
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
 
-  const [requests, setRequests] = useState([]);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [assistantCount, setAssistantCount] = useState(0);
-
-  // Load requests + assistant count on mount.
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const session = await getSession();
-        if (!session?.user) {
-          router.replace('/logIn');
-          return;
-        }
-        setUser(session.user);
-
-        const res = await apiFetch('/api/requests');
-        if (res.status === 401) {
-          await clearSession();
-          router.replace('/logIn');
-          return;
-        }
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body.error || 'Could not load requests');
-          return;
-        }
-        const data = await res.json();
-
-        const mapped = (Array.isArray(data) ? data : []).map((r) => ({
-          id: r.rawId,
-          displayId: r.id,
-          name: r.name,
-          initials: r.initials,
-          studentId: r.studentNumber || '',
-          email: r.email || '',
-          reason: r.reason || r.type || '',
-          type: (r.type || '').toLowerCase().includes('shift') ? 'SHIFT SWAP' : 'LEAVE',
-          date: r.createdAt
-            ? new Date(r.createdAt)
-                .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                .toUpperCase()
-            : '',
-          period: r.dateRange || '',
-          duration: '',
-          color: '#E9D8FD',
-          avatarColor: '#8B5CF6',
-          description: r.detail || r.reason || 'No description provided.',
-          status:
-            r.status === 'Pending'
-              ? 'PENDING'
-              : r.status === 'Approved'
-              ? 'APPROVED'
-              : 'DECLINED',
-        }));
-
-        setRequests(mapped);
-
-        // Fetch assistant count separately (doesn't block the list).
-        try {
-          const aRes = await apiFetch('/api/assistants');
-          if (aRes.ok) {
-            const aData = await aRes.json();
-            setAssistantCount(Array.isArray(aData) ? aData.length : 0);
-          }
-        } catch {}
-      } catch (err) {
-        console.error('Supervisor dashboard load error:', err);
-        setError('Could not reach the server.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [router]);
-
-  // Count pending dynamically
-  const pendingCount = requests.filter((r) => r.status === 'PENDING').length;
-  const approvedCount = requests.filter((r) => r.status === 'APPROVED').length;
-
-  // Open modal with the selected request
-  const handleRequestPress = (item) => {
-    setSelectedRequest(item);
-    setIsModalVisible(true);
-  };
-
-  // Approve or decline handler — persists to backend.
-  const handleDecision = async (id, newStatus) => {
-    const backendStatus = newStatus === 'APPROVED' ? 'Approved' : 'Rejected';
-
-    try {
-      const res = await apiFetch(`/api/requests/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: backendStatus }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        Alert.alert('Error', body.error || 'Could not update request');
-        return;
-      }
-
-      setRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
-      );
-      setIsModalVisible(false);
-      setSelectedRequest(null);
-
-      Alert.alert(
-        newStatus === 'APPROVED' ? 'Request Approved' : 'Request Declined',
-        `The request has been ${newStatus.toLowerCase()} successfully.`
-      );
-    } catch (err) {
-      console.error('Decision error:', err);
-      Alert.alert('Connection error', 'Could not reach the server.');
-    }
-  };
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-            <Image
-              source={logoImg}
-              style={styles.iconContainer}
-              resizeMode="contain" 
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
-            </View>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
 
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.push('/supNotification')}
-          >
-            <Ionicons name="notifications-outline" size={22} color="#1E3A8A" />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
-            <Ionicons name="log-out-outline" size={22} color="#1E3A8A" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ✅ ScrollView padding now includes insets.bottom */}
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: 100 + insets.bottom },
-        ]}
-        showsVerticalScrollIndicator={false}
+      {/* Background Image with 70% White Overlay */}
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        style={styles.backgroundImage}
+        resizeMode="cover"
       >
-        
-        {/* Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Supervisor Dashboard</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Manage student leave and absence tracking for the current semester.
-          </Text>
+        <View style={styles.overlay} />
+
+        {/* --- HEADER --- */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.themeToggle} onPress={toggleTheme}>
+            <Feather name={isDarkMode ? 'sun' : 'moon'} size={16} color={COLORS.textMuted} />
+            <Text style={styles.themeText}>
+              Change mode <Text style={{ color: '#F59E0B' }}>{isDarkMode ? 'Light' : 'Dark'}</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.userProfile}>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>Sbongile Monta</Text>
+              <Text style={styles.userRole}>Supervisor</Text>
+            </View>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>SM</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          <StatCard title="PENDING REVIEW" value={String(pendingCount)} iconName="time-outline" />
-          <StatCard title="APPROVED" value={String(approvedCount)} iconName="checkmark-circle-outline" />
-          <StatCard title="ASSISTANTS" value={String(assistantCount)} iconName="people-outline" />
-          <StatCard title="SHIFT SWAPS" value={String(requests.filter((r) => r.type === 'SHIFT SWAP').length)} iconName="swap-horizontal-outline" />
-        </View>
+        {/* --- MAIN SCROLLABLE CONTENT --- */}
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* Section Header */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Ionicons name="time-outline" size={16} color="#1E3A8A" style={styles.sectionIcon} />
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={styles.tag}>
+              <Text style={styles.tagText}>SUPERVISOR PORTAL</Text>
+            </View>
+            <Text style={styles.heroTitle}>Supervisor dashboard</Text>
+            <Text style={styles.heroSubtitle}>
+              Monitor incoming student assistant requests and keep operational decisions synchronized.
+            </Text>
+          </View>
+
+          {/* Metrics Grid */}
+          <View style={styles.metricsGrid}>
+            {metrics.map((item) => (
+              <View key={item.id} style={styles.metricCard}>
+                <View style={styles.metricHeader}>
+                  <Text style={styles.metricTitle}>{item.title}</Text>
+                  <Feather name={item.icon} size={16} color={COLORS.primary} />
+                </View>
+                <Text style={styles.metricValue}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Awaiting Review */}
+          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>AWAITING YOUR REVIEW</Text>
+            <TouchableOpacity onPress={() => router.push('/supRequest')}>
+              <Text style={styles.viewAllText}>VIEW ALL</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity>
-            <Text style={styles.viewAllText}>VIEW ALL</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Review List */}
-        <View style={styles.listContainer}>
-          {loading ? (
-            <View style={styles.emptyState}>
-              <ActivityIndicator size="large" color="#1E3A8A" />
-              <Text style={styles.emptyStateText}>Loading requests…</Text>
+          {/* Request Item */}
+          <View style={styles.requestCard}>
+            <View style={styles.requestInfo}>
+              <Text style={styles.requestName}>Peter Thomas</Text>
+              <Text style={styles.requestDetails}>Personal Issues · Oct 12, 2026 - Oct 13, 2026</Text>
             </View>
-          ) : error ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
-              <Text style={[styles.emptyStateText, { color: '#DC2626' }]}>{error}</Text>
-            </View>
-          ) : requests.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="checkmark-done-circle-outline" size={48} color="#CBD5E0" />
-              <Text style={styles.emptyStateText}>No pending requests</Text>
-            </View>
-          ) : (
-            requests.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.listItem}
-                activeOpacity={0.7}
-                onPress={() => handleRequestPress(item)}
-              >
-                {/* Avatar */}
-                <View style={[styles.avatar, { backgroundColor: item.color }]}>
-                  <Text style={styles.avatarText}>{item.initials}</Text>
-                </View>
-
-                {/* Details */}
-                <View style={styles.listItemDetails}>
-                  <Text style={styles.listItemName}>{item.name}</Text>
-                  <Text style={styles.listItemReason}>{item.reason}</Text>
-                  <Text style={styles.listItemDate}>{item.date}</Text>
-                </View>
-
-                {/* Status Badge & Arrow */}
-                <View style={styles.listItemRight}>
-                  <View
-                    style={[
-                      styles.badge,
-                      item.status === 'APPROVED' && styles.badgeApproved,
-                      item.status === 'DECLINED' && styles.badgeDeclined,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.badgeText,
-                        item.status === 'APPROVED' && styles.badgeTextApproved,
-                        item.status === 'DECLINED' && styles.badgeTextDeclined,
-                      ]}
-                    >
-                      {item.status}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color="#A0AEC0" />
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-
-        {/* Footer Note */}
-        <View style={styles.footerNote}>
-          <Text style={styles.footerNoteText}>
-            *Reviewing these requests ensures the iCenter remains adequately staffed during academic peak periods.
-          </Text>
-        </View>
-
-      </ScrollView>
-
-      {/* ✅ Bottom Navigation — padding now adapts to device */}
-      <View
-        style={[
-          styles.bottomNav,
-          { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 },
-        ]}
-      >
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="grid-outline" size={22} color="#1E3A8A" />
-          <Text style={styles.navTextActive}>Home</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/supRequest')}>
-          <View style={styles.navIconContainer}>
-            <Ionicons name="document-text-outline" size={22} color="#A0AEC0" />
-            <View style={styles.navBadge}>
-              <Text style={styles.navBadgeText}>1</Text>
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>Pending</Text>
             </View>
           </View>
-          <Text style={styles.navText}>Requests</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/supCal')}>
-          <Ionicons name="calendar-outline" size={24} color="#6B7280" />
-          <Text style={styles.navText}>Calendar</Text>
-        </TouchableOpacity>
+          {/* Operational Note */}
+          <View style={styles.noteSection}>
+            <Text style={styles.noteTitle}>Operational note</Text>
+            <Text style={styles.noteDesc}>
+              Approvals and rejections made from Operational Requests are written to the shared request store, so the student dashboard and history reflect the latest decision.
+            </Text>
+          </View>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push('/supReport')}>
-          <Ionicons name="bar-chart-outline" size={22} color="#A0AEC0" />
-          <Text style={styles.navText}>Reports</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Workflow Card */}
+          <View style={styles.workflowCard}>
+            <View style={styles.workflowIcon}>
+              <Feather name="refresh-cw" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.workflowTextContainer}>
+              <Text style={styles.workflowTitle}>Current workflow</Text>
+              <Text style={styles.workflowSteps}>STUDENT → SUPERVISOR → STUDENT</Text>
+            </View>
+          </View>
 
-      {/* --- REQUEST DETAILS MODAL --- */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isModalVisible}
-        onRequestClose={() => setIsModalVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsModalVisible(false)}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        {/* --- BOTTOM NAVIGATION BAR --- */}
+        <View
+          style={[
+            styles.bottomNav,
+            { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 },
+          ]}
         >
-          <TouchableOpacity
-            style={styles.modalContent}
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            {selectedRequest && (
-              <>
-                {/* Modal Header */}
-                <View style={styles.modalHeader}>
-                  <View style={styles.modalHeaderLeft}>
-                    <View
-                      style={[
-                        styles.modalAvatar,
-                        { backgroundColor: selectedRequest.avatarColor },
-                      ]}
-                    >
-                      <Text style={styles.modalAvatarText}>{selectedRequest.initials}</Text>
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.path;
+
+            return (
+              <TouchableOpacity
+                key={item.name}
+                style={styles.navItem}
+                activeOpacity={0.7}
+                onPress={() => router.push(item.path)}
+              >
+                <View style={styles.navIconContainer}>
+                  <Ionicons
+                    name={item.icon}
+                    size={22}
+                    color={isActive ? COLORS.primary : '#A0AEC0'}
+                  />
+                  {item.badge ? (
+                    <View style={styles.navBadge}>
+                      <Text style={styles.navBadgeText}>{item.badge}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalName} numberOfLines={1}>
-                        {selectedRequest.name}
-                      </Text>
-                      <Text style={styles.modalStudentId}>
-                        {selectedRequest.studentId}
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                    <Ionicons name="close-circle" size={28} color="#A0AEC0" />
-                  </TouchableOpacity>
+                  ) : null}
                 </View>
-
-                {/* Type Badge + Status */}
-                <View style={styles.badgeRow}>
-                  <View style={styles.typeBadge}>
-                    <Ionicons
-                      name={
-                        selectedRequest.type === 'LEAVE'
-                          ? 'calendar-clear-outline'
-                          : 'swap-horizontal-outline'
-                      }
-                      size={13}
-                      color="#1E3A8A"
-                      style={{ marginRight: 5 }}
-                    />
-                    <Text style={styles.typeBadgeText}>{selectedRequest.type}</Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.statusPill,
-                      selectedRequest.status === 'APPROVED' && styles.statusPillApproved,
-                      selectedRequest.status === 'DECLINED' && styles.statusPillDeclined,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        selectedRequest.status === 'APPROVED' &&
-                          styles.statusPillTextApproved,
-                        selectedRequest.status === 'DECLINED' &&
-                          styles.statusPillTextDeclined,
-                      ]}
-                    >
-                      {selectedRequest.status}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Info Rows */}
-                <View style={styles.infoSection}>
-                  <View style={styles.infoRow}>
-                    <Ionicons name="mail-outline" size={16} color="#718096" />
-                    <Text style={styles.infoLabel}>Email</Text>
-                    <Text style={styles.infoValue} numberOfLines={1}>
-                      {selectedRequest.email}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="calendar-outline" size={16} color="#718096" />
-                    <Text style={styles.infoLabel}>Period</Text>
-                    <Text style={styles.infoValue} numberOfLines={1}>
-                      {selectedRequest.period}
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="hourglass-outline" size={16} color="#718096" />
-                    <Text style={styles.infoLabel}>Duration</Text>
-                    <Text style={styles.infoValue}>{selectedRequest.duration}</Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="pricetag-outline" size={16} color="#718096" />
-                    <Text style={styles.infoLabel}>Reason</Text>
-                    <Text style={styles.infoValue}>{selectedRequest.reason}</Text>
-                  </View>
-                </View>
-
-                {/* Description */}
-                <Text style={styles.descriptionTitle}>Description</Text>
-                <ScrollView style={styles.descriptionScroll} showsVerticalScrollIndicator={false}>
-                  <Text style={styles.descriptionText}>{selectedRequest.description}</Text>
-                </ScrollView>
-
-                {/* Actions - only show if still pending */}
-                {selectedRequest.status === 'PENDING' ? (
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      style={styles.declineButton}
-                      onPress={() => handleDecision(selectedRequest.id, 'DECLINED')}
-                    >
-                      <Ionicons name="close-circle-outline" size={18} color="#DC2626" style={{ marginRight: 6 }} />
-                      <Text style={styles.declineButtonText}>Decline</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.approveButton}
-                      onPress={() => handleDecision(selectedRequest.id, 'APPROVED')}
-                    >
-                      <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.approveButtonText}>Approve</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.closeButton}
-                    onPress={() => setIsModalVisible(false)}
-                  >
-                    <Text style={styles.closeButtonText}>Close</Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
+                <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: {
+  container: { flex: 1, backgroundColor: COLORS.bg },
+
+  // Background Image & Overlay
+  backgroundImage: {
     flex: 1,
-    backgroundColor: '#8FB3D9',
+    width: '100%',
+    height: '100%',
   },
-  // --- Header ---
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)', // 70% white overlay
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: COLORS.border,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    marginRight: 10,
-  },
-  headerTextContainer: {
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A202C',
-  },
-  headerSubtitle: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: 'red',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    marginLeft: 16,
-  },
-  // --- Content ---
-  scrollContent: {
-    padding: 20,
-    // paddingBottom is now set dynamically with insets
-  },
-  welcomeSection: {
-    marginBottom: 24,
-  },
-  welcomeTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#1A202C',
-    marginBottom: 6,
-  },
-  welcomeSubtitle: {
-    fontSize: 14,
-    color: '#4A5568',
-    lineHeight: 20,
-  },
-  // --- Stats Grid ---
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  statHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#718096',
-    letterSpacing: 0.5,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A202C',
-  },
-  // --- Section Header ---
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 16,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionIcon: {
-    marginRight: 6,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E3A8A',
-  },
-  // --- List ---
-  listContainer: {
-    marginBottom: 20,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
+  themeToggle: { flexDirection: 'row', alignItems: 'center' },
+  themeText: { marginLeft: 6, fontSize: 12, color: COLORS.textMuted },
+  userProfile: { flexDirection: 'row', alignItems: 'center' },
+  userInfo: { alignItems: 'flex-end', marginRight: 8 },
+  userName: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
+  userRole: { fontSize: 10, color: COLORS.textMuted },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary,
+    justifyContent: 'center', alignItems: 'center',
   },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6B46C1',
+  avatarText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+
+  // Scroll Content
+  scrollContent: { padding: 16 },
+
+  // Hero Section
+  heroSection: { marginBottom: 20 },
+  tag: {
+    backgroundColor: COLORS.iconBg, alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4, marginBottom: 8,
   },
-  listItemDetails: {
-    flex: 1,
+  tagText: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1 },
+  heroTitle: { fontSize: 26, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif', marginBottom: 8 },
+  heroSubtitle: { fontSize: 14, color: COLORS.textMuted, lineHeight: 20 },
+
+  // Metrics Grid
+  metricsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    justifyContent: 'space-between', marginBottom: 24,
   },
-  listItemName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1A202C',
-    marginBottom: 2,
+  metricCard: {
+    width: '48%', backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
+    marginBottom: 12, borderWidth: 1, borderColor: COLORS.border,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
-  listItemReason: {
-    fontSize: 12,
-    color: '#4A5568',
-    marginBottom: 2,
+  metricHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 8,
   },
-  listItemDate: {
-    fontSize: 11,
-    color: '#A0AEC0',
+  metricTitle: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain, letterSpacing: 0.5 },
+  metricValue: { fontSize: 28, fontWeight: 'bold', color: COLORS.darkBlue },
+
+  // Awaiting Review
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 12,
   },
-  listItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sectionTitle: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain, letterSpacing: 1 },
+  viewAllText: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
+  requestCard: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: COLORS.card, padding: 16, borderRadius: 8,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 24,
   },
-  badge: {
-    borderWidth: 1,
-    borderColor: '#1E3A8A',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginRight: 8,
+  requestInfo: { flex: 1 },
+  requestName: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
+  requestDetails: { fontSize: 12, color: COLORS.textMuted },
+  statusBadge: {
+    backgroundColor: COLORS.pendingBg, paddingHorizontal: 10,
+    paddingVertical: 4, borderRadius: 12,
   },
-  badgeApproved: {
-    borderColor: '#16A34A',
+  statusText: { color: COLORS.pendingText, fontSize: 12, fontWeight: 'bold' },
+
+  // Operational Note
+  noteSection: { marginBottom: 24 },
+  noteTitle: { fontSize: 16, fontWeight: 'bold', fontStyle: 'italic', color: COLORS.textMain, marginBottom: 8 },
+  noteDesc: { fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
+
+  // Workflow Card
+  workflowCard: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card,
+    padding: 16, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
   },
-  badgeDeclined: {
-    borderColor: '#DC2626',
+  workflowIcon: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.iconBg,
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-  },
-  badgeTextApproved: {
-    color: '#16A34A',
-  },
-  badgeTextDeclined: {
-    color: '#DC2626',
-  },
-  // --- Empty State ---
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyStateText: {
-    fontSize: 13,
-    color: '#A0AEC0',
-    marginTop: 10,
-    fontStyle: 'italic',
-  },
-  // --- Footer Note ---
-  footerNote: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 8,
-    padding: 16,
-    marginTop: 10,
-  },
-  footerNoteText: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    color: '#2D3748',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  // --- Bottom Navigation ---
+  workflowTextContainer: { flex: 1 },
+  workflowTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
+  workflowSteps: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain, letterSpacing: 0.5 },
+
+  // Bottom Navigation Bar
   bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 10,
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingVertical: 10,
-    // paddingBottom now applied dynamically with insets
-    justifyContent: 'space-around',
-    alignItems: 'center',
   },
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 4,
+    minWidth: 55,
   },
   navIconContainer: {
     position: 'relative',
-  },
-  navText: {
-    fontSize: 10,
-    color: '#A0AEC0',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  navTextActive: {
-    fontSize: 10,
-    color: '#1E3A8A',
-    marginTop: 4,
-    fontWeight: '700',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navBadge: {
     position: 'absolute',
     top: -4,
-    right: -6,
-    backgroundColor: '#E53E3E',
+    right: -8,
+    backgroundColor: COLORS.danger,
     borderRadius: 8,
-    width: 16,
+    minWidth: 16,
     height: 16,
+    paddingHorizontal: 3,
     justifyContent: 'center',
     alignItems: 'center',
   },
   navBadgeText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 9,
     fontWeight: 'bold',
   },
-
-  // --- Modal Styles ---
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    width: '100%',
-    maxWidth: 420,
-    maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 14,
-  },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 10,
-  },
-  modalAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  modalAvatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  modalName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1A202C',
-    marginBottom: 2,
-  },
-  modalStudentId: {
-    fontSize: 11,
-    color: '#718096',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-
-  // Badge Row
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E0E7FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  typeBadgeText: {
+  navText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
+    color: COLORS.textMuted,
+    marginTop: 4,
   },
-  statusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    backgroundColor: '#FEF3C7',
-  },
-  statusPillApproved: {
-    backgroundColor: '#DCFCE7',
-  },
-  statusPillDeclined: {
-    backgroundColor: '#FEE2E2',
-  },
-  statusPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#B45309',
-    letterSpacing: 0.5,
-  },
-  statusPillTextApproved: {
-    color: '#16A34A',
-  },
-  statusPillTextDeclined: {
-    color: '#DC2626',
-  },
-
-  // Info Section
-  infoSection: {
-    backgroundColor: '#F7FAFC',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  infoLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#718096',
-    marginLeft: 8,
-    width: 70,
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: 12,
-    color: '#1A202C',
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-
-  // Description
-  descriptionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  descriptionScroll: {
-    maxHeight: 120,
-    marginBottom: 18,
-  },
-  descriptionText: {
-    fontSize: 13,
-    color: '#4A5568',
-    lineHeight: 20,
-  },
-
-  // Modal Actions
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  declineButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  declineButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  approveButton: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#16A34A',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  approveButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  closeButton: {
-    backgroundColor: '#EDF2F7',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#4A5568',
+  navTextActive: {
+    color: COLORS.primary,
+    fontWeight: 'bold',
   },
 });

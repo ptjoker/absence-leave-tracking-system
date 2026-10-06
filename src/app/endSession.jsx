@@ -1,300 +1,204 @@
-// src/app/logOut.jsx
-import logoImg from "@/assets/images/logo.png"; // Import the logo image  
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router'; // Assuming you are using Expo Router
 import {
-  Image,
-  ScrollView,
+  ImageBackground,
+  SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function LogOut() {
+// --- Theme Colors ---
+const COLORS = {
+  primary: '#2563EB', // Blue button
+  darkBlue: '#1E3A8A', // Heading text
+  textMain: '#111827',
+  textMuted: '#6B7280',
+  bg: '#FFFFFF',
+  border: '#E5E7EB',
+  successBg: '#D1FAE5', // Light green background for icon
+  successText: '#059669', // Green icon color
+  red: '#EF4444', // "TSHWANE UNIVERSITY..." text
+};
+
+export default function LogoutSuccessScreen() {
   const router = useRouter();
 
-  // Handle Sign In Again
-  const handleSignInAgain = () => {
-    router.replace('/logIn');
-  };
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       
-      {/* Top Header */}
-      <View style={styles.header}>
-        <Image
-            source={logoImg}
-            style={styles.iconContainer}
-            resizeMode="contain" 
-          />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>iCenter</Text>
-            <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
-          </View>
-        </View>
-        
+      {/* Background Image with Blur and Overlay */}
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        style={styles.backgroundImage}
+        blurRadius={8}
+      >
+        {/* White overlay to lighten the blurred background */}
+        <View style={styles.overlay} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Image Section with Badge */}
-        <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop' }} 
-            style={styles.headerImage} 
-          />
-          <View style={styles.checkBadge}>
-            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+        {/* --- HEADER --- */}
+        <View style={styles.header}>
+          <View style={styles.logoContainer}>
+            <View style={styles.logoIcon}>
+              <Ionicons name="school" size={16} color={COLORS.primary} />
+            </View>
+            <View>
+              <Text style={styles.logoText}>iCenter</Text>
+              <Text style={styles.logoSubtext}>ABSENCE AND LEAVE TRACKER</Text>
+            </View>
           </View>
         </View>
 
-        {/* Status Pill */}
-        <View style={styles.statusPill}>
-          <Text style={styles.statusPillText}>SESSION TERMINATED SUCCESSFULLY</Text>
-        </View>
+        {/* --- MAIN CONTENT (Centered Card) --- */}
+        <View style={styles.mainContent}>
+          <View style={styles.card}>
+            {/* Success Icon */}
+            <View style={styles.iconContainer}>
+              <Feather name="check" size={24} color={COLORS.successText} />
+            </View>
 
-        {/* Titles */}
-        <Text style={styles.title}>You have been signed out</Text>
-        <Text style={styles.subtitle}>
-          Thank you for using StudentAssist. Your session has been securely closed to protect your academic data.
-        </Text>
+            {/* University Name */}
+            <Text style={styles.universityText}>TSHWANE UNIVERSITY OF TECHNOLOGY</Text>
 
-        {/* Info Card 1: Encryption Status */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoCardHeader}>
-            <Ionicons name="shield-checkmark-outline" size={18} color="#1E3A8A" style={styles.infoIcon} />
-            <Text style={styles.infoCardTitle}>ENCRYPTION STATUS</Text>
+            {/* Main Heading */}
+            <Text style={styles.headingText}>You have been logged out.</Text>
+
+            {/* Subtitle */}
+            <Text style={styles.subtitleText}>
+              Your iCenter session has ended. Please sign in again to access the portal.
+            </Text>
+
+            {/* Sign In Button */}
+            <TouchableOpacity 
+              style={styles.signInButton}
+              onPress={() => router.push('/logIn')} // Navigate to your login page
+            >
+              <Text style={styles.signInButtonText}>Sign in again</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.infoCardText}>
-            All temporary browser data and local cache related to your session have been securely cleared.
-          </Text>
         </View>
 
-        {/* Info Card 2: Session Duration */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoCardHeader}>
-            <Ionicons name="time-outline" size={18} color="#1E3A8A" style={styles.infoIcon} />
-            <Text style={styles.infoCardTitle}>SESSION DURATION</Text>
-          </View>
-          <Text style={styles.infoCardText}>
-            Your session ended at 09:42 AM. Total active time: 42 minutes across 3 academic modules.
-          </Text>
-        </View>
-
-        {/* Sign In Again Button */}
-        <TouchableOpacity style={styles.primaryButton} onPress={handleSignInAgain}>
-          <Ionicons name="log-in-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-          <Text style={styles.primaryButtonText}>SIGN IN AGAIN</Text>
-          <Ionicons name="chevron-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
-
-        {/* Secondary Buttons Row */}
-        <View style={styles.secondaryButtonsRow}>
-          <TouchableOpacity style={styles.secondaryButton}>
-            <Ionicons name="open-outline" size={16} color="#1A202C" style={{ marginRight: 6 }} />
-            <Text style={styles.secondaryButtonText}>University Home</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.secondaryButton}>
-            <Ionicons name="help-circle-outline" size={16} color="#1A202C" style={{ marginRight: 6 }} />
-            <Text style={styles.secondaryButtonText}>Support Desk</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Footer Note */}
-        <Text style={styles.footerText}>
-          Your browser will automatically redirect to the home page in 30 seconds.
-        </Text>
-
-      </ScrollView>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
-    backgroundColor: '#8FB3D9',
+    backgroundColor: COLORS.bg,
   },
-  // --- Header ---
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)', // Light overlay to fade the blurred image
+  },
+  
+  // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   logoContainer: {
-    width: 36,
-    height: 36,
-    backgroundColor: '#1E3A8A',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A202C',
-  },
-  headerSubtitle: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: 'red',
-    letterSpacing: 1,
-  },
-  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // --- Content ---
-  scrollContent: {
-    padding: 20,
-    alignItems: 'center',
-    paddingBottom: 40,
-  },
-  // --- Image & Badge ---
-  imageContainer: {
-    position: 'relative',
-    marginBottom: 20,
-    marginTop: 10,
-  },
-  headerImage: {
-    width: 250,
-    height: 180,
-    borderRadius: 16,
-    resizeMode: 'cover',
-  },
-  checkBadge: {
-    position: 'absolute',
-    bottom: -15,
-    right: -15,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#22C55E', // Green
+  logoIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  // --- Status Pill ---
-  statusPill: {
-    backgroundColor: '#A7C7E7',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 20,
-  },
-  statusPillText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-  },
-  // --- Text ---
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A202C',
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 34,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#4A5568',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 30,
-    paddingHorizontal: 10,
-  },
-  // --- Info Cards ---
-  infoCard: {
-    width: '100%',
-    backgroundColor: '#D0E2F3',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#B0C4DE',
-  },
-  infoCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  infoIcon: {
     marginRight: 8,
   },
-  infoCardTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1E3A8A',
-    letterSpacing: 0.5,
-  },
-  infoCardText: {
-    fontSize: 12,
-    color: '#4A5568',
-    lineHeight: 16,
-  },
-  // --- Primary Button ---
-  primaryButton: {
-    flexDirection: 'row',
-    width: '100%',
-    backgroundColor: '#1E3A8A',
-    borderRadius: 10,
-    paddingVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 16,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
+  logoText: {
     fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontWeight: 'bold',
+    color: COLORS.darkBlue,
   },
-  // --- Secondary Buttons ---
-  secondaryButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 30,
+  logoSubtext: {
+    fontSize: 8,
+    color: COLORS.textMuted,
+    letterSpacing: 1,
   },
-  secondaryButton: {
-    flex: 0.48,
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    paddingVertical: 14,
+
+  // Main Content (Centering the card)
+  mainContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  secondaryButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1A202C',
-  },
-  // --- Footer ---
-  footerText: {
-    fontSize: 11,
-    color: '#718096',
-    textAlign: 'center',
-    lineHeight: 16,
     paddingHorizontal: 20,
+  },
+
+  // Card
+  card: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 16,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.successBg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  universityText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: COLORS.red,
+    letterSpacing: 1,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  headingText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.darkBlue,
+    fontFamily: 'serif',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  subtitleText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  signInButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 6,
+    width: '100%',
+    alignItems: 'center',
+  },
+  signInButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
