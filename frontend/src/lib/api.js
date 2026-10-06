@@ -1,6 +1,8 @@
 // frontend/src/lib/api.js
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
+export { API_BASE };
+
 function getSession() {
   try {
     const raw = localStorage.getItem('session');

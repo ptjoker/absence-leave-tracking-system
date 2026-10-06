@@ -19,10 +19,9 @@ import {
 } from 'lucide-react';
 import { PortalShell } from '@/components/portal/PortalComponents';
 import { useNotifications } from '@/context/NotificationsContext';
-import { useRequests } from '@/context/RequestsContext';
-import { declareInstitutionalClosure, removeInstitutionalClosure, useStrikeDays } from '@/lib/strikes';
+import { declareStrikeDay, removeStrikeDay, useStrikeDays } from '@/lib/strikes';
 import { institutionalStrikeNotification } from '@/lib/notifications';
-import { isPublicHoliday, isSunday, approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
+import { isPublicHoliday, isSunday } from '@/lib/schedule';
 import { useTimetables, formatFileSize } from '@/lib/timetables';
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -105,7 +104,6 @@ function StatCard({ label, value, accent = 'bg-[#1f70d0]' }) {
 
 export default function CalendarPage() {
   const [shifts, setShifts] = useState([]);
-  const { requests } = useRequests();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -115,8 +113,9 @@ export default function CalendarPage() {
   const [form, setForm] = useState({
     user_id: '',
     shift_date: '',
-    shift_time: 'Morning',
-    role: 'iCenter',
+    start_time: '08:00 AM',
+    end_time: '04:00 PM',
+    role: 'Library Assistant',
     location: 'Main Desk',
     notes: '',
   });
@@ -129,7 +128,6 @@ export default function CalendarPage() {
   const { push } = useNotifications();
   const [strikeDialog, setStrikeDialog] = useState(false);
   const [strikeReason, setStrikeReason] = useState('');
-  const [closureType, setClosureType] = useState('Strike');
   const timetables = useTimetables();
   const [timetableDialog, setTimetableDialog] = useState(false);
   const [timetableSearch, setTimetableSearch] = useState('');
@@ -209,8 +207,9 @@ export default function CalendarPage() {
     setForm({
       user_id: '',
       shift_date: presetDate || ymd(selectedDate),
-      shift_time: 'Morning',
-      role: 'iCenter',
+      start_time: '08:00 AM',
+      end_time: '04:00 PM',
+      role: 'Library Assistant',
       location: 'Main Desk',
       notes: '',
     });
@@ -228,7 +227,7 @@ export default function CalendarPage() {
     setFormError('');
     if (!form.user_id) return setFormError('Please select a student.');
     if (!form.shift_date) return setFormError('Please pick a date.');
-    if (!form.shift_time) return setFormError('Please select a shift time.');
+    if (!form.start_time || !form.end_time) return setFormError('Start and end time are required.');
 
     setSaving(true);
     try {
@@ -277,17 +276,6 @@ export default function CalendarPage() {
 
   const cells = useMemo(() => buildCalendarGrid(monthDate), [monthDate]);
   const selectedKey = ymd(selectedDate);
-  const approvedLeave = useMemo(() => new Set(approvedLeaveDates(requests)), [requests]);
-  const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
-  const swapDateKeys = useMemo(() => {
-    const to = new Set(); const from = new Set();
-    approvedSwaps.forEach((r) => {
-      parseDateRangeKeys(r.dateRange).forEach((k) => to.add(k));
-      const match = `${r.detail || ''} ${r.reason || ''}`.match(/Swap from (.+?) to (.+?) with (.+?)(?:\.|$)/i);
-      if (match) { const d = new Date(match[1]); if (!Number.isNaN(d.getTime())) from.add(ymd(d)); }
-    });
-    return { to, from };
-  }, [approvedSwaps]);
   const selectedShifts = shiftsByDate[selectedKey] || [];
 
   const todayKey = ymd(new Date());
@@ -298,14 +286,14 @@ export default function CalendarPage() {
 
   const confirmDeclareStrike = (e) => {
     e.preventDefault();
-    declareInstitutionalClosure(selectedKey, closureType, strikeReason);
-    push(institutionalStrikeNotification(selectedKey, strikeReason.trim(), false, closureType));
+    declareStrikeDay(selectedKey, strikeReason);
+    push(institutionalStrikeNotification(selectedKey, strikeReason.trim()));
     setStrikeDialog(false);
     setStrikeReason('');
   };
 
   const cancelStrike = () => {
-    removeInstitutionalClosure(selectedKey);
+    removeStrikeDay(selectedKey);
     push(institutionalStrikeNotification(selectedKey, '', true));
   };
   const monthLabel = monthDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
@@ -440,12 +428,6 @@ export default function CalendarPage() {
                   const isSelected = key === selectedKey;
                   const isToday = key === todayKey;
                   const isStrike = Boolean(strikeDays[key]);
-                  const isHoliday = isPublicHoliday(cell.date);
-                  const isSundayDay = isSunday(cell.date);
-                  const isPastDay = key < todayKey;
-                  const hasLeave = approvedLeave.has(key);
-                  const isSwapTo = swapDateKeys.to.has(key);
-                  const isSwapFrom = swapDateKeys.from.has(key);
                   const overflowCount = dayShifts.length > 2 ? dayShifts.length - 2 : 0;
 
                   return (
@@ -454,7 +436,7 @@ export default function CalendarPage() {
                       type="button"
                       onClick={() => setSelectedDate(cell.date)}
                       className={`focus-ring flex min-h-[104px] flex-col gap-1.5 border-b border-r border-[#e2eaf1] p-2 text-left transition-colors last:border-r-0 hover:bg-[#f4f8fb] ${
-                        !cell.inMonth ? 'calendar-outside-month bg-[#fafbfc] text-[#c3cfd9]' : isStrike ? 'bg-[#d05b48] text-white' : isHoliday ? 'bg-[#d9f3e3] text-[#243e5b]' : hasLeave ? 'bg-[#d9dde2] text-[#243e5b]' : isSwapFrom ? 'bg-[#dce9ff] text-[#163f8a]' : isSwapTo ? 'bg-[#d9dde2] text-[#243e5b]' : 'bg-white text-[#243e5b]'
+                        !cell.inMonth ? 'bg-[#fafbfc] text-[#c3cfd9]' : isStrike ? 'bg-[#fdecea] text-[#243e5b]' : 'bg-white text-[#243e5b]'
                       }`}
                     >
                       <span className="flex items-center justify-between">
@@ -467,7 +449,7 @@ export default function CalendarPage() {
                               : ''
                           }`}
                         >
-                          <span className={`calendar-day-number ${isPastDay || isSundayDay ? 'calendar-x-number' : ''}`}>{cell.date.getDate()}</span>
+                          {cell.date.getDate()}
                         </span>
                         {dayShifts.length > 0 && (
                           <span className="mono grid size-4 place-items-center rounded bg-[#eef2f6] text-[9px] font-bold text-[#7890a4]">
@@ -476,11 +458,11 @@ export default function CalendarPage() {
                         )}
                       </span>
                       <span className="flex flex-col gap-1">
-                        {isStrike && <span className="mono truncate rounded bg-[#d05b48] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[.04em] text-white">Institutional closure</span>}
-                        {isHoliday && <span className="mono truncate rounded bg-[#d9f3e3] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#246b45]">Holiday</span>}
-                        {hasLeave && <span className="mono truncate rounded bg-[#d9dde2] px-1.5 py-0.5 text-[9px] font-bold uppercase text-black">Approved leave</span>}
-                        {isSwapTo && <span className="mono truncate rounded bg-[#d9dde2] px-1.5 py-0.5 text-[9px] font-bold uppercase text-black">Date swapped to</span>}
-                        {isSwapFrom && <span className="mono truncate rounded bg-[#dce9ff] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#163f8a]">Date swapped from</span>}
+                        {isStrike && (
+                          <span className="mono truncate rounded bg-[#d05b48] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[.04em] text-white">
+                            Strike day
+                          </span>
+                        )}
                         {dayShifts.slice(0, 2).map((s) => {
                           const color = colorForStudent(s.userId);
                           return (
@@ -523,7 +505,6 @@ export default function CalendarPage() {
                 )}
               </div>
             )}
-            <div className="mt-4 flex flex-wrap gap-4 border-t border-[#e2eaf1] pt-4 text-xs font-semibold text-black"><span><span className="mr-1 inline-block size-3 rounded bg-[#d9f3e3]"/>Green box - Holiday</span><span><span className="mr-1 inline-block size-3 rounded bg-[#d05b48]"/>Red box - Institutional closure</span><span><span className="mr-1 inline-block size-3 rounded bg-[#d9dde2]"/>Grey box - date swapped to</span><span><span className="mr-1 inline-block size-3 rounded border border-[#2b67c9] bg-[#dce9ff]"/>Blue box - date swapped from</span></div>
           </div>
 
           {/* Side panel — selected day */}
@@ -539,7 +520,7 @@ export default function CalendarPage() {
               {selectedStrike ? (
                 <div className="mt-4 rounded-xl border border-[#e9c7c2] bg-[#fdecea] p-4" data-testid="strike-day-banner">
                   <p className="flex items-center gap-2 text-sm font-bold text-[#8f3a2d]">
-                    <Megaphone size={15} /> Institutional closure{selectedStrike.closureType ? ` · ${selectedStrike.closureType}` : ''}
+                    <Megaphone size={15} /> Institutional strike day
                   </p>
                   {selectedStrike.reason && <p className="mt-1 text-xs leading-5 text-[#8f3a2d]">{selectedStrike.reason}</p>}
                   <button
@@ -548,7 +529,7 @@ export default function CalendarPage() {
                     className="focus-ring mt-3 rounded-lg border border-[#d05b48] bg-white px-3 py-1.5 text-xs font-bold text-[#d05b48] hover:bg-[#fbe4e1]"
                     data-testid="button-cancel-strike-day"
                   >
-                    Remove closure declaration
+                    Remove strike declaration
                   </button>
                 </div>
               ) : (
@@ -556,15 +537,15 @@ export default function CalendarPage() {
                   <button
                     type="button"
                     disabled={!canDeclareStrike}
-                    onClick={() => { setStrikeReason(''); setClosureType('Strike'); setStrikeDialog(true); }}
+                    onClick={() => { setStrikeReason(''); setStrikeDialog(true); }}
                     className="focus-ring flex w-full items-center justify-center gap-2 rounded-lg border border-[#d05b48] bg-white px-3 py-2 text-xs font-bold text-[#d05b48] hover:bg-[#fbe4e1] disabled:cursor-not-allowed disabled:opacity-50"
                     data-testid="button-declare-strike-day"
                   >
-                    <Megaphone size={14} /> Declare institutional closure
+                    <Megaphone size={14} /> Declare institutional strike
                   </button>
                   {!canDeclareStrike && (
                     <p className="mt-1.5 text-[11px] text-[#8ca0b2]">
-                      {selectedIsPast ? 'Past dates cannot be declared an institutional closure.' : 'Sundays and public holidays are already non-working days.'}
+                      {selectedIsPast ? 'Past dates cannot be declared a strike day.' : 'Sundays and public holidays are already non-working days.'}
                     </p>
                   )}
                 </div>
@@ -615,7 +596,7 @@ export default function CalendarPage() {
                 <ShieldCheck size={16} className="text-[#19885d]" />
                 Scheduling Tips
               </p>
-              <ul className="mt-2 space-y-2 text-xs leading-5 text-[#385570] dark-readable-text">
+              <ul className="mt-2 space-y-2 text-xs leading-5 text-[#385570]">
                 <li className="flex gap-2">
                   <User size={12} className="mt-1 shrink-0 text-[#19885d]" />
                   Each student has a unique color for quick scanning.
@@ -737,18 +718,11 @@ export default function CalendarPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setStrikeDialog(false); }}>
             <form onSubmit={confirmDeclareStrike} role="dialog" aria-modal="true" aria-labelledby="strike-dialog-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.25)]" data-testid="dialog-declare-strike">
               <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#fbe4e1] text-[#d05b48]"><Megaphone size={22} /></div>
-              <h3 id="strike-dialog-title" className="serif mt-4 text-center text-2xl text-[#162c4d]">Declare institutional closure</h3>
+              <h3 id="strike-dialog-title" className="serif mt-4 text-center text-2xl text-[#162c4d]">Declare institutional strike</h3>
               <p className="mt-2 text-center text-sm text-[#60768c]">
-                {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} will be marked as an institutional closure on the calendar, blocked for leave and swap requests, and all student assistants will be notified.
+                {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} will be marked as a strike day on the calendar, blocked for leave and swap requests, and all student assistants will be notified.
               </p>
-              <label htmlFor="closure-type" className="mt-5 block">
-                <span className="mb-2 block text-xs font-bold text-[#385570]">Closure type <span className="text-[#d05b48]">*</span></span>
-                <select id="closure-type" value={closureType} onChange={(e) => setClosureType(e.target.value)} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-white px-3.5 py-3 text-sm font-semibold text-black outline-none focus:border-[#1f70d0]">
-                  <option value="Strike">Strike</option>
-                  <option value="Library closure">Library closure</option>
-                </select>
-              </label>
-              <label htmlFor="strike-reason" className="mt-4 block">
+              <label htmlFor="strike-reason" className="mt-5 block">
                 <span className="mb-2 block text-xs font-bold text-[#385570]">Note for students (optional)</span>
                 <textarea
                   id="strike-reason"
@@ -764,7 +738,7 @@ export default function CalendarPage() {
               </label>
               <div className="mt-5 flex gap-3">
                 <button type="button" onClick={() => setStrikeDialog(false)} className="focus-ring flex-1 rounded-lg border border-[#cfdee9] bg-white px-4 py-2.5 text-sm font-bold text-[#385570] hover:bg-[#f4f8fb]">Cancel</button>
-                <button type="submit" className="focus-ring flex-1 rounded-lg bg-[#d05b48] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#bd4c3a]" data-testid="button-confirm-institutional-closure">Declare closure</button>
+                <button type="submit" className="focus-ring flex-1 rounded-lg bg-[#d05b48] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#bd4c3a]" data-testid="button-confirm-strike-day">Declare strike day</button>
               </div>
             </form>
           </div>
@@ -790,7 +764,7 @@ export default function CalendarPage() {
               <form onSubmit={submitForm} className="mt-5 space-y-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-bold text-[#385570]">
-                    Student Assistant <em className="not-italic text-[#d05b48]">*</em>
+                    Student <em className="not-italic text-[#d05b48]">*</em>
                   </label>
                   <select
                     value={form.user_id}
@@ -809,7 +783,7 @@ export default function CalendarPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-xs font-bold text-[#385570]">
-                      Date of shift <em className="not-italic text-[#d05b48]">*</em>
+                      Date <em className="not-italic text-[#d05b48]">*</em>
                     </label>
                     <input
                       type="date"
@@ -819,25 +793,41 @@ export default function CalendarPage() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Position</label>
-                    <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]">
-                      <option value="iCenter">iCenter</option>
-                      <option value="Circular 2">Circular 2</option>
-                    </select>
+                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Role</label>
+                    <input
+                      type="text"
+                      value={form.role}
+                      onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+                      placeholder="e.g. Library Assistant"
+                      className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
+                    />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Shift Time <em className="not-italic text-[#d05b48]">*</em></label>
-                    <select value={form.shift_time} onChange={(e) => setForm((f) => ({ ...f, shift_time: e.target.value }))} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]">
-                      <option value="Morning">Morning [08:00AM - 12:00PM]</option>
-                      <option value="Afternoon">Afternoon [12:00PM - 04:00PM]</option>
-                    </select>
+                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">
+                      Start time <em className="not-italic text-[#d05b48]">*</em>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.start_time}
+                      onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
+                      placeholder="e.g. 08:00 AM"
+                      className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
+                    />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Duration</label>
-                    <input type="text" readOnly value="4 hours" className="w-full rounded-lg border border-[#cfdee9] bg-[#eef4f8] px-3.5 py-3 text-sm font-bold text-black outline-none" />
+                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">
+                      End time <em className="not-italic text-[#d05b48]">*</em>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.end_time}
+                      onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
+                      placeholder="e.g. 04:00 PM"
+                      className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
+                    />
                   </div>
                 </div>
 

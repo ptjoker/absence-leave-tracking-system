@@ -6,6 +6,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, endOfMonth, isBefore, startOfDay, isSameMonth } from 'date-fns';
 import { PUBLIC_HOLIDAYS_2026, holidayName, isPublicHoliday, isSunday } from '@/lib/schedule';
+import { NotificationBell, UnreadDot } from '@/components/portal/NotificationBell';
+import { useNotifications } from '@/context/NotificationsContext';
+import { useStrikeDays } from '@/lib/strikes';
 
 export const STUDENT = { name: 'Nicholas Mathebula', initials: 'NM', number: 'SA-2024-8842' };
 export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
@@ -42,15 +45,16 @@ export function PortalSidebar({ supervisor = false }) {
   const [mobileOpen, setMobileOpen] = useState(false);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const items = supervisor ? supervisorNav : studentNav;
+  const { unreadCount } = useNotifications();
   const active = (key, href) => key === 'request'
     ? location.startsWith('/dashboard/request') || location.startsWith('/dashboard/shift-swap')
     : location === href;
 
   return (
     <>
-      <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
+      <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] bg-white px-4 py-6 transition-transform md:static md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] bg-white px-4 py-6 transition-transform md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div>
           <div className="mb-8 flex items-center justify-between">
             <PortalBrand supervisor={supervisor} />
@@ -65,7 +69,7 @@ export function PortalSidebar({ supervisor = false }) {
           </nav>
         </div>
         <div className="flex flex-col gap-2">
-          <button type="button" className="focus-ring flex items-center gap-3 rounded-lg bg-[#eef4fb] px-3 py-2.5 text-sm font-semibold text-[#52708b] hover:bg-[#e5eef8]"><Bell size={18} />Notification</button>
+          <NotificationBell onNavigate={() => setMobileOpen(false)} />
           <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#1f70d0] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
@@ -134,7 +138,7 @@ export function PortalTopbar({ supervisor = false }) {
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
   const email = user.email || '';
   return (
-    <header className="flex h-[70px] items-center justify-between border-b border-[#e2eaf1] bg-white px-5 md:px-8">
+    <header className="portal-topbar fixed left-0 right-0 top-0 z-40 flex h-[70px] items-center justify-between border-b border-[#e2eaf1] bg-white px-5 md:left-64 md:px-8">
       <ModeToggle size="compact" />
       <div className="flex items-center gap-3">
         <span className="text-right leading-tight">
@@ -185,7 +189,7 @@ export function PortalShell({ children, supervisor = false, className = '' }) {
   const stored = localStorage.getItem('session');
   if (!stored) return null;
 
-  return <div className={`min-h-[100dvh] bg-[#90bddb] ${className}`}><div className="flex min-h-[100dvh]"><PortalSidebar supervisor={supervisor} /><div className="min-w-0 flex-1"><PortalTopbar supervisor={supervisor} />{children}</div></div></div>;
+  return <div className={`portal-shell min-h-[100dvh] bg-[#90bddb] ${className}`}><PortalSidebar supervisor={supervisor} /><div className="portal-main"><PortalTopbar supervisor={supervisor} /><main className="portal-page">{children}</main></div></div>;
 }
 
 export function StatusBadge({ status }) {
@@ -202,7 +206,8 @@ export function DatePicker({ value, onChange, range = false, label, error, id, h
   const today = startOfDay(new Date());
   const monthStart = startOfDay(new Date(today.getFullYear(), today.getMonth(), 1));
   const monthEnd = endOfMonth(today);
-  const blocked = new Set(blockedDates || []);
+  const strikeDays = useStrikeDays();
+  const blocked = new Set([...(blockedDates || []), ...Object.keys(strikeDays)]);
   const disabled = (date) => {
     const day = startOfDay(date);
     const key = format(day, 'yyyy-MM-dd');

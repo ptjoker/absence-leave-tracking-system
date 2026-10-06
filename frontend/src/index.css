@@ -526,3 +526,317 @@ html.dark body { background-color: #08182b; }
   .date-picker-popover { width: min(92vw, 680px) !important; max-width: 92vw !important; min-width: 0 !important; }
   .date-picker-popover [data-slot="calendar"] { --cell-size: 46px; }
 }
+
+/* =========================================================
+   Fixed portal chrome
+   Sidebar and top header never scroll. Only .portal-page scrolls.
+   ========================================================= */
+.portal-shell { min-height: 100dvh; }
+.portal-sidebar { position: fixed !important; top: 0; bottom: 0; left: 0; }
+.portal-main { min-width: 0; min-height: 100dvh; margin-left: 16rem; }
+.portal-topbar { position: fixed !important; top: 0; left: 16rem !important; right: 0; height: 70px; }
+.portal-page { min-height: 100dvh; padding-top: 70px; overflow-y: auto; overflow-x: hidden; }
+@media (max-width: 767px) {
+  .portal-main { margin-left: 0; }
+  .portal-topbar { left: 0 !important; padding-left: 4rem; }
+}
+
+/* Schedule calendar: calendar cells show only SHIFT; details appear in the panel. */
+.schedule-shift-label { display: inline-block; }
+
+.dark .report-card { background-color: #244765 !important; }
+
+
+/* =========================================================
+   V11 readability and navigation fixes
+   ========================================================= */
+.homepage-header { position: fixed !important; inset-inline: 0; top: 0; z-index: 50; }
+.homepage-shell .homepage-main { padding-top: 58px; }
+.auth-header { position: fixed !important; inset-inline: 0; top: 0; z-index: 50; }
+.auth-footer { position: fixed !important; inset-inline: 0; bottom: 0; z-index: 50; }
+.auth-page-main { padding-top: 92px !important; padding-bottom: 92px !important; min-height: 100dvh; }
+
+/* Date picker calendars remain readable in dark mode. */
+.dark .date-picker-popover,
+.dark .date-picker-popover .rdp,
+.dark .date-picker-popover [data-slot="calendar"] {
+  background: #0d263b !important;
+  color: #f1f5f9 !important;
+}
+.dark .date-picker-popover .rdp-caption_label,
+.dark .date-picker-popover .rdp-weekday,
+.dark .date-picker-popover .rdp-day,
+.dark .date-picker-popover .rdp-day_button,
+.dark .date-picker-popover button {
+  color: #f1f5f9 !important;
+}
+.dark .date-picker-popover .rdp-day_button:hover,
+.dark .date-picker-popover button:hover { background: #1b4262 !important; }
+.dark .date-picker-popover .rdp-day_button[data-selected-single="true"],
+.dark .date-picker-popover .rdp-day_button[data-range-start="true"],
+.dark .date-picker-popover .rdp-day_button[data-range-end="true"] {
+  background: #286ee5 !important;
+  color: #ffffff !important;
+}
+.dark .date-picker-popover .rdp-day_button[data-range-middle="true"] {
+  background: #1c3f63 !important;
+  color: #ffffff !important;
+}
+.dark .date-picker-popover .calendar-holiday,
+.dark .date-picker-popover .calendar-holiday button {
+  background: #17432f !important;
+  color: #8ff0b8 !important;
+  border-color: #3ddb9d !important;
+}
+.dark .date-picker-popover .calendar-blocked,
+.dark .date-picker-popover .calendar-blocked button {
+  background: #3b4651 !important;
+  color: #ffffff !important;
+  border-color: #8190a0 !important;
+}
+.dark .date-picker-popover .text-black,
+.dark .date-picker-popover p,
+.dark .date-picker-popover span { color: #f1f5f9 !important; }
+.dark .date-picker-popover .calendar-holiday span,
+.dark .date-picker-popover .calendar-holiday button { color: #8ff0b8 !important; }
+.dark .date-picker-popover .calendar-blocked span,
+.dark .date-picker-popover .calendar-blocked button { color: #ffffff !important; }
+.dark .date-picker-popover .border-t { border-color: #29475e !important; }
+
+/* Supervisor calendar: dates belonging to adjacent months are not white blocks. */
+.dark .calendar-outside-month {
+  background: #172b3d !important;
+  color: #a8bdce !important;
+}
+.dark .calendar-outside-month span { color: #a8bdce !important; }
+.dark .calendar-outside-month:hover { background: #203c55 !important; }
+
+/* Scheduling Tips and other explicitly tagged text. */
+.dark .dark-readable-text,
+.dark .dark-readable-text * { color: #f1f5f9 !important; }
+.dark .dark-readable-text svg { color: #63d7a0 !important; }
+
+/* Placeholder text must stay readable in both themes. */
+textarea::placeholder,
+input::placeholder { color: #000000 !important; opacity: 1 !important; }
+.dark textarea::placeholder,
+.dark input::placeholder { color: #f1f5f9 !important; opacity: .9 !important; }
+
+/* Native select options + Radix dropdown/select menus. */
+select option { background: #ffffff; color: #000000; }
+.dark select,
+.dark select option { background: #0d263b !important; color: #f1f5f9 !important; }
+.dark [data-radix-select-content],
+.dark [data-radix-popper-content-wrapper] [role="listbox"],
+.dark [data-radix-menu-content],
+.dark [data-radix-dropdown-menu-content] {
+  background: #0d263b !important;
+  color: #f1f5f9 !important;
+  border-color: #29475e !important;
+}
+.dark [role="option"],
+.dark [data-radix-select-item],
+.dark [data-radix-menu-item],
+.dark [data-radix-dropdown-menu-item] { color: #f1f5f9 !important; }
+.dark [role="option"]:hover,
+.dark [data-radix-select-item]:hover,
+.dark [data-radix-menu-item]:hover,
+.dark [data-radix-dropdown-menu-item]:hover { background: #1b4262 !important; color: #ffffff !important; }
+.dark .portal-dropdown { background: #0d263b !important; border-color: #29475e !important; }
+.dark .portal-dropdown-option { color: #f1f5f9 !important; }
+.dark .portal-dropdown-option:hover { background: #1b4262 !important; color: #ffffff !important; }
+
+/* Fixed auth chrome remains readable in dark mode. */
+.dark .auth-header,
+.dark .auth-footer { background: rgba(13,38,59,.97) !important; border-color: #29475e !important; }
+.dark .auth-footer { color: #f1f5f9 !important; }
+
+/* Homepage fixed header in dark mode. */
+.homepage-dark .homepage-header { background: #0c2742 !important; border-color: #29475e !important; }
+.homepage-dark .homepage-header strong { color: #f4f8fc !important; }
+.homepage-dark .homepage-header .homepage-nav-link { color: #f1f5f9 !important; }
+
+
+/* Additional gray-text coverage for pages/components using less common shades. */
+.dark [class~="text-[#3d5a76]"],
+.dark [class~="text-[#5f7185]"],
+.dark [class~="text-[#8f3a2d]"],
+.dark [class~="text-[#c3cfd9]"],
+.dark [class~="text-[#9aabb9]"],
+.dark [class~="text-[#6b8297"]],
+.dark [class~="text-[#8ca0b2"]] { color: #f1f5f9 !important; }
+.dark .portal-sidebar .text-\[\#52708b\],
+.dark .portal-sidebar .text-\[\#718196\],
+.dark .portal-sidebar .text-\[\#7890a4\] { color: #eef4fb !important; }
+.dark .portal-sidebar { background: #0d263b !important; border-color: #29475e !important; }
+.dark .portal-sidebar a { color: #eef4fb !important; }
+.dark .portal-sidebar a:hover { color: #70aef5 !important; background: #16384f !important; }
+.dark .portal-sidebar a.bg-\[\#e7f1fa\] { background: #1c3f63 !important; color: #70aef5 !important; }
+.dark .portal-sidebar button { color: #eef4fb; }
+.dark .portal-topbar { background: #0d263b !important; border-color: #29475e !important; }
+.dark .portal-topbar strong,
+.dark .portal-topbar span { color: #f1f5f9 !important; }
+.dark .portal-topbar button { color: #f1f5f9 !important; }
+.dark .calendar-outside-month { background: #172b3d !important; }
+.dark .rounded-xl.bg-\[\#eef8f2\] { background: #123a2c !important; }
+
+
+/* V12: grey text is rendered as black in both themes for clearer form/report text. */
+[class~="text-[#52708b]"],
+[class~="text-[#60768c]"],
+[class~="text-[#7890a4]"],
+[class~="text-[#9baebe]"],
+[class~="text-[#9aabb9]"],
+[class~="text-[#8aa0b2]"],
+[class~="text-[#8ca0b2]"],
+[class~="text-[#71869a]"],
+[class~="text-[#718196]"],
+[class~="text-[#6b8297]"],
+[class~="text-[#6a7180]"],
+[class~="text-[#5f7185]"],
+[class~="text-[#48627d]"],
+[class~="text-[#3d5a76]"],
+[class~="text-[#c3cfd9]"],
+[class~="text-[#bdccd8]"],
+[class~="text-[#6c8196]"],
+[class~="text-[#95a8b8]"] {
+  color: #000000 !important;
+}
+.dark [class~="text-[#52708b]"],
+.dark [class~="text-[#60768c]"],
+.dark [class~="text-[#7890a4]"],
+.dark [class~="text-[#9baebe]"],
+.dark [class~="text-[#9aabb9]"],
+.dark [class~="text-[#8aa0b2]"],
+.dark [class~="text-[#8ca0b2]"],
+.dark [class~="text-[#71869a]"],
+.dark [class~="text-[#718196]"],
+.dark [class~="text-[#6b8297]"],
+.dark [class~="text-[#6a7180]"],
+.dark [class~="text-[#5f7185]"],
+.dark [class~="text-[#48627d]"],
+.dark [class~="text-[#3d5a76]"],
+.dark [class~="text-[#c3cfd9]"],
+.dark [class~="text-[#bdccd8]"],
+.dark [class~="text-[#6c8196]"],
+.dark [class~="text-[#95a8b8]"] {
+  color: #000000 !important;
+}
+
+/* V12: the request-date button and calendar keep the complete date readable. */
+.request-date-display {
+  color: #000000 !important;
+  opacity: 1 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.date-picker-popover .rdp-day_button,
+.date-picker-popover .rdp-day,
+.date-picker-popover [data-day] {
+  color: #000000 !important;
+  opacity: 1 !important;
+}
+.date-picker-popover .rdp-day_button[disabled],
+.date-picker-popover .rdp-day[aria-disabled="true"],
+.date-picker-popover .rdp-day_button[aria-disabled="true"] {
+  color: #000000 !important;
+  opacity: 1 !important;
+}
+.dark .date-picker-popover .rdp-day_button,
+.dark .date-picker-popover .rdp-day,
+.dark .date-picker-popover [data-day],
+.dark .request-date-display {
+  color: #000000 !important;
+}
+
+/* V12: keep the request-date calendar light even in dark mode so black dates remain readable. */
+.dark .date-picker-popover,
+.dark .date-picker-popover .rdp,
+.dark .date-picker-popover [data-slot="calendar"] {
+  background: #ffffff !important;
+  color: #000000 !important;
+}
+.dark .date-picker-popover .rdp-caption_label,
+.dark .date-picker-popover .rdp-weekday,
+.dark .date-picker-popover .button_previous,
+.dark .date-picker-popover .button_next,
+.dark .date-picker-popover p,
+.dark .date-picker-popover span {
+  color: #000000 !important;
+}
+
+
+/* =========================================================
+   V13 readability: black on light surfaces, light text on dark surfaces.
+   This prevents the old dark-grey text from disappearing after Change Mode.
+   ========================================================= */
+[class~="text-[#52708b]"],
+[class~="text-[#60768c]"],
+[class~="text-[#7890a4]"],
+[class~="text-[#9baebe]"],
+[class~="text-[#9baebe]"],
+[class~="text-[#9aabb9]"],
+[class~="text-[#8aa0b2]"],
+[class~="text-[#8ca0b2]"],
+[class~="text-[#71869a]"],
+[class~="text-[#718196]"],
+[class~="text-[#6b809a]"],
+[class~="text-[#6b8297]"],
+[class~="text-[#6c8196]"],
+[class~="text-[#6a7180]"],
+[class~="text-[#5f7185]"],
+[class~="text-[#48627d]"],
+[class~="text-[#3d5a76]"],
+[class~="text-[#c3cfd9]"],
+[class~="text-[#bdccd8]"],
+[class~="text-[#95a8b8]"],
+[class~="text-[#9bb0c1]"] { color: #000000 !important; }
+
+.dark [class~="text-[#52708b]"],
+.dark [class~="text-[#60768c]"],
+.dark [class~="text-[#7890a4]"],
+.dark [class~="text-[#9baebe]"],
+.dark [class~="text-[#9aabb9]"],
+.dark [class~="text-[#8aa0b2]"],
+.dark [class~="text-[#8ca0b2]"],
+.dark [class~="text-[#71869a]"],
+.dark [class~="text-[#718196]"],
+.dark [class~="text-[#6b809a]"],
+.dark [class~="text-[#6b8297]"],
+.dark [class~="text-[#6c8196]"],
+.dark [class~="text-[#6a7180]"],
+.dark [class~="text-[#5f7185]"],
+.dark [class~="text-[#48627d]"],
+.dark [class~="text-[#3d5a76]"],
+.dark [class~="text-[#c3cfd9]"],
+.dark [class~="text-[#bdccd8]"],
+.dark [class~="text-[#95a8b8]"],
+.dark [class~="text-[#9bb0c1]"] { color: #f1f5f9 !important; }
+
+/* Explicit black text also needs to switch to a readable light value on dark page surfaces. */
+.dark .portal-page .text-black,
+.dark .portal-sidebar .text-black,
+.dark .portal-topbar .text-black { color: #f1f5f9 !important; }
+
+/* Request/shift-swap calendar popovers intentionally stay light so date numbers remain black. */
+.dark .date-picker-popover .text-black,
+.dark .date-picker-popover span,
+.dark .date-picker-popover p { color: #000000 !important; }
+.dark .date-picker-popover .swappedTo button,
+.dark .date-picker-popover [class~="swappedTo"] button { color: #000000 !important; }
+.dark .date-picker-popover .swappedFrom button,
+.dark .date-picker-popover [class~="swappedFrom"] button { color: #163f8a !important; }
+.dark .date-picker-popover .strike button,
+.dark .date-picker-popover [class~="strike"] button { color: #ffffff !important; }
+.dark .date-picker-popover .calendar-holiday button,
+.dark .date-picker-popover [class~="holiday"] button { color: #246b45 !important; }
+
+.forgot-password-modal .text-black { color: #000000 !important; }
+
+/* V16: visible X marker for past dates and Sundays in date-picker calendars. */
+.calendar-x-day { position: relative !important; }
+.calendar-x-day button { position: relative !important; }
+.calendar-x-day button::after { content: '×'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.55rem; line-height: 1; font-weight: 900; color: #8a98a5; pointer-events: none; }
+.calendar-x-number { position: relative; }
+.calendar-x-number::after { content: '×'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.15rem; font-weight: 900; color: #8a98a5; pointer-events: none; }
