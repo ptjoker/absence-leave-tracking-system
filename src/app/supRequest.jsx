@@ -1,5 +1,5 @@
 // src/app/supRequest.jsx
-import { Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -129,6 +129,10 @@ export default function SupervisorRequests() {
   const [busyId, setBusyId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Header State
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
   const loadRequests = async () => {
     try {
       const res = await apiFetch('/api/requests');
@@ -207,7 +211,7 @@ export default function SupervisorRequests() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
@@ -216,7 +220,7 @@ export default function SupervisorRequests() {
       >
         <View style={styles.overlay} />
 
-        {/* --- HEADER --- */}
+        {/* --- STANDARD HEADER --- */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image source={logoImg} style={styles.iconContainer} resizeMode="contain" />
@@ -227,11 +231,29 @@ export default function SupervisorRequests() {
           </View>
 
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="notifications-outline" size={22} color="#1E3A8A" />
+            {/* Theme Toggle */}
+            <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
+              <Feather
+                name={isDarkMode ? 'sun' : 'moon'}
+                size={22}
+                color={COLORS.primary}
+              />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
-              <Ionicons name="log-out-outline" size={22} color="#1E3A8A" />
+
+            {/* Notifications */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/supNotif')}
+            >
+              <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+
+            {/* Logout */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/logOut')}
+            >
+              <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
         </View>

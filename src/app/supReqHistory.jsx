@@ -1,17 +1,40 @@
-import { Ionicons } from '@expo/vector-icons';
+// src/app/supRequestHistory.jsx
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  ImageBackground,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import LogoImg from '@/assets/images/logo.png';
+
+// --- Theme Colors ---
+const COLORS = {
+  primary: '#2563EB',
+  darkBlue: '#1E3A8A',
+  textMain: '#111827',
+  textMuted: '#6B7280',
+  bg: '#F8FAFC',
+  card: '#FFFFFF',
+  border: '#E5E7EB',
+};
 
 export default function SupervisorRequestHistory() {
   const router = useRouter();
   const { submissions: submissionsParam } = useLocalSearchParams();
+  
+  // Header State
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
   let submissions = [];
 
   if (typeof submissionsParam === 'string') {
@@ -27,55 +50,100 @@ export default function SupervisorRequestHistory() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          accessibilityLabel="Go back to requests"
-          onPress={() => router.replace('/supRequest')}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={22} color="#1E3A8A" />
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.title}>Request History</Text>
-          <Text style={styles.subtitle}>ALL SUBMISSIONS</Text>
-        </View>
-      </View>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {submissions.length ? submissions.map((item, index) => {
-          const status = item.status || 'PENDING';
-          const statusStyle = status === 'APPROVED'
-            ? styles.approved
-            : status === 'REJECTED'
-              ? styles.rejected
-              : styles.pending;
+      {/* Background Image with 70% White Overlay */}
+      <ImageBackground
+        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
-          return (
-            <View key={item.id ?? `${item.name}-${index}`} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.nameContainer}>
-                  <Text style={styles.studentName}>{item.name}</Text>
-                  <Text style={styles.type}>{item.type}</Text>
-                </View>
-                <View style={[styles.statusBadge, statusStyle]}>
-                  <Text style={styles.statusText}>{status}</Text>
-                </View>
-              </View>
-              <Text style={styles.reason}>{item.reason}</Text>
-              <View style={styles.dateRow}>
-                <Ionicons name="calendar-outline" size={16} color="#718096" />
-                <Text style={styles.date}>{item.date}</Text>
-              </View>
+        {/* --- STANDARD HEADER --- */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>iCenter</Text>
+              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
             </View>
-          );
-        }) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="file-tray-outline" size={32} color="#718096" />
-            <Text style={styles.emptyTitle}>No request history</Text>
-            <Text style={styles.emptyMessage}>Submitted requests will appear here.</Text>
           </View>
-        )}
-      </ScrollView>
+
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
+              <Feather
+                name={isDarkMode ? 'sun' : 'moon'}
+                size={22}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/supNotif')}
+            >
+              <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/logOut')}
+            >
+              <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* --- PAGE TITLE BAR (with back button) --- */}
+        <View style={styles.pageTitleBar}>
+          <TouchableOpacity
+            accessibilityLabel="Go back to requests"
+            onPress={() => router.replace('/supRequest')}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={22} color={COLORS.darkBlue} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.title}>Request History</Text>
+            <Text style={styles.subtitle}>ALL SUBMISSIONS</Text>
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.content}>
+          {submissions.length ? submissions.map((item, index) => {
+            const status = item.status || 'PENDING';
+            const statusStyle = status === 'APPROVED'
+              ? styles.approved
+              : status === 'REJECTED'
+                ? styles.rejected
+                : styles.pending;
+
+            return (
+              <View key={item.id ?? `${item.name}-${index}`} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.nameContainer}>
+                    <Text style={styles.studentName}>{item.name}</Text>
+                    <Text style={styles.type}>{item.type}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, statusStyle]}>
+                    <Text style={styles.statusText}>{status}</Text>
+                  </View>
+                </View>
+                <Text style={styles.reason}>{item.reason}</Text>
+                <View style={styles.dateRow}>
+                  <Ionicons name="calendar-outline" size={16} color="#718096" />
+                  <Text style={styles.date}>{item.date}</Text>
+                </View>
+              </View>
+            );
+          }) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="file-tray-outline" size={32} color="#718096" />
+              <Text style={styles.emptyTitle}>No request history</Text>
+              <Text style={styles.emptyMessage}>Submitted requests will appear here.</Text>
+            </View>
+          )}
+        </ScrollView>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
@@ -83,9 +151,45 @@ export default function SupervisorRequestHistory() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#8FB3D9',
+    backgroundColor: COLORS.bg,
   },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  },
+
+  // --- STANDARD HEADER STYLES ---
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  logoImage: { width: 40, height: 40, marginRight: 10 },
+  headerTextContainer: { justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textMain },
+  headerSubtitle: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'red',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  iconButton: { marginLeft: 14 },
+
+  // --- PAGE TITLE BAR ---
+  pageTitleBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -112,6 +216,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 3,
   },
+
+  // --- CONTENT ---
   content: {
     padding: 20,
     paddingBottom: 32,

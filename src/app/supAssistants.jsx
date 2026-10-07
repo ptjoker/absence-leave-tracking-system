@@ -1,17 +1,22 @@
+// src/app/supAssistants.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
-    ImageBackground,
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  ImageBackground,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import LogoImg from '@/assets/images/logo.png';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -32,7 +37,7 @@ const COLORS = {
   rejectedText: '#EF4444',
   approvedBg: '#D1FAE5',
   approvedText: '#059669',
-  grayLight: '#F3F4F6', // <-- Added missing color
+  grayLight: '#F3F4F6',
   avatarColors: ['#E0E7FF', '#FEF3C7', '#D1FAE5', '#FCE7F3', '#DBEAFE'],
   avatarTextColors: ['#4F46E5', '#D97706', '#059669', '#DB2777', '#2563EB'],
 };
@@ -97,9 +102,13 @@ export default function StudentAssistances() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
+  // Header State
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       {/* Background Image with 70% White Overlay */}
       <ImageBackground
@@ -111,23 +120,37 @@ export default function StudentAssistances() {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-          {/* --- HEADER --- */}
+          {/* --- STANDARD HEADER --- */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.themeToggle}>
-              <Feather name="moon" size={16} color={COLORS.textMuted} />
-              <Text style={styles.themeText}>
-                Change mode <Text style={{ color: '#F59E0B' }}>Dark</Text>
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.headerLeft}>
+              <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerTitle}>iCenter</Text>
+                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+              </View>
+            </View>
 
-            <View style={styles.userProfile}>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>Sbongile Monta</Text>
-                <Text style={styles.userRole}>Supervisor</Text>
-              </View>
-              <View style={styles.avatarSmall}>
-                <Text style={styles.avatarSmallText}>SM</Text>
-              </View>
+            <View style={styles.headerRight}>
+              <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
+                <Feather
+                  name={isDarkMode ? 'sun' : 'moon'}
+                  size={22}
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push('/supNotif')}
+              >
+                <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.push('/logOut')} 
+              >
+                <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -314,24 +337,33 @@ const styles = StyleSheet.create({
   },
   scrollContent: { padding: 16 },
 
-  // Header
+  // --- STANDARD HEADER STYLES ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
     marginBottom: 20,
+    marginHorizontal: -16, // Negative margin to stretch edge-to-edge
+    marginTop: -16,
   },
-  themeToggle: { flexDirection: 'row', alignItems: 'center' },
-  themeText: { marginLeft: 6, fontSize: 12, color: COLORS.textMuted },
-  userProfile: { flexDirection: 'row', alignItems: 'center' },
-  userInfo: { alignItems: 'flex-end', marginRight: 8 },
-  userName: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
-  userRole: { fontSize: 10, color: COLORS.textMuted },
-  avatarSmall: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary,
-    justifyContent: 'center', alignItems: 'center',
+  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  logoImage: { width: 40, height: 40, marginRight: 10 },
+  headerTextContainer: { justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textMain },
+  headerSubtitle: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'red',
+    letterSpacing: 1,
+    marginTop: 2,
   },
-  avatarSmallText: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  iconButton: { marginLeft: 14 },
 
   // Title Section
   titleSection: { marginBottom: 16 },
