@@ -1,25 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import {
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { USER } from '../../constants/studData';
 import {
-    LOGO_IMAGE,
-    NAV_POSITION,
-    ROUTES,
-    SERIF,
-    useStudTheme,
+  LOGO_IMAGE,
+  NAV_POSITION,
+  ROUTES,
+  SERIF,
+  useStudTheme,
 } from '../../constants/studTheme';
+import { useStudent } from '../../hooks/useStudent';
 import StudentNavBar from './StudentNavBar';
 
 import logoImg from '@/assets/images/logo.png';
@@ -33,6 +33,7 @@ const LIBRARY_BG = require('@/assets/images/library.jpg');
 export default function ScreenShell({ active, pill, title, subtitle, back, headerRight, children }) {
   const router = useRouter();
   const { c, mode, toggle } = useStudTheme();
+  const { user: USER } = useStudent();
   const navBottom = NAV_POSITION === 'bottom';
 
   // Uses LOGO_IMAGE from studTheme.js if it is set, otherwise the project's logo.png.
@@ -113,10 +114,12 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
             <Text style={[styles.modeText, { color: c.amber }]}>· {mode === 'dark' ? 'Light' : 'Dark'}</Text>
           </Pressable>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.userName, { color: c.text }]}>{USER.name}</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[styles.userName, { color: c.text }]}>{USER?.name || 'Loading...'}</Text>
             <Text style={[styles.userRole, { color: c.muted }]}>
-              {USER.role === 'Student Assist' ? 'Student Assistant' : USER.role}
+              {USER?.position || ''}
             </Text>
+          </View>
           </View>
         </View>
       </View>

@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card } from '../components/studentDash/ui';
-import { USER, useRequests } from '../constants/studData';
+import { useRequests } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
+import { useStudent } from '../hooks/useStudent';
 
 function InfoItem({ icon, label, value }) {
   const { c } = useStudTheme();
@@ -84,7 +85,8 @@ function RequestsTableWithActions({ rows, idColor, onEdit, onCancel }) {
 export default function StudDash() {
   const router = useRouter();
   const { c } = useStudTheme();
-  const requests = useRequests(); // TODO(API): GET /requests?limit=3 (recent requests)
+    const { user: USER, loading: userLoading } = useStudent();
+  const requests = useRequests(); // (still mock for now — Phase B fixes this)
   const [cancelledIds, setCancelledIds] = useState([]);
 
   const handleEdit = (req) => {
@@ -114,7 +116,7 @@ export default function StudDash() {
     <ScreenShell
       active="dashboard"
       pill="STUDENT PORTAL"
-      title={`Welcome back, ${USER.name}`}
+            title={`Welcome back, ${USER?.name || '...'}`}
       subtitle="Manage your leave requests and track your departmental attendance."
       headerRight={
         <>
@@ -131,10 +133,10 @@ export default function StudDash() {
     >
       <Card>
         <View style={styles.infoGrid}>
-          <InfoItem icon="business-outline" label="DEPARTMENT" value={USER.department} />
-          <InfoItem icon="trending-up-outline" label="POSITION" value={USER.position} />
-          <InfoItem icon="mail-outline" label="EMAIL ADDRESS" value={USER.email} />
-          <InfoItem icon="call-outline" label="PHONE" value={USER.cell} />
+          <InfoItem icon="business-outline" label="DEPARTMENT" value={USER?.department || '—'} />
+          <InfoItem icon="trending-up-outline" label="POSITION" value={USER?.position || '—'} />
+          <InfoItem icon="mail-outline" label="EMAIL ADDRESS" value={USER?.email || '—'} />
+          <InfoItem icon="call-outline" label="PHONE" value={USER?.cell || '—'} />
         </View>
       </Card>
 
@@ -147,10 +149,10 @@ export default function StudDash() {
         <View style={styles.rateRow}>
           <Text style={[styles.rateLabel, { color: c.text }]}>Attendance Rate</Text>
           {/* TODO(API): GET /student/attendance-rate */}
-          <Text style={[styles.rateValue, { color: c.primary }]}>{USER.attendanceRate}%</Text>
+                    <Text style={[styles.rateValue, { color: c.primary }]}>{USER?.attendanceRate ?? 0}%</Text>
         </View>
         <View style={[styles.track, { backgroundColor: c.border }]}>
-          <View style={[styles.fill, { backgroundColor: c.primary, width: `${USER.attendanceRate}%` }]} />
+          <View style={[styles.fill, { backgroundColor: c.primary, width: `${USER?.attendanceRate ?? 0}%` }]} />
         </View>
       </Card>
 

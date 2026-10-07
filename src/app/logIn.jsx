@@ -2,6 +2,8 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ImageBackground,
   Modal,
   SafeAreaView,
@@ -13,6 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+import { apiFetch, saveSession } from '@/lib/api';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -38,17 +42,57 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
 
   // Modal State
   const [isForgotModalVisible, setIsForgotModalVisible] = useState(false);
   const [staffNo, setStaffNo] = useState('');
   const [resetEmail, setResetEmail] = useState('');
 
-  const handleLogIn = () => {
-    if (accountType === 'student') {
-      router.replace('/studDash');
-    } else if (accountType === 'supervisor') {
-      router.replace('/supervisorDash');
+  const handleLogIn = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Missing details', 'Please enter your email and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          role: accountType,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Login failed', data.error || 'Invalid email or password.');
+        return;
+      }
+
+      // Save the session so useStudent() and other hooks can read it.
+      await saveSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at,
+        user: data.user,
+      });
+
+      // Route by role.
+      if (data.user.role === 'supervisor') {
+        router.replace('/supervisorDash');
+      } else {
+        router.replace('/studDash');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      Alert.alert('Connection error', 'Could not reach the server. Check your internet and try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -190,11 +234,21 @@ export default function LoginScreen() {
               </View>
 
               {/* Submit Button */}
-              <TouchableOpacity style={styles.primaryButton} onPress={handleLogIn}>
-                <Text style={styles.primaryButtonText}>
-                  Sign in as {accountType === 'student' ? 'student' : 'supervisor'}
-                </Text>
-                <Feather name="arrow-right" size={16} color="#FFF" />
+              <TouchableOpacity
+                style={[styles.primaryButton, loading && { opacity: 0.6 }]}
+                onPress={handleLogIn}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <Text style={styles.primaryButtonText}>
+                      Sign in as {accountType === 'student' ? 'student' : 'supervisor'}
+                    </Text>
+                    <Feather name="arrow-right" size={16} color="#FFF" />
+                  </>
+                )}
               </TouchableOpacity>
 
               {/* Card Footer */}

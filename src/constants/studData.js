@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from 'react';
+import { apiFetch } from '@/lib/api';
+import { useEffect, useState } from 'react';
 
 /* ================================================================== */
 /* SAMPLE DATA - everything marked TODO(API) should later come from    */
@@ -176,26 +177,36 @@ export const AVAILABLE_ASSISTANTS = [
 export const drafts = { leave: null, swap: null };
 
 /* ---------------------------- requests store -------------------------- */
-// TODO(API): GET /requests (list) and POST /leave-requests, POST /swap-requests
-let requests = [
-  { id: 'REQ-003', type: 'Exam Leave', status: 'Approved' },
-  { id: 'REQ-001', type: 'Sick Leave', status: 'Rejected' },
-  { id: 'REQ-002', type: 'Shift Swap – Simphiwe Masanabo', status: 'Approved' },
-];
-const reqListeners = new Set();
-const subscribeRequests = (fn) => {
-  reqListeners.add(fn);
-  return () => reqListeners.delete(fn);
-};
-const getRequests = () => requests;
-
-export function addRequest(type) {
-  const id = `REQ-${String(requests.length + 1).padStart(3, '0')}`;
-  requests = [{ id, type, status: 'Pending' }, ...requests];
-  reqListeners.forEach((fn) => fn());
-  return id;
-}
+// Fetches the logged-in student's requests from the deployed backend.
+// Returns an array of: { id, rawId, name, initials, email, type, status, ... }
 
 export function useRequests() {
-  return useSyncExternalStore(subscribeRequests, getRequests, getRequests);
+  const [requests, setRequests] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/requests');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted) setRequests(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('useRequests error:', err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  return requests;
+}
+
+/**
+ * Legacy helper — kept so `studRequest.jsx` doesn't break on import.
+ * Submitting from the mobile form goes through its own apiFetch call;
+ * this function is a placeholder until we wire that screen.
+ */
+export function addRequest(type) {
+  console.warn('addRequest is not wired to the backend yet. Use apiFetch directly.');
+  return null;
 }
