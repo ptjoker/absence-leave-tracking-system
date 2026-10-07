@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Mail, Phone, MapPin, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, ShieldCheck, Pencil, X, Check, Save } from 'lucide-react';
+import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, ShieldCheck, Pencil, X, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
-import { apiFetch } from '@/lib/api';
 
 const LEVELS = [
   { value: 'first', label: 'First Year' },
@@ -9,6 +8,53 @@ const LEVELS = [
   { value: 'third', label: 'Third Year' },
   { value: 'postgraduate', label: 'Postgraduate' },
 ];
+
+// Personal email must be a Gmail address: name@gmail.com
+const GMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@gmail\.com$/i;
+
+// Common misspellings of gmail.com, so "name@gmial.com" gets a helpful hint.
+const GMAIL_TYPOS = ['gmial.com', 'gmai.com', 'gmail.co', 'gmail.con', 'gmail.cm', 'gamil.com', 'gnail.com', 'gmaill.com', 'gmail.comm'];
+
+/** Returns an error message, or '' when the address is valid (an empty value is allowed). */
+function validatePersonalEmail(value) {
+  const email = (value || '').trim();
+  if (!email) return '';
+  if (!email.includes('@')) {
+    return 'Enter a valid Gmail address, e.g. yourname@gmail.com.';
+  }
+  const [local, domain = ''] = email.split('@');
+  if (GMAIL_TYPOS.includes(domain.toLowerCase())) {
+    return 'Did you mean @gmail.com? Please check the spelling.';
+  }
+  if (!GMAIL_PATTERN.test(email)) {
+    return local
+      ? 'Personal email must be a Gmail address ending in @gmail.com.'
+      : 'Enter the part before @gmail.com, e.g. yourname@gmail.com.';
+  }
+  return '';
+}
+
+/**
+ * South African mobile number. Accepts 076 123 4567, 0761234567, +27 76 123 4567,
+ * +27 (0)76 123 4567 or 0027761234567 (spaces, dashes and brackets are ignored).
+ * Mobile numbers start with 06, 07 or 08 (after the 0 / +27).
+ * Returns { error, formatted } where formatted is the local style "076 123 4567".
+ */
+function validateCellNumber(value) {
+  const raw = (value || '').trim();
+  if (!raw) return { error: 'Cell number is required.', formatted: '' };
+  if (!/^[+\d][\d\s\-()]*$/.test(raw)) {
+    return { error: 'Use digits only, e.g. 076 123 4567 or +27 76 123 4567.', formatted: '' };
+  }
+  let digits = raw.replace(/\(0\)/, '').replace(/[\s\-()]/g, '');
+  if (digits.startsWith('+27')) digits = `0${digits.slice(3)}`;
+  else if (digits.startsWith('0027')) digits = `0${digits.slice(4)}`;
+  else if (digits.startsWith('27') && digits.length === 11) digits = `0${digits.slice(2)}`;
+  if (!/^0[678]\d{8}$/.test(digits)) {
+    return { error: 'Enter a valid South African cell number, e.g. 076 123 4567 or +27 76 123 4567.', formatted: '' };
+  }
+  return { error: '', formatted: `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}` };
+}
 
 function getSession() {
   const raw = localStorage.getItem('session');
@@ -45,7 +91,7 @@ function InfoField({ icon, label, value, bold = false }) {
   );
 }
 
-function EditableField({ icon, label, value, onChange, type = 'text', placeholder }) {
+function EditableField({ icon, label, value, onChange, type = 'text', placeholder, error, onBlur }) {
   return (
     <div>
       <FieldLabel icon={icon}>{label}</FieldLabel>
@@ -53,9 +99,12 @@ function EditableField({ icon, label, value, onChange, type = 'text', placeholde
         type={type}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
-        className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-[#9baebe] focus:border-[#1f70d0]"
+        aria-invalid={Boolean(error)}
+        className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-[#9baebe] ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`}
       />
+      {error && <p className="mt-1.5 text-xs font-medium text-[#c54f43]" role="alert">{error}</p>}
     </div>
   );
 }
@@ -66,13 +115,14 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [cellError, setCellError] = useState('');
 
   const user = session?.user || {};
 
+  // Only contact details are editable. Course / Department and Current Year are read-only.
   const [draft, setDraft] = useState({
     personal_email: user.personal_email || '',
-    course: user.course || '',
-    level_of_study: user.level_of_study || '',
     cell_number: user.cell_number || '',
   });
 
@@ -84,37 +134,53 @@ export default function ProfilePage() {
   const startEdit = () => {
     setDraft({
       personal_email: user.personal_email || '',
-      course: user.course || '',
-      level_of_study: user.level_of_study || '',
       cell_number: user.cell_number || '',
     });
     setError('');
     setSuccess('');
+    setEmailError('');
+    setCellError('');
     setEditing(true);
   };
 
   const cancelEdit = () => {
     setEditing(false);
     setError('');
+    setEmailError('');
+    setCellError('');
   };
 
   const save = async () => {
+    const emailProblem = validatePersonalEmail(draft.personal_email);
+    const cell = validateCellNumber(draft.cell_number);
+    setEmailError(emailProblem);
+    setCellError(cell.error);
+    if (emailProblem || cell.error) return;
     setSaving(true);
     setError('');
     setSuccess('');
-        try {
-      const res = await apiFetch('/api/profile', {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/profile`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        // Only the editable fields are ever sent to the server.
+        body: JSON.stringify({
+          personal_email: draft.personal_email.trim(),
+          cell_number: cell.formatted,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Could not save profile');
         return;
       }
-      // Merge new data into session and localStorage
-      const updatedUser = { ...user, ...data.profile };
+      // Merge new data into session and localStorage, but never let the
+      // response overwrite the read-only academic fields.
+      const { course, level_of_study, ...safeProfile } = data.profile || {};
+      const updatedUser = { ...user, ...safeProfile };
       const updatedSession = { ...session, user: updatedUser };
       localStorage.setItem('session', JSON.stringify(updatedSession));
       setSession(updatedSession);
@@ -212,7 +278,12 @@ export default function ProfilePage() {
                       icon={<Phone size={14} />}
                       label="Cell Number"
                       value={draft.cell_number}
-                      onChange={(v) => setDraft((d) => ({ ...d, cell_number: v }))}
+                      error={cellError}
+                      onBlur={() => setCellError(validateCellNumber(draft.cell_number).error)}
+                      onChange={(v) => {
+                        setDraft((d) => ({ ...d, cell_number: v }));
+                        if (cellError) setCellError('');
+                      }}
                       placeholder="e.g. 076 123 4567"
                     />
                     <EditableField
@@ -220,7 +291,12 @@ export default function ProfilePage() {
                       label="Personal Email"
                       type="email"
                       value={draft.personal_email}
-                      onChange={(v) => setDraft((d) => ({ ...d, personal_email: v }))}
+                      error={emailError}
+                      onBlur={() => setEmailError(validatePersonalEmail(draft.personal_email))}
+                      onChange={(v) => {
+                        setDraft((d) => ({ ...d, personal_email: v }));
+                        if (emailError) setEmailError('');
+                      }}
                       placeholder="e.g. yourname@gmail.com"
                     />
                   </>
@@ -233,39 +309,12 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Academic Details */}
+            {/* Academic Details (read-only, even while editing) */}
             <div className="mt-8">
               <SectionHeading icon={<GraduationCap size={14} />} title="Academic Details" />
               <div className="grid gap-6 sm:grid-cols-2">
-                {editing ? (
-                  <>
-                    <EditableField
-                      icon={<Building2 size={14} />}
-                      label="Course / Department"
-                      value={draft.course}
-                      onChange={(v) => setDraft((d) => ({ ...d, course: v }))}
-                      placeholder="e.g. Dip Computer Science"
-                    />
-                    <div>
-                      <FieldLabel icon={<GraduationCap size={14} />}>Current Year</FieldLabel>
-                      <select
-                        value={draft.level_of_study}
-                        onChange={(e) => setDraft((d) => ({ ...d, level_of_study: e.target.value }))}
-                        className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
-                      >
-                        <option value="">Select year</option>
-                        {LEVELS.map((l) => (
-                          <option key={l.value} value={l.value}>{l.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <InfoField icon={<Building2 size={14} />} label="Course / Department" value={user.course} />
-                    <InfoField icon={<GraduationCap size={14} />} label="Current Year" value={levelLabel} />
-                  </>
-                )}
+                <InfoField icon={<Building2 size={14} />} label="Course / Department" value={user.course} />
+                <InfoField icon={<GraduationCap size={14} />} label="Current Year" value={levelLabel} />
                 <InfoField icon={<CalendarDays size={14} />} label="Enrolled Since" value={formatDate(user.created_at)} />
                 <InfoField icon={<User size={14} />} label="Account Type" value={roleLabel} />
               </div>
@@ -280,7 +329,7 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm font-bold text-[#243e5b]">Data Privacy Notice</p>
                 <p className="mt-1 max-w-xl text-xs leading-5 text-[#60768c]">
-                  Identity fields (name, student number, role, and student email) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.
+                  Identity and academic fields (name, student number, role, student email, course / department, and current year) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.
                 </p>
               </div>
             </div>

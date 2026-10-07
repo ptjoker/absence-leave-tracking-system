@@ -1,3 +1,4 @@
+import { API_BASE } from '@/lib/api';
 import { useState, useEffect, useContext, createContext } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -6,6 +7,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowRight, BadgeCheck, BookOpen, Bell, Building2, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Clock3, Eye, EyeOff, FileText, GraduationCap, Info, LayoutDashboard, LockKeyhole, LogOut, Mail, MapPin, Menu, Moon, PanelTop, Phone, Plus, RefreshCw, ShieldCheck, Sun, TrendingUp, Trash2, Upload, User, UsersRound, X, } from 'lucide-react';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { RequestsProvider, useRequests } from '@/context/RequestsContext';
+import { NotificationsProvider } from '@/context/NotificationsContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import StudentHistoryPage from '@/pages/student/HistoryPage';
 import StudentProfilePage from '@/pages/student/ProfilePage';
@@ -16,10 +18,10 @@ import SupervisorDashboard from '@/pages/supervisor/Supervisordashboard';
 import SupervisorRequestsPage from '@/pages/supervisor/Requestspage';
 import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage';
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
+import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
 import { ModeToggle, PortalShell } from '@/components/portal/PortalComponents';
-
 const queryClient = new QueryClient();
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
 /* Fixed, page-independent background photo shown behind every route. */
 function PhotoBackdrop() {
   return <div aria-hidden="true" className="app-photo-backdrop" />;
@@ -33,7 +35,7 @@ function Brand({ light = false }) {
   return (<Link href="/" className="focus-ring flex items-center gap-3" data-testid="link-brand">
     <img src="/tut-logo.png" alt="TUT logo" className="size-10 rounded-[5px] object-contain shadow-sm" />
     <span className="leading-none">
-      <strong className={`block text-[15px] font-bold tracking-[-.02em] ${light ? 'text-white' : 'text-[#162c4d]'}`}>StudentAssist</strong>
+      <strong className={`block text-[15px] font-bold tracking-[-.02em] ${light ? 'text-white' : 'text-[#162c4d]'}`}>iCenter</strong>
       <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
     </span>
   </Link>);
@@ -42,17 +44,16 @@ function Header() {
   const { darkMode, toggleDarkMode } = useTheme();
   const onToggleMode = toggleDarkMode;
   const [open, setOpen] = useState(false);
-  return (<header className="homepage-header relative z-20 border-b border-[#d5dfe8] bg-white">
+  return (<header className="homepage-header fixed inset-x-0 top-0 z-50 border-b border-[#d5dfe8] bg-white">
     <div className="mx-auto flex h-[58px] max-w-[1440px] items-center justify-between px-5 sm:px-8">
       <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
         <img src="/tut-logo.png" alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">
-          <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">StudentAssist</strong>
+          <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">iCenter</strong>
           <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">ABSENCE AND LEAVE TRACKER</span>
         </span>
       </Link>
       <nav className="hidden items-center gap-14 md:flex" aria-label="Main navigation">
-        <a href="#" className="homepage-nav-link focus-ring text-[10px] font-medium text-[#283f59] transition-colors hover:text-[#286ee5]" data-testid="link-nav-homepage">Homepage</a>
         <button type="button" onClick={onToggleMode} aria-pressed={darkMode} className="homepage-nav-link focus-ring inline-flex items-center gap-2 text-[10px] font-medium text-[#283f59] transition-colors hover:text-[#286ee5]" data-testid="button-change-mode">
           {darkMode ? <Sun size={12} /> : <Moon size={12} />}
           Change mode <span className="font-bold text-[#f0b323]">· {darkMode ? 'Light' : 'Dark'}</span>
@@ -64,7 +65,6 @@ function Header() {
     </div>
     {open && <div className="homepage-mobile-menu border-t border-[#d7e3ee] bg-white px-5 py-4 sm:hidden">
       <nav className="flex flex-col gap-1" aria-label="Mobile navigation">
-        <a href="#" onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 text-sm font-semibold text-[#48627d] hover:bg-[#eff6fb]">Homepage</a>
         <button type="button" onClick={() => { onToggleMode(); setOpen(false); }} aria-pressed={darkMode} className="flex items-center gap-2 rounded-lg px-3 py-3 text-left text-sm font-semibold text-[#48627d] hover:bg-[#eff6fb]" data-testid="button-mobile-change-mode">
           {darkMode ? <Sun size={15} /> : <Moon size={15} />}
           Change mode <span className="font-bold text-[#f0b323]">· {darkMode ? 'Light' : 'Dark'}</span>
@@ -78,22 +78,22 @@ function Footer() {
     <div className="mx-auto max-w-[1180px] px-8 py-12 sm:px-12 lg:py-14">
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.15fr_1fr_1fr_1.2fr]">
         <div>
-          <p className="text-[13px] font-bold text-[#152d49]">Contact Us</p>
+          <a href="mailto:general@tut.ac.za" className="text-[13px] font-bold text-[#152d49] hover:text-[#286ee5]">Contact Us</a>
           <div className="mt-5 space-y-3 text-[11px] leading-4 text-[#52708b]">
             <p className="flex gap-2"><MapPin size={13} className="shrink-0" />19 OR Tambo, Witbank, Emalahleni,<br />1034, South Africa.</p>
             <p className="flex gap-2"><Phone size={13} className="shrink-0" />+27 (0)86 110 2421</p>
-            <p className="flex gap-2"><Mail size={13} className="shrink-0" />general@tut.ac.za</p>
+            <a href="mailto:general@tut.ac.za" className="flex gap-2 hover:text-[#286ee5]"><Mail size={13} className="shrink-0" />general@tut.ac.za</a>
           </div>
         </div>
         <FooterGroup title="Platform" links={['Features', 'Documentation', 'Support Center', 'Status']} />
         <FooterGroup title="Legal" links={['Privacy Policy', 'Terms of Service', 'Security', 'Compliance']} />
         <div>
           <p className="text-[13px] font-bold text-[#152d49]">Connect</p>
-          <div className="mt-5 flex gap-4 text-[#52708b]" aria-label="Social links">
-            <a href="#twitter" aria-label="Twitter" className="hover:text-[#286ee5]">♥</a>
-            <a href="#linkedin" aria-label="LinkedIn" className="hover:text-[#286ee5]">in</a>
-            <a href="#github" aria-label="GitHub" className="hover:text-[#286ee5]">◆</a>
-            <a href="#website" aria-label="Website" className="hover:text-[#286ee5]">◎</a>
+          <div className="mt-5 flex gap-4 text-[#52708b]" aria-label="TUT social links">
+            <a href="https://www.facebook.com/TUTCommunications" target="_blank" rel="noreferrer" aria-label="TUT Facebook" className="hover:text-[#286ee5]">f</a>
+            <a href="https://www.instagram.com/tut_official2" target="_blank" rel="noreferrer" aria-label="TUT Instagram" className="hover:text-[#286ee5]">◎</a>
+            <a href="https://twitter.com/official_tut" target="_blank" rel="noreferrer" aria-label="TUT X formerly Twitter" className="hover:text-[#286ee5]">X</a>
+            <a href="https://www.youtube.com/channel/UCD4jxDpRYTarILQjtsEQv9Q" target="_blank" rel="noreferrer" aria-label="TUT YouTube" className="hover:text-[#286ee5]">▶</a>
           </div>
           <p className="mt-5 max-w-[220px] text-[11px] leading-4 text-[#52708b]">Ensuring seamless academic scheduling and management for all departments.</p>
         </div>
@@ -127,7 +127,7 @@ function Home() {
         </div>
         <div className="animate-rise-delay-1 mx-auto w-full max-w-[510px]">
           <div className="overflow-hidden rounded-md border-[10px] border-white bg-white shadow-[0_10px_25px_rgba(48,83,111,.1)]">
-            <img src="/assets/tut-library.jpg" alt="TUT student assistants collaborating in a library" className="block aspect-[1.42] h-full w-full object-cover" data-testid="img-hero-campus" />
+            <img src="/assets/home-student-assistants.jpg" alt="TUT student assistants working in a computer laboratory" className="block aspect-[1.42] h-full w-full object-cover" data-testid="img-hero-campus" />
           </div>
         </div>
       </section>
@@ -162,7 +162,7 @@ function Home() {
           </div>
         </div>
         <div className="mx-auto w-full max-w-[390px] overflow-hidden">
-          <img src="/assets/home-phone-hd.png" alt="Mobile leave request update notification" className="block w-full" data-testid="img-phone" />
+          <img src="/assets/tut-library.jpg" alt="TUT student assistants collaborating in a library" className="block w-full" data-testid="img-phone" />
         </div>
       </section>
 
@@ -174,7 +174,7 @@ function Home() {
           <RoleCard icon={<ClipboardCheck size={22} />} iconClass="bg-[#fff0d8] text-[#f2aa00]" title="Supervisors" text="Approve or deny leave requests in seconds, view daily team schedules, and communicate directly with your student staff." />
           <RoleCard icon={<CheckCircle2 size={22} />} iconClass="bg-[#d4f5e7] text-[#22b78b]" title="Student Assistant" text="Easily log absences, track remaining leave balance, and receive instant status updates on pending requests via mobile." />
         </div>
-        <a href="mailto:sales@studentassist.edu" className="focus-ring mt-10 inline-block rounded-[4px] border border-white/70 px-7 py-3 text-[10px] font-bold text-white transition-colors hover:bg-white/15">Contact Sales</a>
+        <a href="mailto:general@tut.ac.za" className="focus-ring mt-10 inline-block rounded-[4px] border border-white/70 px-7 py-3 text-[10px] font-bold text-white transition-colors hover:bg-white/15">Contact Sales</a>
       </section>
     </main>
     <Footer />
@@ -199,13 +199,13 @@ function RoleCard({ icon, iconClass, title, text }) {
   return <article className="homepage-role-card rounded-md bg-[#f4f8fb] px-6 py-6 shadow-[0_3px_8px_rgba(53,91,121,.08)]"><span className={`mx-auto grid size-11 place-items-center rounded-full ${iconClass}`}>{icon}</span><h3 className="mt-5 text-[14px] font-bold text-[#172d48]">{title}</h3><p className="mt-3 min-h-[58px] text-[10px] leading-4 text-[#60768c]">{text}</p><a href="#learn-more" className="mt-5 inline-flex items-center gap-2 text-[10px] font-bold text-[#286ee5]">Learn More <ChevronRight size={13} /></a></article>;
 }
 function AuthHeader() {
-  return <header className="border-b border-[#d7e3ee] bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-10"><Brand /><div className="flex items-center gap-3 text-sm text-[#71869a]"><ModeToggle size="compact" /><span className="hidden sm:inline">New to StudentAssist?</span><Link href="/signup" className="focus-ring font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="link-auth-signup">Create account <ArrowRight className="ml-1 inline" size={14} /></Link></div></div></header>;
+  return <header className="auth-header fixed inset-x-0 top-0 z-50 border-b border-[#d7e3ee] bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-10"><Brand /><ModeToggle size="compact" /></div></header>;
 }
 function AuthFooter() {
-  return <div className="mt-auto border-t border-[#d7e3ee] bg-white/70 px-5 py-5 text-center text-xs text-[#71869a]"><span>Need help? </span><a href="mailto:support@studentassist.edu" className="font-bold text-[#1f70d0]" data-testid="link-auth-support">Contact StudentAssist support</a><span className="mx-2 text-[#bdccd8]">·</span><Link href="/" className="hover:text-[#1f70d0]" data-testid="link-auth-home">Return home</Link></div>;
+  return <div className="auth-footer fixed inset-x-0 bottom-0 z-50 border-t border-[#d7e3ee] bg-white/95 px-5 py-5 text-center text-xs text-[#71869a] backdrop-blur"><span>Need help? </span><a href="mailto:general@tut.ac.za" className="font-bold text-[#1f70d0]" data-testid="link-auth-support">Contact iCenter support</a><span className="mx-2 text-[#bdccd8]">·</span><Link href="/" className="hover:text-[#1f70d0]" data-testid="link-auth-home">Return home</Link></div>;
 }
 function AuthShell({ children, eyebrow, title, copy }) {
-  return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p><div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div></div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
+  return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="auth-page-main relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p><div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div></div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
 }
 function Field({ label, id, type = 'text', placeholder, value, onChange, error, required = true, icon }) {
   return <label className="block" htmlFor={id}><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]">{icon}{label}{required && <em className="not-italic text-[#d05b48]">*</em>}</span><span className="relative block">{icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8aa0b2]">{icon}</span>}<input id={id} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none transition-colors placeholder:text-[#9baebe] ${icon ? 'pl-10' : ''} ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid={`input-${id}`} /> </span>{error && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid={`error-${id}`}>{error}</span>}</label>;
@@ -214,15 +214,42 @@ function PasswordField({ label, id, value, onChange, error }) {
   const [show, setShow] = useState(false);
   return <label className="block" htmlFor={id}><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]"><LockKeyhole size={14} className="text-[#8aa0b2]" />{label}<em className="not-italic text-[#d05b48]">*</em></span><span className="relative block"><input id={id} type={show ? 'text' : 'password'} value={value} onChange={(e) => onChange(e.target.value)} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 pr-11 text-sm text-[#243e5b] outline-none transition-colors placeholder:text-[#9baebe] ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} placeholder="Enter your password" data-testid={`input-${id}`} /><button type="button" onClick={() => setShow(!show)} className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4] hover:text-[#1f70d0]" aria-label={show ? 'Hide password' : 'Show password'} data-testid={`button-toggle-${id}`}>{show ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>{error && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid={`error-${id}`}>{error}</span>}</label>;
 }
+function ForgotPasswordModal({ role, onClose }) {
+  const [userId, setUserId] = useState('');
+  const [email, setEmail] = useState('');
+  const [errors, setErrors] = useState({});
+  const [sent, setSent] = useState(false);
+  const submit = (e) => {
+    e.preventDefault();
+    const next = {};
+    if (!userId.trim()) next.userId = 'Staff/Student No. is required.';
+    if (!email.trim()) next.email = 'Email address is required.';
+    else if (!email.includes('@')) next.email = 'Enter a valid registered email address.';
+    setErrors(next);
+    if (Object.keys(next).length) return;
+    setSent(true);
+  };
+  return <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="forgot-password-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="forgot-password-modal relative w-full max-w-md rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_24px_70px_rgba(18,43,67,.28)] sm:p-8">
+      <button type="button" onClick={onClose} aria-label="Close forgot password" className="focus-ring absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-black hover:bg-[#edf4f8]" data-testid="button-close-forgot-password"><X size={20}/></button>
+      <div className="pr-10"><h2 id="forgot-password-title" className="text-2xl font-bold text-black">Forgot your password?</h2><p className="mt-2 text-sm leading-6 text-black">Enter your Staff/Student No. and registered email address. We'll send you instructions to reset your password.</p></div>
+      {!sent ? <form onSubmit={submit} className="mt-7 space-y-5" noValidate>
+        <label className="block" htmlFor="forgot-user-id"><span className="mb-2 flex items-center gap-1.5 text-sm font-bold text-black"><User size={16} className="text-[#1f70d0]"/>Staff/Student No.<em className="not-italic text-[#d05b48]">*</em></span><input id="forgot-user-id" value={userId} onChange={(e)=>setUserId(e.target.value)} placeholder="Staff No. or Student No." className={`focus-ring w-full rounded-lg border bg-white px-3.5 py-3 text-sm text-black outline-none placeholder:text-black ${errors.userId?'border-[#d05b48]':'border-[#cfdee9] focus:border-[#1f70d0]'}`} />{errors.userId&&<span className="mt-1.5 block text-xs font-semibold text-[#c54f43]">{errors.userId}</span>}</label>
+        <label className="block" htmlFor="forgot-email"><span className="mb-2 flex items-center gap-1.5 text-sm font-bold text-black"><Mail size={16} className="text-[#1f70d0]"/>Email Address<em className="not-italic text-[#d05b48]">*</em></span><input id="forgot-email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="123456789@tut4life.ac.za" className={`focus-ring w-full rounded-lg border bg-white px-3.5 py-3 text-sm text-black outline-none placeholder:text-black ${errors.email?'border-[#d05b48]':'border-[#cfdee9] focus:border-[#1f70d0]'}`} />{errors.email&&<span className="mt-1.5 block text-xs font-semibold text-[#c54f43]">{errors.email}</span>}</label>
+        <button type="submit" className="focus-ring w-full rounded-lg bg-[#9fd5f3] px-5 py-3.5 text-sm font-bold text-black shadow-[0_3px_0_#74b9df] transition-transform hover:-translate-y-0.5" data-testid="button-send-reset-link">Send Reset Link →</button>
+      </form> : <div className="mt-7 rounded-xl border border-[#bfe4d0] bg-[#eefaf3] p-5"><p className="text-sm font-bold text-black">Reset instructions requested.</p><p className="mt-2 text-sm leading-6 text-black">If the Staff/Student No. and email are registered, reset instructions will be sent to that address.</p><button type="button" onClick={onClose} className="focus-ring mt-4 rounded-lg bg-[#1f70d0] px-5 py-2.5 text-sm font-bold text-white">Close</button></div>}
+    </div>
+  </div>;
+}
 function LoginPage() {
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [errors, setErrors] = useState({});
-   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
+   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [location, setLocation] = useLocation();
   const submit = async (e) => {
     e.preventDefault();
@@ -242,7 +269,7 @@ function LoginPage() {
       });
       const data = await response.json();
       if (!response.ok) {
-        setServerError(data.error || 'Login failed. Please try again.');
+        setServerError(data.error || 'Login failed. Please check your credentials.');
         return;
       }
       localStorage.setItem('session', JSON.stringify({
@@ -251,23 +278,15 @@ function LoginPage() {
         expires_at: data.session.expires_at,
         user: data.user,
       }));
-      if (role === 'student') {
-        setLocation('/dashboard');
-      } else {
-        setLocation('/supervisor');
-      }
+      setLocation(role === 'student' ? '/dashboard' : '/supervisor');
     } catch (err) {
       console.error('Login error:', err);
-      setServerError('Could not reach the server. Please check your connection.');
+      setServerError('Could not reach the server. Please check that the backend is running and try again.');
     } finally {
       setLoading(false);
     }
   };
-  if (success)
-    return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader />
-    <main className="flex flex-1 items-center justify-center px-5 py-14">
-    <div className="w-full max-w-md animate-rise rounded-2xl border border-[#d0e0ea] bg-white p-8 text-center shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-10"><span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={30} /></span><h1 className="serif mt-6 text-4xl text-[#162c4d]">You’re signed in.</h1><p className="mt-3 leading-7 text-[#60768c]">Your {role === 'student' ? 'student assistant' : 'supervisor'} portal is ready. This demo keeps the welcome flow local while your institution connects its account system.</p><button type="button" onClick={() => setLocation('/')} className="focus-ring mt-7 w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] hover:bg-[#256fc6] active:translate-y-0.5 active:shadow-none" data-testid="button-success-home">Return to home</button></div></main><AuthFooter /></div>;
-  return <AuthShell eyebrow="Secure portal" title={role === 'student' ? 'Welcome back, student.' : 'Welcome back, supervisor.'} copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to StudentAssist</h2><p className="mt-2 text-sm text-[#71869a]">Choose your account type to continue.</p></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-role-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-role-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><Field label={role === 'student' ? 'University email' : 'Work email'} id="login-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surnameinitials@tut4life.ac.za'} value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => window.alert('Password reset instructions will be sent to your institutional email.')} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : `Sign in as ${role === 'student' ? 'student' : 'supervisor'}`}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div></AuthShell>;
+  return <AuthShell eyebrow="Secure portal" title={role === 'student' ? 'Welcome back, student.' : 'Welcome back, supervisor.'} copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to iCenter</h2><p className="mt-2 text-sm text-[#71869a]">Choose your account type to continue.</p></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); setServerError(''); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-role-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); setServerError(''); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-role-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><Field label={role === 'student' ? 'University email' : 'Work email'} id="login-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surnameinitials@tut4life.ac.za'} value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : `Sign in as ${role === 'student' ? 'student' : 'supervisor'}`}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div>{forgotOpen && <ForgotPasswordModal role={role} onClose={() => setForgotOpen(false)} />}</AuthShell>;
 }
 function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;
@@ -339,7 +358,7 @@ function LogoutSuccessPage() {
         <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={32}/></span>
         <p className="mt-6 text-sm font-bold uppercase tracking-[.14em] text-[#c8102e]">TSHWANE UNIVERSITY OF TECHNOLOGY</p>
         <h1 className="serif mt-3 text-4xl text-[#162c4d]">You have been logged out.</h1>
-        <p className="mt-4 text-base leading-7 text-black">Your StudentAssist session has ended. Please sign in again to access the portal.</p>
+        <p className="mt-4 text-base leading-7 text-black">Your iCenter session has ended. Please sign in again to access the portal.</p>
         <Link href="/login" className="focus-ring mt-8 inline-flex rounded-lg bg-[#1f70d0] px-7 py-3.5 text-base font-bold text-white shadow-[0_4px_0_#1555aa]">Sign in again</Link>
       </div>
     </main>
@@ -464,44 +483,11 @@ function PortalTopBar() {
 }
 
 function DashboardPage() {
-  const { requests } = useRequests();
-  const [, setLocation] = useLocation();
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const raw = localStorage.getItem('session');
-      if (!raw) {
-        window.location.href = '/login';
-        return false;
-      }
-      try {
-        const s = JSON.parse(raw);
-        const isExpired = s.expires_at && (s.expires_at * 1000 < Date.now());
-        if (isExpired) {
-          localStorage.removeItem('session');
-          window.location.href = '/login';
-          return false;
-        }
-      } catch {
-        localStorage.removeItem('session');
-        window.location.href = '/login';
-        return false;
-      }
-      return true;
-    };
-
-    checkAuth();
-
-    const onPageShow = (e) => {
-      if (e.persisted) checkAuth();
-    };
-    window.addEventListener('pageshow', onPageShow);
-    return () => window.removeEventListener('pageshow', onPageShow);
-  }, []);
-
+  const { requests, cancelRequest } = useRequests();
   const stored = localStorage.getItem('session');
   if (!stored) return null;
-  const session = JSON.parse(stored);
+  let session = {};
+  try { session = JSON.parse(stored); } catch { return null; }
   const user = session?.user || {};
   const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';
@@ -512,77 +498,50 @@ function DashboardPage() {
   const role = user.role === 'supervisor' ? 'Supervisor' : 'Student Assistant';
 
   return (
-    <div className="flex min-h-[100dvh] bg-[#90bddb]">
-      <Sidebar />
-      <div className="flex-1">
-        <PortalTopBar />
-        <main className="px-8 py-8">
-          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
-              <h1 className="serif text-4xl text-[#10253f]">Welcome back, {fullName}</h1>
-              <p className="mt-2 max-w-lg text-sm text-[#52708b]">Manage your leave requests and track your departmental attendance.</p>
-            </div>
-            <div className="flex gap-3">
-              <Link href="/dashboard/history" className="focus-ring flex items-center gap-2 rounded-lg border border-[#d0e0ea] bg-white px-4 py-2.5 text-sm font-semibold text-[#385570]" data-testid="button-view-history">
-                <Clock3 size={16} />
-                View History
-              </Link>
-              <Link href="/dashboard/request" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]" data-testid="link-new-request">
-                <Plus size={16} />
-                New Request
-              </Link>
+    <PortalShell>
+      <div className="px-5 py-7 md:px-8 md:py-8">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
+            <h1 className="serif text-4xl text-[#10253f]">Welcome back, {fullName}</h1>
+            <p className="mt-2 max-w-lg text-sm text-[#52708b]">Manage your leave requests and track your departmental attendance.</p>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/dashboard/history" className="focus-ring flex items-center gap-2 rounded-lg border border-[#d0e0ea] bg-white px-4 py-2.5 text-sm font-semibold text-[#385570]" data-testid="button-view-history"><Clock3 size={16} />View History</Link>
+            <Link href="/dashboard/request" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]" data-testid="link-new-request"><Plus size={16} />New Request</Link>
+          </div>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[1fr_.6fr]">
+          <div className="rounded-xl bg-[#f4f8fb] p-6">
+            <div className="grid gap-6 sm:grid-cols-2">
+              <DashboardStat icon={<Building2 size={14} />} label="Department" value={course} />
+              <DashboardStat icon={<TrendingUp size={14} />} label="Position" value={role} />
+              <DashboardStat icon={<Mail size={14} />} label="Email Address" value={email} />
+              <DashboardStat icon={<Phone size={14} />} label="Phone" value={cellNumber} />
             </div>
           </div>
-
-          <div className="grid gap-5 lg:grid-cols-[1fr_.6fr]">
-            <div className="rounded-xl bg-[#f4f8fb] p-6">
-              <div className="grid gap-6 sm:grid-cols-2">
-                <DashboardStat icon={<Building2 size={14} />} label="Department" value={course} />
-                <DashboardStat icon={<TrendingUp size={14} />} label="Position" value={role} />
-                <DashboardStat icon={<Mail size={14} />} label="Email Address" value={email} />
-                <DashboardStat icon={<Phone size={14} />} label="Phone" value={cellNumber} />
-              </div>
-            </div>
-            <div className="rounded-xl bg-[#f4f8fb] p-6">
-              <p className="flex items-center gap-2 text-base font-bold text-[#10253f]"><TrendingUp size={16} className="text-[#f2aa00]" /> Performance</p>
-              <p className="mt-1 text-xs text-[#7890a4]">Semester attendance & compliance</p>
-              <div className="mt-6">
-                <div className="flex items-center justify-between text-xs font-semibold text-[#52708b]">
-                  <span>Attendance Rate</span>
-                  <span className="text-lg font-bold text-[#1f70d0]">94%</span>
-                </div>
-                <div className="mt-2 h-2 w-full rounded-full bg-[#dce8f2]">
-                  <div className="h-2 rounded-full bg-[#1f70d0]" style={{ width: '94%' }} />
-                </div>
-              </div>
+          <div className="rounded-xl bg-[#f4f8fb] p-6">
+            <p className="flex items-center gap-2 text-base font-bold text-[#10253f]"><TrendingUp size={16} className="text-[#f2aa00]" /> Performance</p>
+            <p className="mt-1 text-xs text-[#7890a4]">Semester attendance & compliance</p>
+            <div className="mt-6">
+              <div className="flex items-center justify-between text-xs font-semibold text-[#52708b]"><span>Attendance Rate</span><span className="text-lg font-bold text-[#1f70d0]">94%</span></div>
+              <div className="mt-2 h-2 w-full rounded-full bg-[#dce8f2]"><div className="h-2 rounded-full bg-[#1f70d0]" style={{ width: '94%' }} /></div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-5 rounded-xl bg-[#f4f8fb] p-6">
-            <h2 className="text-lg font-bold text-[#10253f]">Recent Leave Requests</h2>
-            <table className="mt-5 w-full text-left text-sm">
-              <thead>
-                <tr className="text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]">
-                  <th className="pb-3 font-bold">ID</th>
-                  <th className="pb-3 font-bold">Type</th>
-                  <th className="pb-3 font-bold">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((req) => (
-                  <tr key={req.id} className="border-t border-[#e2eaf1]">
-                    <td className="py-3 font-semibold text-[#243e5b]">{req.id}</td>
-                    <td className="py-3 text-[#52708b]">{req.type}</td>
-                    <td className="py-3"><StatusBadge status={req.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
+        <div className="mt-5 rounded-xl bg-[#f4f8fb] p-6">
+          <h2 className="text-lg font-bold text-[#10253f]">Recent Leave Requests</h2>
+          <div className="overflow-x-auto">
+            <table className="mt-5 w-full min-w-[620px] text-left text-sm">
+              <thead><tr className="text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="pb-3 font-bold">ID</th><th className="pb-3 font-bold">Type</th><th className="pb-3 font-bold">Status</th><th className="pb-3 font-bold">Actions</th></tr></thead>
+              <tbody>{requests.map((req) => <tr key={req.id} className="border-t border-[#e2eaf1]"><td className="py-3 font-semibold text-[#243e5b]">{req.id}</td><td className="py-3 text-[#52708b]">{req.type}</td><td className="py-3"><StatusBadge status={req.status} /></td><td className="py-3">{req.status === 'Pending' ? <div className="flex flex-wrap gap-3"><Link href={`${String(req.type || '').toLowerCase().includes('shift swap') ? '/dashboard/shift-swap' : '/dashboard/request'}?edit=${encodeURIComponent(req.rawId)}&from=dashboard`} className="text-sm font-bold text-[#1f70d0] hover:underline">Edit</Link><button type="button" onClick={async () => { if (window.confirm(`Cancel ${req.id}? This pending request will be removed.`)) { try { await cancelRequest(req.id); } catch (err) { window.alert(err.message || 'Could not cancel request.'); } } }} className="text-sm font-bold text-[#d05b48] hover:underline">Cancel</button></div> : <span className="text-xs font-semibold text-black">—</span>}</td></tr>)}</tbody>
             </table>
           </div>
-        </main>
+        </div>
       </div>
-    </div>
+    </PortalShell>
   );
 }
 function DashboardStat({ icon, label, value }) {
@@ -842,9 +801,9 @@ function ShiftSwapPage() {
   );
 }
 
-function ReportsPage() { return <PortalShell supervisor><main className="px-5 py-7 md:px-8 md:py-8"><p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Supervisor Portal</p><h1 className="serif text-4xl text-[#10253f]">Reports</h1><p className="mt-2 text-sm text-[#52708b]">Reporting tools are ready for integration with departmental attendance data.</p></main></PortalShell>; }
+
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={ReportsPage} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={SupervisorReportsPage} /><Route component={NotFound} /></Switch>;
 }
 function RoutedErrorBoundary({ children }) {
   const [location] = useLocation();
@@ -853,6 +812,7 @@ function RoutedErrorBoundary({ children }) {
 function App() {
   return (
     <ThemeProvider>
+      <NotificationsProvider>
       <RequestsProvider>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
@@ -868,6 +828,7 @@ function App() {
           </TooltipProvider>
         </QueryClientProvider>
       </RequestsProvider>
+      </NotificationsProvider>
     </ThemeProvider>
   );
 }
