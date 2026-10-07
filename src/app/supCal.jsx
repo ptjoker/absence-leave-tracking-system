@@ -48,8 +48,13 @@ const COLORS = {
 // --- Week Days ---
 const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
+// --- Closure Event Type Options ---
+const CLOSURE_OPTIONS = [
+  { label: 'Library closure', icon: 'book-open' },
+  { label: 'Strike', icon: 'alert-triangle' },
+];
+
 // --- Structured Event Data ---
-// Keyed by day number. Events will appear on that day for all months.
 const SHIFTS_DATA = {
   '28': [{ id: 1, title: 'Peter Thomas', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText }],
   '29': [{ id: 2, title: 'Approved Leave', type: 'Leave', color: COLORS.grayLight, textColor: COLORS.grayText }],
@@ -59,7 +64,7 @@ const SHIFTS_DATA = {
     { id: 5, title: 'Sarah Nkosi', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText },
     { id: 6, title: 'Peter Thomas', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText }
   ],
-  '6':  [] // No events
+  '6':  []
 };
 
 // --- Mock Data for Timetables ---
@@ -98,43 +103,34 @@ export default function MasterSchedule() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  // --- State for Activity Modal and Selected Day ---
   const [isModalVisible, setModalVisible] = useState(false);
   const [selectedDay, setSelectedDay] = useState(null);
-
-  // --- State for Main Calendar Display (Header controls) ---
-  // Initialize to October 2026 (matches mock "today")
   const [displayedMonth, setDisplayedMonth] = useState(new Date(2026, 9, 1));
 
-  // --- State for New Shift Modal ---
   const [isNewShiftModalVisible, setNewShiftModalVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState('2026/10/07');
   const [isCalendarVisible, setCalendarVisible] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 9, 1)); // For the date picker
+  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 9, 1));
   const [selectedPosition, setSelectedPosition] = useState('iCenter');
   const [isPositionDropdownOpen, setPositionDropdownOpen] = useState(false);
   const [selectedShiftTime, setSelectedShiftTime] = useState('Morning Shift');
   const [isShiftTimeDropdownOpen, setShiftTimeDropdownOpen] = useState(false);
 
-  // --- State for Closure Modal ---
   const [isClosureModalVisible, setClosureModalVisible] = useState(false);
   const [closureType, setClosureType] = useState('Library closure');
   const [isClosureDropdownOpen, setClosureDropdownOpen] = useState(false);
   const [closureNote, setClosureNote] = useState('');
 
-  // --- State for Timetable Modals ---
   const [isTimetableListVisible, setTimetableListVisible] = useState(false);
   const [isDocPreviewVisible, setDocPreviewVisible] = useState(false);
   const [selectedTimetable, setSelectedTimetable] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Header State
   const [isDarkMode, setIsDarkMode] = useState(false);
-
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   // ==========================================
-  // CALENDAR HEADER CONTROL FUNCTIONS (NEW)
+  // CALENDAR HEADER CONTROL FUNCTIONS
   // ==========================================
   const handlePrevMonth = () => {
     setDisplayedMonth(new Date(displayedMonth.getFullYear(), displayedMonth.getMonth() - 1, 1));
@@ -145,30 +141,18 @@ export default function MasterSchedule() {
   };
 
   const handleToday = () => {
-    // Resets to October 2026 (Today in this demo)
     setDisplayedMonth(new Date(2026, 9, 1));
     setSelectedDay(null);
   };
 
-  // ==========================================
-  // CALENDAR UTILITY FUNCTIONS
-  // ==========================================
-  const getDaysInMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
+  const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const getFirstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
 
   const getMonthName = (date) => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
-  // ==========================================
-  // DYNAMIC CALENDAR GRID RENDERER (for Main Calendar)
-  // ==========================================
   const renderMainCalendarDays = () => {
     const daysInMonth = getDaysInMonth(displayedMonth);
     const firstDay = getFirstDayOfMonth(displayedMonth);
@@ -178,41 +162,26 @@ export default function MasterSchedule() {
 
     const gridItems = [];
 
-    // 1. Previous month filler days (greyed out)
     for (let i = firstDay - 1; i >= 0; i--) {
       const dayNum = prevMonthDays - i;
-      gridItems.push({
-        day: String(dayNum),
-        current: false,
-        key: `prev-${dayNum}`,
-      });
+      gridItems.push({ day: String(dayNum), current: false, key: `prev-${dayNum}` });
     }
 
-    // 2. Current month days
     for (let i = 1; i <= daysInMonth; i++) {
-      gridItems.push({
-        day: String(i),
-        current: true,
-        key: `curr-${i}`,
-      });
+      gridItems.push({ day: String(i), current: true, key: `curr-${i}` });
     }
 
-    // 3. Next month filler days to complete the grid row
     const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
     const remainingCells = totalCells - (firstDay + daysInMonth);
     for (let i = 1; i <= remainingCells; i++) {
-      gridItems.push({
-        day: String(i),
-        current: false,
-        key: `next-${i}`,
-      });
+      gridItems.push({ day: String(i), current: false, key: `next-${i}` });
     }
 
     return gridItems;
   };
 
   const handleDayPress = (dayItem) => {
-    if (!dayItem.current) return; // Don't allow clicking greyed-out filler days
+    if (!dayItem.current) return;
     setSelectedDay(dayItem.day);
     setModalVisible(true);
   };
@@ -222,9 +191,6 @@ export default function MasterSchedule() {
     return SHIFTS_DATA[selectedDay] || [];
   };
 
-  // ==========================================
-  // DATE PICKER MODAL FUNCTIONS
-  // ==========================================
   const renderCalendarDays = () => {
     const daysInMonth = getDaysInMonth(currentMonth);
     const firstDay = getFirstDayOfMonth(currentMonth);
@@ -258,7 +224,6 @@ export default function MasterSchedule() {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + increment, 1));
   };
 
-  // Filter timetables based on search query
   const filteredTimetables = TIMETABLES_DATA.filter(item => 
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     item.studentNumber.includes(searchQuery)
@@ -289,23 +254,12 @@ export default function MasterSchedule() {
 
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
-                <Feather
-                  name={isDarkMode ? 'sun' : 'moon'}
-                  size={22}
-                  color={COLORS.primary}
-                />
+                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={COLORS.primary} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => router.push('/supNotif')}
-              >
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotif')}>
                 <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => router.push('/logOut')} 
-              >
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
                 <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
               </TouchableOpacity>
             </View>
@@ -366,39 +320,23 @@ export default function MasterSchedule() {
                   <Feather name="calendar" size={18} color="#FFF" />
                 </View>
                 <View>
-                  {/* Dynamic Month Title */}
                   <Text style={styles.calendarTitle}>{getMonthName(displayedMonth)}</Text>
                   <Text style={styles.calendarSubtitle}>Library Resource Unit</Text>
                 </View>
               </View>
               <View style={styles.calendarControls}>
-                {/* Prev Month Button */}
-                <TouchableOpacity 
-                  style={styles.calendarNavBtn} 
-                  onPress={handlePrevMonth}
-                >
+                <TouchableOpacity style={styles.calendarNavBtn} onPress={handlePrevMonth}>
                   <Feather name="chevron-left" size={16} color={COLORS.textMuted} />
                 </TouchableOpacity>
-
-                {/* Today Button */}
-                <TouchableOpacity 
-                  style={styles.todayBtn} 
-                  onPress={handleToday}
-                >
+                <TouchableOpacity style={styles.todayBtn} onPress={handleToday}>
                   <Text style={styles.todayBtnText}>TODAY</Text>
                 </TouchableOpacity>
-
-                {/* Next Month Button */}
-                <TouchableOpacity 
-                  style={styles.calendarNavBtn} 
-                  onPress={handleNextMonth}
-                >
+                <TouchableOpacity style={styles.calendarNavBtn} onPress={handleNextMonth}>
                   <Feather name="chevron-right" size={16} color={COLORS.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Calendar Grid */}
             <View style={styles.gridContainer}>
               <View style={styles.weekRow}>
                 {weekDays.map((day) => (
@@ -785,55 +723,104 @@ export default function MasterSchedule() {
         </View>
       </Modal>
 
-      {/* --- DECLARE INSTITUTIONAL CLOSURE MODAL --- */}
+      {/* --- DECLARE INSTITUTIONAL CLOSURE MODAL (UPDATED DROPDOWN) --- */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={isClosureModalVisible}
-        onRequestClose={() => setClosureModalVisible(false)}
+        onRequestClose={() => {
+          setClosureModalVisible(false);
+          setClosureDropdownOpen(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.closureModalContainer}>
             
+            {/* Icon */}
             <View style={styles.closureIconContainer}>
               <Feather name="bell" size={24} color={COLORS.danger} />
             </View>
 
+            {/* Title */}
             <Text style={styles.closureModalTitle}>Declare institutional closure</Text>
 
+            {/* Description */}
             <Text style={styles.closureModalDescription}>
-              {selectedDay ? `Wednesday, ${selectedDay} ${getMonthName(displayedMonth).split(' ')[0]} ${displayedMonth.getFullYear()}` : 'Wednesday, 7 October 2026'} will be marked as an institutional closure on the calendar, blocked for leave and swap requests, and all student assistants will be notified.
+              {selectedDay 
+                ? `Wednesday, ${selectedDay} ${getMonthName(displayedMonth).split(' ')[0]} ${displayedMonth.getFullYear()}` 
+                : 'Wednesday, 7 October 2026'
+              } will be marked as an institutional closure on the calendar, blocked for leave and swap requests, and all student assistants will be notified.
             </Text>
 
+            {/* Event Type Dropdown */}
             <View style={styles.formLabelContainer}>
-              <Text style={styles.formLabel}>Closure type <Text style={{color: COLORS.danger}}>*</Text></Text>
+              <Text style={styles.formLabel}>
+                Event type <Text style={{ color: COLORS.danger }}>*</Text>
+              </Text>
             </View>
+
             <TouchableOpacity 
               style={styles.closureDropdown}
               onPress={() => setClosureDropdownOpen(!isClosureDropdownOpen)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.formDropdownText}>{closureType}</Text>
-              <Feather name={isClosureDropdownOpen ? "chevron-up" : "chevron-down"} size={16} color={COLORS.textMain} />
+              <View style={styles.closureDropdownValue}>
+                <Feather 
+                  name={CLOSURE_OPTIONS.find(o => o.label === closureType)?.icon || 'calendar'} 
+                  size={16} 
+                  color={COLORS.primary} 
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={styles.formDropdownText}>{closureType}</Text>
+              </View>
+              <Feather 
+                name={isClosureDropdownOpen ? "chevron-up" : "chevron-down"} 
+                size={16} 
+                color={COLORS.textMain} 
+              />
             </TouchableOpacity>
+
             {isClosureDropdownOpen && (
-              <View style={styles.dropdownOptions}>
-                {['Strike', 'Library closure'].map((option) => (
-                  <TouchableOpacity 
-                    key={option} 
-                    style={styles.dropdownOptionItem}
-                    onPress={() => {
-                      setClosureType(option);
-                      setClosureDropdownOpen(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownOptionText, closureType === option && styles.dropdownOptionTextSelected]}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <View style={styles.closureDropdownOptions}>
+                {CLOSURE_OPTIONS.map((option, index) => {
+                  const isSelected = closureType === option.label;
+                  return (
+                    <TouchableOpacity 
+                      key={option.label} 
+                      style={[
+                        styles.closureDropdownItem,
+                        index === CLOSURE_OPTIONS.length - 1 && { borderBottomWidth: 0 }
+                      ]}
+                      onPress={() => {
+                        setClosureType(option.label);
+                        setClosureDropdownOpen(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.closureDropdownItemLeft}>
+                        <Feather 
+                          name={option.icon} 
+                          size={16} 
+                          color={isSelected ? COLORS.primary : COLORS.textMuted} 
+                          style={{ marginRight: 10 }}
+                        />
+                        <Text style={[
+                          styles.closureDropdownItemText,
+                          isSelected && styles.closureDropdownItemTextSelected
+                        ]}>
+                          {option.label}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <Feather name="check" size={16} color={COLORS.primary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
+            {/* Note Input */}
             <View style={[styles.formLabelContainer, { marginTop: 16 }]}>
               <Text style={styles.formLabel}>Note for students (optional)</Text>
             </View>
@@ -847,10 +834,14 @@ export default function MasterSchedule() {
               onChangeText={setClosureNote}
             />
 
+            {/* Footer Buttons */}
             <View style={styles.closureFooter}>
               <TouchableOpacity 
                 style={styles.cancelClosureBtn} 
-                onPress={() => setClosureModalVisible(false)}
+                onPress={() => {
+                  setClosureModalVisible(false);
+                  setClosureDropdownOpen(false);
+                }}
               >
                 <Text style={styles.cancelClosureText}>Cancel</Text>
               </TouchableOpacity>
@@ -859,6 +850,7 @@ export default function MasterSchedule() {
                 style={styles.declareClosureBtn} 
                 onPress={() => {
                   setClosureModalVisible(false);
+                  setClosureDropdownOpen(false);
                 }}
               >
                 <Text style={styles.declareClosureText}>Declare closure</Text>
@@ -1073,9 +1065,7 @@ const styles = StyleSheet.create({
   calendarTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.darkBlue },
   calendarSubtitle: { fontSize: 11, color: COLORS.textMuted },
   calendarControls: { flexDirection: 'row', alignItems: 'center' },
-  calendarNavBtn: {
-    padding: 6, backgroundColor: COLORS.grayLight, borderRadius: 4,
-  },
+  calendarNavBtn: { padding: 6, backgroundColor: COLORS.grayLight, borderRadius: 4 },
   todayBtn: {
     backgroundColor: '#FFF', borderWidth: 1, borderColor: COLORS.border,
     paddingHorizontal: 8, paddingVertical: 6, borderRadius: 4, marginHorizontal: 4,
@@ -1159,662 +1149,279 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-    minWidth: 55,
-  },
-  navIconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  navItem: { alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 55 },
+  navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   navBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: COLORS.danger,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute', top: -4, right: -8, backgroundColor: COLORS.danger,
+    borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3,
+    justifyContent: 'center', alignItems: 'center',
   },
-  navBadgeText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  navText: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  },
-  navTextActive: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
+  navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+  navText: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 
   // --- Modal Styles ---
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 20,
   },
   modalContainer: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    maxHeight: '80%',
+    width: '100%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, maxHeight: '80%',
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingBottom: 12,
-    marginBottom: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingBottom: 12, marginBottom: 16,
   },
-  modalTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  modalDateText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.darkBlue,
-    marginLeft: 8,
-  },
-  modalCloseIcon: {
-    padding: 4,
-  },
-  modalScroll: {
-    marginBottom: 16,
-  },
-  modalEmptyState: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  modalEmptyText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    marginTop: 12,
-    textAlign: 'center',
-  },
+  modalTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  modalDateText: { fontSize: 18, fontWeight: 'bold', color: COLORS.darkBlue, marginLeft: 8 },
+  modalCloseIcon: { padding: 4 },
+  modalScroll: { marginBottom: 16 },
+  modalEmptyState: { alignItems: 'center', paddingVertical: 30 },
+  modalEmptyText: { fontSize: 14, color: COLORS.textMuted, marginTop: 12, textAlign: 'center' },
   modalEventRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC',
+    padding: 12, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border,
   },
-  modalEventIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 12,
-  },
-  modalEventDetails: {
-    flex: 1,
-  },
-  modalEventTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-    marginBottom: 2,
-  },
-  modalEventType: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
+  modalEventIndicator: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
+  modalEventDetails: { flex: 1 },
+  modalEventTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 2 },
+  modalEventType: { fontSize: 12, color: COLORS.textMuted },
   modalCloseButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    backgroundColor: COLORS.primary, paddingVertical: 12,
+    borderRadius: 8, alignItems: 'center',
   },
-  modalCloseText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  modalCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
 
   // --- NEW SHIFT MODAL STYLES ---
   newShiftModalContainer: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    maxHeight: '90%',
+    width: '100%', maxWidth: 480, backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, maxHeight: '90%',
   },
   newShiftHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: 20,
   },
-  newShiftTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-    marginBottom: 4,
-  },
-  newShiftSubtitle: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-  },
-  newShiftFormScroll: {
-    marginBottom: 20,
-    zIndex: 1,
-  },
-  formLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-    marginBottom: 6,
-  },
-  formLabelContainer: {
-    alignSelf: 'flex-start',
-    marginBottom: 6,
-  },
+  newShiftTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
+  newShiftSubtitle: { fontSize: 14, color: COLORS.textMuted },
+  newShiftFormScroll: { marginBottom: 20, zIndex: 1 },
+  formLabel: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 6 },
+  formLabelContainer: { alignSelf: 'flex-start', marginBottom: 6 },
   formInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1,
+    borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12,
+    marginBottom: 16, backgroundColor: '#FFFFFF',
   },
-  formInput: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: COLORS.textMain,
-  },
-  formInputIcon: {
-    marginLeft: 8,
-  },
+  formInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: COLORS.textMain },
+  formInputIcon: { marginLeft: 8 },
   formInputFull: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: COLORS.textMain,
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
+    color: COLORS.textMain, marginBottom: 16, backgroundColor: '#FFFFFF',
   },
-  formTextArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
+  formTextArea: { height: 80, textAlignVertical: 'top' },
   formDropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 12, marginBottom: 16, backgroundColor: '#FFFFFF',
   },
-  formDropdownText: {
-    fontSize: 14,
-    color: COLORS.textMain,
-  },
-  formRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    zIndex: 10,
-  },
-  formCol: {
-    flex: 1,
-    zIndex: 20,
-  },
+  formDropdownText: { fontSize: 14, color: COLORS.textMain },
+  formRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, zIndex: 10 },
+  formCol: { flex: 1, zIndex: 20 },
   newShiftFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 16,
-    zIndex: 0,
+    flexDirection: 'row', justifyContent: 'flex-end', gap: 12,
+    borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 16, zIndex: 0,
   },
   cancelBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: '#FFFFFF',
+    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#FFFFFF',
   },
-  cancelBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMain,
-  },
+  cancelBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.textMain },
   submitBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8,
+    backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center',
   },
-  submitBtnText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
+  submitBtnText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
 
-  // --- Dropdown Options Styles ---
+  // --- Dropdown Options Styles (for New Shift Modal) ---
   dropdownOptions: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingVertical: 4,
-    zIndex: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    position: 'absolute', top: 60, left: 0, right: 0,
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 8, paddingVertical: 4, zIndex: 100,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 4, elevation: 5,
   },
-  dropdownOptionItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  dropdownOptionText: {
-    fontSize: 14,
-    color: COLORS.textMain,
-  },
-  dropdownOptionTextSelected: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
+  dropdownOptionItem: { paddingVertical: 10, paddingHorizontal: 12 },
+  dropdownOptionText: { fontSize: 14, color: COLORS.textMain },
+  dropdownOptionTextSelected: { color: COLORS.primary, fontWeight: 'bold' },
 
   // --- Custom Calendar Picker Styles ---
   calendarModalContainer: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    width: '100%', maxWidth: 360, backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
   calendarModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 16,
   },
-  calendarModalTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-  },
-  calendarNavButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.grayLight,
-  },
-  calendarWeekRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 8,
-  },
-  calendarWeekDay: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: COLORS.textMuted,
-    width: '14.28%',
-    textAlign: 'center',
-  },
-  calendarDaysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
+  calendarModalTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain },
+  calendarNavButton: { padding: 8, borderRadius: 8, backgroundColor: COLORS.grayLight },
+  calendarWeekRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
+  calendarWeekDay: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMuted, width: '14.28%', textAlign: 'center' },
+  calendarDaysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calendarDayCell: {
-    width: '14.28%',
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-    marginBottom: 4,
+    width: '14.28%', height: 40, justifyContent: 'center',
+    alignItems: 'center', borderRadius: 8, marginBottom: 4,
   },
-  calendarDayCellSelected: {
-    backgroundColor: COLORS.primary,
-  },
-  calendarDayText: {
-    fontSize: 12,
-    color: COLORS.textMain,
-  },
-  calendarDayTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
+  calendarDayCellSelected: { backgroundColor: COLORS.primary },
+  calendarDayText: { fontSize: 12, color: COLORS.textMain },
+  calendarDayTextSelected: { color: '#FFFFFF', fontWeight: 'bold' },
   calendarCloseButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: COLORS.grayLight,
+    marginTop: 16, paddingVertical: 12, alignItems: 'center',
+    borderRadius: 8, backgroundColor: COLORS.grayLight,
   },
-  calendarCloseText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-  },
+  calendarCloseText: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain },
 
   // --- DECLARE INSTITUTIONAL CLOSURE MODAL STYLES ---
   closureModalContainer: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    width: '100%', maxWidth: 420, backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 24, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
   closureIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FCE4E4',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+    width: 56, height: 56, borderRadius: 28, backgroundColor: '#FCE4E4',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
   },
   closureModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.darkBlue,
-    marginBottom: 12,
-    textAlign: 'center',
+    fontSize: 20, fontWeight: 'bold', color: COLORS.darkBlue,
+    marginBottom: 12, textAlign: 'center',
   },
   closureModalDescription: {
-    fontSize: 14,
-    color: COLORS.textMain,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
+    fontSize: 14, color: COLORS.textMain, textAlign: 'center',
+    lineHeight: 20, marginBottom: 20,
   },
   closureDropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 16,
-    backgroundColor: '#FFFFFF',
-    width: '100%',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 12,
+    backgroundColor: '#FFFFFF', width: '100%',
+  },
+  closureDropdownValue: {
+    flexDirection: 'row', alignItems: 'center', flex: 1,
+  },
+  closureDropdownOptions: {
+    width: '100%', backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    marginTop: 6, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 4, elevation: 5,
+  },
+  closureDropdownItem: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 14, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  closureDropdownItemLeft: {
+    flexDirection: 'row', alignItems: 'center', flex: 1,
+  },
+  closureDropdownItemText: {
+    fontSize: 14, color: COLORS.textMain,
+  },
+  closureDropdownItemTextSelected: {
+    color: COLORS.primary, fontWeight: 'bold',
   },
   closureTextArea: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: COLORS.textMain,
-    marginBottom: 24,
-    backgroundColor: '#FFFFFF',
-    width: '100%',
-    height: 80,
-    textAlignVertical: 'top',
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
+    color: COLORS.textMain, marginBottom: 24, backgroundColor: '#FFFFFF',
+    width: '100%', height: 80, textAlignVertical: 'top',
   },
   closureFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    gap: 12,
+    flexDirection: 'row', justifyContent: 'space-between',
+    width: '100%', gap: 12,
   },
   cancelClosureBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1,
+    borderColor: COLORS.border, alignItems: 'center', backgroundColor: '#FFFFFF',
   },
-  cancelClosureText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMain,
-  },
+  cancelClosureText: { fontSize: 14, fontWeight: '600', color: COLORS.textMain },
   declareClosureBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#E53935',
-    alignItems: 'center',
+    flex: 1, paddingVertical: 12, borderRadius: 8,
+    backgroundColor: '#E53935', alignItems: 'center',
   },
-  declareClosureText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
+  declareClosureText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
 
   // --- STUDENT TIMETABLES LIST MODAL STYLES ---
   timetableModalContainer: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    maxHeight: '80%',
+    width: '100%', maxWidth: 600, backgroundColor: '#FFFFFF', borderRadius: 16,
+    padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, maxHeight: '80%',
   },
   timetableHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: 20,
   },
-  timetableTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-    marginBottom: 4,
-  },
-  timetableSubtitle: {
-    fontSize: 14,
-    color: COLORS.textMain,
-    lineHeight: 20,
-  },
+  timetableTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
+  timetableSubtitle: { fontSize: 14, color: COLORS.textMain, lineHeight: 20 },
   timetableCloseButton: {
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: '#F3F4F6',
-    marginLeft: 10,
+    padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6', marginLeft: 10,
   },
   searchBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 20,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    paddingHorizontal: 12, marginBottom: 20,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: COLORS.textMain,
-  },
-  timetableList: {
-    maxHeight: 300,
-  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.textMain },
+  timetableList: { maxHeight: 300 },
   timetableItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   timetableIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 40, height: 40, borderRadius: 8, backgroundColor: '#EFF6FF',
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
-  timetableDetails: {
-    flex: 1,
-  },
-  timetableName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-    marginBottom: 4,
-  },
-  timetableMeta: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-  },
+  timetableDetails: { flex: 1 },
+  timetableName: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
+  timetableMeta: { fontSize: 12, color: COLORS.textMuted },
   viewButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
+    backgroundColor: COLORS.primary, paddingHorizontal: 16,
+    paddingVertical: 8, borderRadius: 6,
   },
-  viewButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  noUploadsContainer: {
-    paddingVertical: 30,
-    alignItems: 'center',
-  },
-  noUploadsText: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-  },
+  viewButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
+  noUploadsContainer: { paddingVertical: 30, alignItems: 'center' },
+  noUploadsText: { fontSize: 14, color: COLORS.textMuted },
 
   // --- DOCUMENT PREVIEW MODAL STYLES ---
-  docPreviewContainer: {
-    flex: 1,
-    backgroundColor: '#2D2D2D',
-  },
+  docPreviewContainer: { flex: 1, backgroundColor: '#2D2D2D' },
   docPreviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  backButton: { flexDirection: 'row', alignItems: 'center' },
   backButtonText: {
-    fontSize: 16,
-    color: COLORS.primary,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontSize: 16, color: COLORS.primary, fontWeight: '600', marginLeft: 4,
   },
-  docPreviewTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  docPreviewTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-  },
-  docPreviewRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
+  docPreviewTitleContainer: { flex: 1, alignItems: 'center', paddingHorizontal: 16 },
+  docPreviewTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain },
+  docPreviewRightActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   downloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1,
+    borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 12,
+    paddingVertical: 6, backgroundColor: '#FFFFFF',
   },
   downloadButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textMain,
-    marginLeft: 6,
+    fontSize: 14, fontWeight: '600', color: COLORS.textMain, marginLeft: 6,
   },
   docPreviewCloseButton: {
-    padding: 6,
-    borderRadius: 6,
-    backgroundColor: '#F3F4F6',
+    padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6',
   },
-  docViewer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  docImage: {
-    width: '100%',
-    height: '100%',
-  },
+  docViewer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  docImage: { width: '100%', height: '100%' },
 });
