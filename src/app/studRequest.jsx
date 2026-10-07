@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -5,28 +6,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import {
-    AppButton,
-    Card,
-    DateField,
-    FieldLabel,
-    HelperText,
-    SelectField,
-    SuggestedText,
-    TextArea,
+  AppButton,
+  Card,
+  DateField,
+  FieldLabel,
+  HelperText,
+  SelectField,
+  SuggestedText,
+  TextArea,
 } from '../components/studentDash/ui';
 import {
-    AVAILABLE_ASSISTANTS,
-    LEAVE_CATEGORIES,
-    LEAVE_SUGGESTIONS,
-    SHIFT_OPTIONS,
-    SWAPS,
-    SWAP_SUGGESTIONS,
-    addRequest,
-    computeLeaveDates,
-    drafts,
-    formatLong,
-    fromKey,
-    isUnavailable,
+  AVAILABLE_ASSISTANTS,
+  LEAVE_CATEGORIES,
+  LEAVE_SUGGESTIONS,
+  SHIFT_OPTIONS,
+  SWAPS,
+  SWAP_SUGGESTIONS,
+  computeLeaveDates,
+  drafts,
+  formatLong,
+  fromKey,
+  isUnavailable
 } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
 
@@ -37,7 +37,7 @@ function goBackOrHome(router) {
   else router.replace(ROUTES.dashboard);
 }
 
-function FormFooter({ submitLabel, onCancel, onSubmit }) {
+function FormFooter({ submitLabel, onCancel, onSubmit, loading }) {
   const { c } = useStudTheme();
   return (
     <View style={[styles.footer, { borderTopColor: c.border }]}>
@@ -48,8 +48,14 @@ function FormFooter({ submitLabel, onCancel, onSubmit }) {
         </Text>
       </View>
       <View style={styles.footerBtns}>
-        <AppButton variant="danger" label="Cancel" onPress={onCancel} style={{ marginRight: 10 }} />
-        <AppButton label={submitLabel} iconRight="chevron-forward" onPress={onSubmit} style={{ flex: 1 }} />
+        <AppButton variant="danger" label="Cancel" onPress={onCancel} disabled={loading} style={{ marginRight: 10 }} />
+        <AppButton
+          label={loading ? 'Submitting…' : submitLabel}
+          iconRight="chevron-forward"
+          onPress={onSubmit}
+          disabled={loading}
+          style={{ flex: 1 }}
+        />
       </View>
     </View>
   );
@@ -66,6 +72,7 @@ function LeaveForm({ onSwitch }) {
   const [reason, setReason] = useState(saved.reason || '');
   const [file, setFile] = useState(saved.file || null);
   const [attached, setAttached] = useState(saved.attached || false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     drafts.leave = { category, days, startKey, reason, file, attached };
@@ -105,7 +112,7 @@ function LeaveForm({ onSwitch }) {
     Alert.alert('Document attached', `${file.name} will be submitted with your request.`);
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!startKey) {
       Alert.alert('Date required', 'Please select a start date.');
       return;
@@ -114,12 +121,46 @@ function LeaveForm({ onSwitch }) {
       Alert.alert('Justification required', 'Please add a short justification for your request.');
       return;
     }
-    // TODO(API): POST /leave-requests { category, days, dates: covered, reason, attachment }
-    const id = addRequest(category);
-    drafts.leave = null;
-    Alert.alert('Request submitted', `${id} (${category}) was submitted and is pending approval.`, [
-      { text: 'OK', onPress: () => router.replace(ROUTES.history) },
-    ]);
+    if (covered.length === 0) {
+      Alert.alert('Date range invalid', 'Could not compute working days from your start date.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Format the date range human-readably for the DB (matches web app shape).
+      const first = formatLong(fromKey(covered[0]));
+      const last = formatLong(fromKey(covered[covered.length - 1]));
+      const dateRange = covered.length > 1 ? `${first} – ${last}` : first;
+
+      const res = await apiFetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: category,
+          dateRange,
+          detail: reason.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Submission failed', data.error || 'Please try again.');
+        return;
+      }
+
+      drafts.leave = null;
+      Alert.alert(
+        'Request submitted',
+        `${data.id} (${category}) was submitted and is pending approval.`,
+        [{ text: 'OK', onPress: () => router.replace(ROUTES.history) }]
+      );
+    } catch (err) {
+      console.error('Submit leave request error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const cancel = () => {
@@ -202,7 +243,12 @@ function LeaveForm({ onSwitch }) {
       <View style={{ height: 12 }} />
       <SuggestedText items={LEAVE_SUGGESTIONS} onPick={(t) => setReason(t)} />
 
-      <FormFooter submitLabel="Submit Leave Request" onCancel={cancel} onSubmit={submit} />
+      <FormFooter
+        submitLabel="Submit Leave Request"
+        onCancel={cancel}
+        onSubmit={submit}
+        loading={submitting}
+      />
     </Card>
   );
 }
@@ -216,12 +262,13 @@ function SwapForm() {
   const [newKey, setNewKey] = useState(saved.newKey || '');
   const [assistant, setAssistant] = useState(saved.assistant || '');
   const [reason, setReason] = useState(saved.reason || '');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     drafts.swap = { currentKey, newKey, assistant, reason };
   }, [currentKey, newKey, assistant, reason]);
 
-  const submit = () => {
+  const submit = async () => {
     if (!newKey) {
       Alert.alert('New shift date required', 'Please select a new shift date.');
       return;
@@ -234,12 +281,39 @@ function SwapForm() {
       Alert.alert('Reason required', 'Please give a reason for the swap.');
       return;
     }
-    // TODO(API): POST /swap-requests { currentShift: currentKey, newDate: newKey, withAssistant: assistant, reason }
-    const id = addRequest(`Shift Swap – ${assistant}`);
-    drafts.swap = null;
-    Alert.alert('Swap request submitted', `${id} was sent for department lead approval.`, [
-      { text: 'OK', onPress: () => router.replace(ROUTES.history) },
-    ]);
+
+    setSubmitting(true);
+    try {
+      const dateRange = formatLong(fromKey(newKey));
+      const res = await apiFetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: `Shift Swap – ${assistant}`,
+          replacement: assistant,
+          reason: reason.trim(),
+          dateRange,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Submission failed', data.error || 'Please try again.');
+        return;
+      }
+
+      drafts.swap = null;
+      Alert.alert(
+        'Swap request submitted',
+        `${data.id} was sent for department lead approval.`,
+        [{ text: 'OK', onPress: () => router.replace(ROUTES.history) }]
+      );
+    } catch (err) {
+      console.error('Submit swap request error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const cancel = () => {
@@ -349,7 +423,12 @@ function SwapForm() {
           </HelperText>
         </View>
 
-        <FormFooter submitLabel="Submit Swap Request" onCancel={cancel} onSubmit={submit} />
+        <FormFooter
+          submitLabel="Submit Swap Request"
+          onCancel={cancel}
+          onSubmit={submit}
+          loading={submitting}
+        />
       </Card>
     </>
   );
