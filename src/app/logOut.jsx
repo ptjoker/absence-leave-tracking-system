@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   ImageBackground,
   Modal,
@@ -8,13 +9,30 @@ import {
   View,
 } from 'react-native';
 
-export default function LogoutModal({ visible, onClose, onConfirm }) {
+export default function LogoutModal({ visible = true, onClose, onConfirm }) {
+  const router = useRouter();
+
+  // Cancel -> close the modal and stay on / go back to the current page (studProfile)
+  const handleCancel = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      router.back();
+    }
+  };
+
+  // Log out -> clear session (if provided) then go to the endSession page
+  const handleConfirm = () => {
+    if (onConfirm) onConfirm(); // TODO(API): clear token / call logout endpoint here
+    router.replace('/endSession');
+  };
+
   return (
     <Modal
       animationType="fade"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={handleCancel}
     >
       <ImageBackground
         source={require('../../assets/images/library.jpg')}
@@ -39,14 +57,14 @@ export default function LogoutModal({ visible, onClose, onConfirm }) {
           <View style={styles.modalActionRow}>
             <TouchableOpacity 
               style={styles.modalCancelButton}
-              onPress={onClose}
+              onPress={handleCancel}
             >
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.modalLogoutButton}
-              onPress={onConfirm}   // ✅ FIXED: Passes the onConfirm handler
+              onPress={handleConfirm}
             >
               <Text style={styles.modalLogoutText}>Log out</Text>
             </TouchableOpacity>
@@ -109,7 +127,7 @@ const styles = StyleSheet.create({
   modalActionRow: {
     flexDirection: 'row',
     width: '100%',
-    // Removed gap: 12 (Replaced with margins below for compatibility)
+    gap: 12,
   },
   modalCancelButton: {
     flex: 1,
@@ -119,7 +137,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginRight: 6, // ✅ Added (replaces gap)
   },
   modalCancelText: {
     color: '#111827',
@@ -132,7 +149,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginLeft: 6, // ✅ Added (replaces gap)
   },
   modalLogoutText: {
     color: '#FFFFFF',
