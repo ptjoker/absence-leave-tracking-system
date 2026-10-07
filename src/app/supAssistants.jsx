@@ -1,10 +1,12 @@
 // src/app/supAssistants.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   ImageBackground,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -17,8 +19,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import { apiFetch } from '@/lib/api';
 
-// --- Theme Colors ---
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
@@ -42,75 +44,115 @@ const COLORS = {
   avatarTextColors: ['#4F46E5', '#D97706', '#059669', '#DB2777', '#2563EB'],
 };
 
-// --- Mock Data for Students ---
-const studentData = [
-  {
-    id: '1', initials: 'JD', name: 'John Doe', course: 'MANAGEMENT SCIENCES',
-    email: 'sync.test01@tut4life.ac.za', phone: '083 456 7330', studNo: '777888999',
-    requests: { total: 2, approved: 1, rejected: 1, pending: 0 },
-    memberSince: '20 Sept 2026', status: 'Active', colorIndex: 0,
-  },
-  {
-    id: '2', initials: 'MT', name: 'Mobile Test', course: 'DIP COMPUTER SCIENCE',
-    email: 'mobile.test01@tut4life.ac.za', phone: '0831112222', studNo: '999888777',
-    requests: { total: 0, approved: 0, rejected: 0, pending: 0 },
-    memberSince: '29 Sept 2026', status: 'Active', colorIndex: 1,
-  },
-  {
-    id: '3', initials: 'NN', name: 'Nthando Nkosi', course: 'DIPLOMA IN INFORMATICS',
-    email: '333222111@tut4life.ac.za', phone: '0756293253', studNo: '333222111',
-    requests: { total: 1, approved: 0, rejected: 1, pending: 0 },
-    memberSince: '1 Oct 2026', status: 'Active', colorIndex: 2,
-  },
-  {
-    id: '4', initials: 'PT', name: 'Peter Thomas', course: 'BSC COMPUTER SYSTEMS ENGINEERING',
-    email: 'test.phone01@tut4life.ac.za', phone: '082 555 1243', studNo: '555444333',
-    requests: { total: 12, approved: 5, pending: 1, rejected: 6 },
-    memberSince: '19 Sept 2026', status: 'Active', colorIndex: 3,
-  },
-  {
-    id: '5', initials: 'SN', name: 'Sarah Nkosi', course: 'DIP COMPUTER SCIENCE',
-    email: 'fresh.test01@tut4life.ac.za', phone: '078 453 1244', studNo: '111222333',
-    requests: { total: 0, approved: 0, rejected: 0, pending: 0 },
-    memberSince: '19 Sept 2026', status: 'Active', colorIndex: 4,
-  },
-  {
-    id: '6', initials: 'TS', name: 'Test Student', course: 'COMPUTER SCIENCE',
-    email: 'nsukushrewdness@gmail.com', phone: '0000000000', studNo: 'TEST002',
-    requests: { total: 0, approved: 0, rejected: 0, pending: 0 },
-    memberSince: '4 Oct 2026', status: 'Active', colorIndex: 0,
-  },
-  {
-    id: '7', initials: 'TS', name: 'Test Student', course: 'COMPUTER SCIENCE',
-    email: 'yourname+student@gmail.com', phone: '0000000000', studNo: 'TEST001',
-    requests: { total: 0, approved: 0, rejected: 0, pending: 0 },
-    memberSince: '4 Oct 2026', status: 'Active', colorIndex: 1,
-  },
-];
-
-// --- Bottom Nav Items (Mapped to Pages) ---
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
-  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
+  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest'     },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
 ];
+
+function initialsFromName(name) {
+  if (!name) return '?';
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
+
+function formatMemberSince(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return String(iso);
+  }
+}
 
 export default function StudentAssistances() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  // Header State
   const [isDarkMode, setIsDarkMode] = useState(false);
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const loadAssistants = async () => {
+    try {
+      const res = await apiFetch('/api/assistants');
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        Alert.alert('Error', data?.error || 'Could not load assistants.');
+        return;
+      }
+
+      const formatted = data.map((a, index) => ({
+        id: a.id,
+        name: a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim() || 'Unknown',
+        initials: a.initials || initialsFromName(a.name || `${a.firstName || ''} ${a.lastName || ''}`),
+        course: (a.course || '—').toUpperCase(),
+        email: a.email || '—',
+        phone: a.phone || '—',
+        studNo: a.studentNumber || '—',
+        memberSince: formatMemberSince(a.createdAt),
+        status: a.status || 'Active',
+        requests: {
+          total: a.totalRequests || 0,
+          approved: a.approvedRequests || 0,
+          rejected: a.rejectedRequests || 0,
+          pending: a.pendingRequests || 0,
+        },
+        colorIndex: index % COLORS.avatarColors.length,
+      }));
+
+      setStudents(formatted);
+    } catch (err) {
+      console.error('Load assistants error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAssistants();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadAssistants();
+  };
+
+  const filteredStudents = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q) ||
+        s.course.toLowerCase().includes(q) ||
+        String(s.studNo).toLowerCase().includes(q)
+    );
+  }, [students, searchQuery]);
+
+  const totalAssistants = students.length;
+  const totalRequests = students.reduce((sum, s) => sum + s.requests.total, 0);
+  const totalPending = students.reduce((sum, s) => sum + s.requests.pending, 0);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* Background Image with 70% White Overlay */}
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
         style={styles.backgroundImage}
@@ -118,9 +160,12 @@ export default function StudentAssistances() {
       >
         <View style={styles.overlay} />
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
 
-          {/* --- STANDARD HEADER --- */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -132,33 +177,21 @@ export default function StudentAssistances() {
 
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
-                <Feather
-                  name={isDarkMode ? 'sun' : 'moon'}
-                  size={22}
-                  color={COLORS.primary}
-                />
+                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={COLORS.primary} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => router.push('/supNotif')}
-              >
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotif')}>
                 <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => router.push('/logOut')} 
-              >
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
                 <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* --- TITLE SECTION --- */}
           <View style={styles.titleSection}>
             <View style={styles.titleRow}>
               <Text style={styles.pageTitle}>Student Assistances</Text>
-              <TouchableOpacity style={styles.refreshButton}>
+              <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
                 <Feather name="refresh-cw" size={14} color={COLORS.textMain} />
                 <Text style={styles.refreshText}>Refresh</Text>
               </TouchableOpacity>
@@ -168,40 +201,47 @@ export default function StudentAssistances() {
             </Text>
           </View>
 
-          {/* --- STATS ROW --- */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>TOTAL ASSISTANTS</Text>
-              <Text style={styles.statValue}>7</Text>
+              <Text style={styles.statValue}>{totalAssistants}</Text>
               <Feather name="users" size={16} color={COLORS.primary} style={styles.statIcon} />
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>TOTAL REQUESTS</Text>
-              <Text style={styles.statValue}>15</Text>
+              <Text style={styles.statValue}>{totalRequests}</Text>
               <Feather name="clipboard" size={16} color={COLORS.primary} style={styles.statIcon} />
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>PENDING REVIEW</Text>
-              <Text style={styles.statValue}>1</Text>
+              <Text style={styles.statValue}>{totalPending}</Text>
               <Feather name="clock" size={16} color={COLORS.pendingText} style={styles.statIcon} />
             </View>
           </View>
 
-          {/* --- SEARCH BAR --- */}
           <View style={styles.searchContainer}>
             <Feather name="search" size={16} color={COLORS.textMuted} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search by name, email, course, or student"
               placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
           </View>
 
-          {/* --- STUDENT LIST --- */}
-          {studentData.map((student) => (
-            <View key={student.id} style={styles.studentCard}>
+          {loading && (
+            <Text style={styles.emptyText}>Loading assistants…</Text>
+          )}
 
-              {/* Card Header */}
+          {!loading && filteredStudents.length === 0 && (
+            <Text style={styles.emptyText}>
+              {searchQuery ? 'No students match your search.' : 'No student assistants registered yet.'}
+            </Text>
+          )}
+
+          {!loading && filteredStudents.map((student) => (
+            <View key={student.id} style={styles.studentCard}>
               <View style={styles.studentHeader}>
                 <View style={styles.studentMainInfo}>
                   <View style={[styles.avatarStudent, { backgroundColor: COLORS.avatarColors[student.colorIndex] }]}>
@@ -221,7 +261,6 @@ export default function StudentAssistances() {
 
               <View style={styles.divider} />
 
-              {/* Contact Info */}
               <View style={styles.contactSection}>
                 <View style={styles.contactRow}>
                   <Feather name="mail" size={12} color={COLORS.textMuted} />
@@ -237,32 +276,38 @@ export default function StudentAssistances() {
                 </View>
               </View>
 
-              {/* Request Badges */}
               <View style={styles.requestStats}>
                 <View style={styles.requestBadgeRow}>
                   <Text style={styles.requestLabel}>Requests:</Text>
                   <View style={[styles.requestBadge, { backgroundColor: COLORS.grayLight }]}>
-                    <Text style={[styles.requestBadgeText, { color: COLORS.textMain }]}>{student.requests.total} total</Text>
+                    <Text style={[styles.requestBadgeText, { color: COLORS.textMain }]}>
+                      {student.requests.total} total
+                    </Text>
                   </View>
                   {student.requests.approved > 0 && (
                     <View style={[styles.requestBadge, { backgroundColor: COLORS.approvedBg }]}>
-                      <Text style={[styles.requestBadgeText, { color: COLORS.approvedText }]}>{student.requests.approved} approved</Text>
+                      <Text style={[styles.requestBadgeText, { color: COLORS.approvedText }]}>
+                        {student.requests.approved} approved
+                      </Text>
                     </View>
                   )}
                   {student.requests.pending > 0 && (
                     <View style={[styles.requestBadge, { backgroundColor: COLORS.pendingBg }]}>
-                      <Text style={[styles.requestBadgeText, { color: COLORS.pendingText }]}>{student.requests.pending} pending</Text>
+                      <Text style={[styles.requestBadgeText, { color: COLORS.pendingText }]}>
+                        {student.requests.pending} pending
+                      </Text>
                     </View>
                   )}
                   {student.requests.rejected > 0 && (
                     <View style={[styles.requestBadge, { backgroundColor: COLORS.rejectedBg }]}>
-                      <Text style={[styles.requestBadgeText, { color: COLORS.rejectedText }]}>{student.requests.rejected} rejected</Text>
+                      <Text style={[styles.requestBadgeText, { color: COLORS.rejectedText }]}>
+                        {student.requests.rejected} rejected
+                      </Text>
                     </View>
                   )}
                 </View>
               </View>
 
-              {/* Card Footer */}
               <View style={styles.studentFooter}>
                 <Text style={styles.memberSince}>Member since: {student.memberSince}</Text>
                 <TouchableOpacity style={styles.issueStrikeButton}>
@@ -270,11 +315,9 @@ export default function StudentAssistances() {
                   <Text style={styles.issueStrikeText}>Issue strike</Text>
                 </TouchableOpacity>
               </View>
-
             </View>
           ))}
 
-          {/* Footer Note */}
           <View style={styles.footerNote}>
             <Feather name="info" size={12} color={COLORS.textMuted} />
             <Text style={styles.footerNoteText}>
@@ -282,11 +325,9 @@ export default function StudentAssistances() {
             </Text>
           </View>
 
-          {/* Padding for bottom nav */}
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* --- BOTTOM NAVIGATION BAR --- */}
         <View
           style={[
             styles.bottomNav,
@@ -295,6 +336,7 @@ export default function StudentAssistances() {
         >
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
+            const showBadge = item.name === 'Requests' && totalPending > 0;
 
             return (
               <TouchableOpacity
@@ -309,11 +351,11 @@ export default function StudentAssistances() {
                     size={22}
                     color={isActive ? COLORS.primary : '#A0AEC0'}
                   />
-                  {item.badge ? (
+                  {showBadge && (
                     <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{item.badge}</Text>
+                      <Text style={styles.navBadgeText}>{totalPending}</Text>
                     </View>
-                  ) : null}
+                  )}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}
@@ -327,7 +369,6 @@ export default function StudentAssistances() {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
@@ -336,8 +377,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
   scrollContent: { padding: 16 },
-
-  // --- STANDARD HEADER STYLES ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -348,7 +387,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     marginBottom: 20,
-    marginHorizontal: -16, // Negative margin to stretch edge-to-edge
+    marginHorizontal: -16,
     marginTop: -16,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
@@ -364,11 +403,9 @@ const styles = StyleSheet.create({
   },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginLeft: 14 },
-
-  // Title Section
   titleSection: { marginBottom: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  pageTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif' },
+  pageTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.darkBlue },
   refreshButton: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
     borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 6,
@@ -376,8 +413,6 @@ const styles = StyleSheet.create({
   },
   refreshText: { fontSize: 12, fontWeight: '600', color: COLORS.textMain, marginLeft: 4 },
   pageSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18 },
-
-  // Stats Row
   statsRow: { flexDirection: 'row', marginBottom: 16 },
   statCard: {
     flex: 1, backgroundColor: COLORS.card, padding: 12, borderRadius: 8,
@@ -387,8 +422,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 8, fontWeight: 'bold', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 4, maxWidth: '80%' },
   statValue: { fontSize: 20, fontWeight: 'bold', color: COLORS.darkBlue },
   statIcon: { position: 'absolute', top: 10, right: 10 },
-
-  // Search Bar
   searchContainer: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
@@ -396,8 +429,7 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 13, color: COLORS.textMain },
-
-  // Student Card
+  emptyText: { textAlign: 'center', color: COLORS.textMuted, paddingVertical: 20 },
   studentCard: {
     backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: COLORS.border, marginBottom: 12,
@@ -417,22 +449,15 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.activeBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
   },
   statusText: { color: COLORS.activeText, fontSize: 11, fontWeight: 'bold' },
-
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 12 },
-
-  // Contact Section
   contactSection: { marginBottom: 12 },
   contactRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   contactText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 8 },
-
-  // Request Stats
   requestStats: { marginBottom: 12 },
   requestLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, fontWeight: '600' },
   requestBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   requestBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, marginRight: 6, marginBottom: 4 },
   requestBadgeText: { fontSize: 10, fontWeight: 'bold' },
-
-  // Card Footer
   studentFooter: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12,
@@ -443,12 +468,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
   },
   issueStrikeText: { color: COLORS.danger, fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
-
-  // Footer Note
   footerNote: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8 },
   footerNoteText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 6 },
-
-  // Bottom Navigation Bar
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -462,41 +483,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 4,
-    minWidth: 55,
-  },
-  navIconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  navItem: { alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 55 },
+  navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   navBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: COLORS.danger,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute', top: -4, right: -8, backgroundColor: COLORS.danger,
+    borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3,
+    justifyContent: 'center', alignItems: 'center',
   },
-  navBadgeText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  navText: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  },
-  navTextActive: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
+  navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+  navText: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 });

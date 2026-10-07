@@ -1,9 +1,11 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   ImageBackground,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -13,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiFetch, getSession } from '@/lib/api';
 
 // Adjust the number of ../ based on where your assets folder actually is.
 import LogoImg from '../../assets/images/logo.png';
@@ -65,19 +68,11 @@ const THEME = {
   },
 };
 
-// --- Mock Data ---
-const metrics = [
-  { id: 1, title: 'PENDING APPROVALS', value: '1', icon: 'clock' },
-  { id: 2, title: 'APPROVED', value: '6', icon: 'check-circle' },
-  { id: 3, title: 'ASSISTANTS', value: '3', icon: 'users' },
-  { id: 4, title: 'TOTAL REQUESTS', value: '15', icon: 'clipboard' },
-];
-
 // --- Bottom Nav Items (Mapped to Pages) ---
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
-  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
+  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest' },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
 ];
@@ -87,11 +82,73 @@ export default function SupervisorDashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const [user, setUser] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [assistants, setAssistants] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const theme = isDarkMode ? THEME.dark : THEME.light;
   const styles = useMemo(() => getStyles(theme), [isDarkMode]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  const loadData = async () => {
+    try {
+      const [reqRes, asstRes] = await Promise.all([
+        apiFetch('/api/requests'),
+        apiFetch('/api/assistants'),
+      ]);
+      const [reqData, asstData] = await Promise.all([reqRes.json(), asstRes.json()]);
+
+      if (reqRes.ok && Array.isArray(reqData)) {
+        setRequests(reqData);
+      } else if (reqData?.error) {
+        console.warn('Requests load error:', reqData.error);
+      }
+      if (asstRes.ok && Array.isArray(asstData)) {
+        setAssistants(asstData);
+      } else if (asstData?.error) {
+        console.warn('Assistants load error:', asstData.error);
+      }
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    getSession()
+      .then((session) => {
+        if (session?.user) setUser(session.user);
+      })
+      .catch((err) => {
+        console.error('Session load error:', err);
+      });
+    loadData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const pendingCount = requests.filter((request) => request.status === 'Pending').length;
+  const approvedCount = requests.filter((request) => request.status === 'Approved').length;
+  const metrics = [
+    { id: 1, title: 'PENDING APPROVALS', value: String(pendingCount), icon: 'clock' },
+    { id: 2, title: 'APPROVED', value: String(approvedCount), icon: 'check-circle' },
+    { id: 3, title: 'ASSISTANTS', value: String(assistants.length), icon: 'users' },
+    { id: 4, title: 'TOTAL REQUESTS', value: String(requests.length), icon: 'clipboard' },
+  ];
+  const awaiting = requests.filter((request) => request.status === 'Pending').slice(0, 3);
+  const displayName = user?.first_name
+    ? `${user.first_name} ${user.last_name || ''}`.trim()
+    : 'Supervisor';
+  const displayRole = user?.role
+    ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
+    : 'Supervisor';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -139,7 +196,11 @@ export default function SupervisorDashboard() {
         </View>
 
         {/* --- MAIN CONTENT --- */}
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
 
           {/* Hero Section */}
           <View style={styles.heroSection}>
@@ -148,7 +209,7 @@ export default function SupervisorDashboard() {
             </View>
             <Text style={styles.heroTitle}>Supervisor dashboard</Text>
             <Text style={styles.heroSubtitle}>
-              Monitor incoming student assistant requests and keep operational decisions synchronized.
+              Welcome, {displayName} ({displayRole}). Monitor incoming student assistant requests and keep operational decisions synchronized.
             </Text>
           </View>
 
@@ -173,16 +234,27 @@ export default function SupervisorDashboard() {
             </TouchableOpacity>
           </View>
 
-          {/* Request Item */}
-          <View style={styles.requestCard}>
-            <View style={styles.requestInfo}>
-              <Text style={styles.requestName}>Peter Thomas</Text>
-              <Text style={styles.requestDetails}>Personal Issues · Oct 12, 2026 - Oct 13, 2026</Text>
+          {awaiting.length > 0 ? awaiting.map((request) => (
+            <View key={request.id || request.rawId || request.name} style={styles.requestCard}>
+              <View style={styles.requestInfo}>
+                <Text style={styles.requestName}>{request.name || 'Unknown'}</Text>
+                <Text style={styles.requestDetails}>
+                  {request.reason || request.detail || request.type || 'Leave request'}
+                  {request.dateRange ? ` · ${request.dateRange}` : ''}
+                </Text>
+              </View>
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusText}>Pending</Text>
+              </View>
             </View>
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>Pending</Text>
+          )) : (
+            <View style={styles.requestCard}>
+              <View style={styles.requestInfo}>
+                <Text style={styles.requestName}>No pending requests</Text>
+                <Text style={styles.requestDetails}>New requests will appear here.</Text>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Operational Note */}
           <View style={styles.noteSection}>
@@ -215,6 +287,7 @@ export default function SupervisorDashboard() {
         >
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
+            const showBadge = item.name === 'Requests' && pendingCount > 0;
 
             return (
               <TouchableOpacity
@@ -229,11 +302,11 @@ export default function SupervisorDashboard() {
                     size={22}
                     color={isActive ? theme.navActive : theme.navInactive}
                   />
-                  {item.badge ? (
+                  {showBadge && (
                     <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{item.badge}</Text>
+                      <Text style={styles.navBadgeText}>{pendingCount}</Text>
                     </View>
-                  ) : null}
+                  )}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}

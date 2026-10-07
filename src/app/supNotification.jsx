@@ -1,10 +1,12 @@
 // src/app/supNotif.jsx
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   Modal,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,48 +16,24 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import logoImg from '@/assets/images/logo.png';
+import { apiFetch } from '@/lib/api';
 
-// --- Inline Mock Data (Removed the broken ../data/mockData import) ---
-const supervisorNotificationsData = [
-  {
-    id: '1',
-    name: 'Peter Thomas',
-    initials: 'PT',
-    avatarColor: '#A78BFA',
-    type: 'LEAVE',
-    reason: 'Request submitted: Personal Issues · Oct 12, 2026 – Oct 13, 2026',
-    date: 'Oct 6, 2026',
-  },
-  {
-    id: '2',
-    name: 'Sarah Nkosi',
-    initials: 'SN',
-    avatarColor: '#60A5FA',
-    type: 'SHIFT SWAP',
-    reason: 'Requested a shift swap for Oct 15, 2026 due to a university timetable conflict.',
-    date: 'Oct 5, 2026',
-  },
-  {
-    id: '3',
-    name: 'Nthando Nkosi',
-    initials: 'NN',
-    avatarColor: '#F59E0B',
-    type: 'LEAVE',
-    reason: 'Sick leave request submitted for Oct 5, 2026.',
-    date: 'Oct 4, 2026',
-  },
-];
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return String(iso);
+  }
+}
 
-const initialNotifications = supervisorNotificationsData;
-
-// ---------------- COMPONENTS ----------------
 const NotificationCard = ({ item, onPress }) => (
   <TouchableOpacity
     style={styles.card}
     onPress={() => onPress(item)}
     activeOpacity={0.7}
   >
-    {/* Header Row */}
     <View style={styles.cardHeader}>
       <View style={styles.cardHeaderLeft}>
         <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
@@ -70,12 +48,12 @@ const NotificationCard = ({ item, onPress }) => (
 
     <View style={styles.divider} />
 
-    {/* Body */}
     <View style={styles.cardBody}>
-      <Text style={styles.requestText}>{item.reason}</Text>
+      <Text style={styles.requestText} numberOfLines={2}>
+        {item.reason}
+      </Text>
     </View>
 
-    {/* Meta Row (Date Only) */}
     <View style={styles.metaRow}>
       <View style={styles.dateContainer}>
         <Ionicons name="calendar-outline" size={16} color="#718096" style={styles.metaIcon} />
@@ -85,20 +63,60 @@ const NotificationCard = ({ item, onPress }) => (
   </TouchableOpacity>
 );
 
-// ---------------- MAIN COMPONENT ----------------
 export default function SupervisorNotifications() {
   const router = useRouter();
-  const [notifications] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // Functional back navigation
-  const handleBackPress = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/supervisorDash');
+  const loadNotifications = async () => {
+    try {
+      const res = await apiFetch('/api/requests');
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Could not load notifications.');
+        return;
+      }
+
+      const formatted = data
+        .slice()
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 20)
+        .map((r) => ({
+          id: r.rawId || r.id,
+          name: r.name || 'Unknown',
+          initials: r.initials || '?',
+          avatarColor: '#A78BFA',
+          type: r.type || 'REQUEST',
+          reason: r.reason || r.detail || 'No details provided.',
+          date: formatDate(r.createdAt) || r.dateRange || 'Recently',
+        }));
+
+      setNotifications(formatted);
+    } catch (err) {
+      console.error('Load notifications error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadNotifications();
+  };
+
+  const handleBackPress = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/supervisorDash');
   };
 
   const handleNotificationPress = (notification) => {
@@ -108,7 +126,6 @@ export default function SupervisorNotifications() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      {/* Top Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
@@ -130,28 +147,31 @@ export default function SupervisorNotifications() {
         </View>
       </View>
 
-      {/* Notification List */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {notifications.length === 0 ? (
+        {loading && (
+          <Text style={styles.emptyText}>Loading notifications…</Text>
+        )}
+
+        {!loading && notifications.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="notifications-off-outline" size={60} color="#CBD5E0" />
             <Text style={styles.emptyText}>No notifications</Text>
           </View>
-        ) : (
-          notifications.map((item) => (
-            <NotificationCard
-              key={item.id}
-              item={item}
-              onPress={handleNotificationPress}
-            />
-          ))
         )}
+
+        {!loading && notifications.map((item) => (
+          <NotificationCard
+            key={item.id}
+            item={item}
+            onPress={handleNotificationPress}
+          />
+        ))}
       </ScrollView>
 
-      {/* Footer Note */}
       <View style={styles.footerNote}>
         <Ionicons
           name="information-circle-outline"
@@ -164,7 +184,6 @@ export default function SupervisorNotifications() {
         </Text>
       </View>
 
-      {/* --- NOTIFICATION DETAILS MODAL --- */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -242,8 +261,6 @@ export default function SupervisorNotifications() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F0F4F8' },
-
-  // --- Header ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -268,10 +285,7 @@ const styles = StyleSheet.create({
   },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginLeft: 16 },
-
-  // --- Notification List ---
   scrollContent: { padding: 16, paddingBottom: 60 },
-
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -312,11 +326,7 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     letterSpacing: 0.5,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#E2E8F0',
-    marginHorizontal: 16,
-  },
+  divider: { height: 1, backgroundColor: '#E2E8F0', marginHorizontal: 16 },
   cardBody: { padding: 16 },
   requestText: { fontSize: 14, color: '#4A5568', lineHeight: 20 },
   metaRow: {
@@ -328,8 +338,6 @@ const styles = StyleSheet.create({
   dateContainer: { flexDirection: 'row', alignItems: 'center' },
   metaIcon: { marginRight: 6 },
   dateText: { fontSize: 13, color: '#718096' },
-
-  // --- Empty State ---
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -340,9 +348,9 @@ const styles = StyleSheet.create({
     color: '#A0AEC0',
     marginTop: 12,
     fontWeight: '600',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
-
-  // --- Footer Note ---
   footerNote: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -353,8 +361,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   footerNoteText: { flex: 1, fontSize: 11, color: '#718096', lineHeight: 16 },
-
-  // --- Modal Styles ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

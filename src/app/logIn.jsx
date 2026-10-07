@@ -14,7 +14,8 @@ import {
   View,
 } from 'react-native';
 
-// --- Theme Colors ---
+import { apiFetch, saveSession } from '@/lib/api';
+
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
@@ -38,17 +39,71 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Modal State
   const [isForgotModalVisible, setIsForgotModalVisible] = useState(false);
   const [staffNo, setStaffNo] = useState('');
   const [resetEmail, setResetEmail] = useState('');
 
-  const handleLogIn = () => {
-    if (accountType === 'student') {
-      router.replace('/studDash');
-    } else if (accountType === 'supervisor') {
-      router.replace('/supervisorDash');
+  const handleLogIn = async () => {
+    setErrorMsg('');
+
+    if (!email.trim() || !password) {
+      setErrorMsg('Please enter your email and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          role: accountType,
+        }),
+      });
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setErrorMsg('Wrong email or password. Please try again.');
+        } else if (res.status === 403) {
+          setErrorMsg('Incorrect account type. Pick the right role above.');
+        } else if (res.status === 429) {
+          setErrorMsg('Too many attempts. Please wait a minute and try again.');
+        } else {
+          setErrorMsg(data.error || 'Login failed. Please try again.');
+        }
+        return;
+      }
+
+      await saveSession({
+        access_token: data.session?.access_token,
+        refresh_token: data.session?.refresh_token,
+        expires_at: data.session?.expires_at,
+        user: data.user,
+      });
+
+      const userRole = data.user?.role;
+      if (userRole === 'supervisor') {
+        router.replace('/supervisorDash');
+      } else {
+        router.replace('/studDash');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setErrorMsg('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,7 +111,6 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Background Image with Overlay */}
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
         style={styles.backgroundImage}
@@ -66,7 +120,6 @@ export default function LoginScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* --- HEADER --- */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Ionicons name="school" size={28} color={COLORS.primary} />
@@ -83,16 +136,17 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* --- MAIN CONTENT --- */}
           <View style={styles.mainContent}>
-
-            {/* Welcome Section */}
             <View style={styles.welcomeSection}>
               <View style={styles.tag}>
                 <Text style={styles.tagDot}>●</Text>
                 <Text style={styles.tagText}>SECURE PORTAL</Text>
               </View>
-              <Text style={styles.welcomeTitle}>Welcome back, student.</Text>
+              <Text style={styles.welcomeTitle}>
+                {accountType === 'student'
+                  ? 'Welcome back, student.'
+                  : 'Welcome back, supervisor.'}
+              </Text>
               <Text style={styles.welcomeSubtitle}>
                 Sign in to keep attendance records moving, requests clear, and your next step close at hand.
               </Text>
@@ -104,13 +158,11 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Login Card */}
             <View style={styles.card}>
               <Text style={styles.cardTag}>PORTAL ACCESS</Text>
               <Text style={styles.cardTitle}>Sign in to iCenter</Text>
               <Text style={styles.cardSubtitle}>Choose your account type to continue.</Text>
 
-              {/* Account Type Toggle */}
               <View style={styles.toggleContainer}>
                 <TouchableOpacity
                   style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
@@ -132,21 +184,24 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Form Fields */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>
-                  University email <Text style={styles.required}>*</Text>
+                  {accountType === 'student' ? 'University email' : 'Staff email'}{' '}
+                  <Text style={styles.required}>*</Text>
                 </Text>
                 <View style={styles.inputWrapper}>
                   <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="studentnumber@tut4life.ac.za"
+                    placeholder={accountType === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'}
                     placeholderTextColor="#9CA3AF"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(value) => {
+                      setEmail(value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
                   />
                 </View>
               </View>
@@ -163,7 +218,10 @@ export default function LoginScreen() {
                     placeholderTextColor="#9CA3AF"
                     secureTextEntry={!showPassword}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(value) => {
+                      setPassword(value);
+                      if (errorMsg) setErrorMsg('');
+                    }}
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
                     <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={COLORS.textMuted} />
@@ -171,7 +229,6 @@ export default function LoginScreen() {
                 </View>
               </View>
 
-              {/* Options Row */}
               <View style={styles.optionsRow}>
                 <TouchableOpacity
                   style={styles.checkboxContainer}
@@ -183,24 +240,33 @@ export default function LoginScreen() {
                   <Text style={styles.checkboxText}>Keep me signed in</Text>
                 </TouchableOpacity>
 
-                {/* FORGOT PASSWORD TRIGGER */}
                 <TouchableOpacity onPress={() => setIsForgotModalVisible(true)}>
                   <Text style={styles.forgotPassword}>Forgot password?</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Submit Button */}
-              <TouchableOpacity style={styles.primaryButton} onPress={handleLogIn}>
+              {errorMsg ? (
+                <View style={styles.errorBanner}>
+                  <Feather name="alert-circle" size={16} color="#DC2626" />
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[styles.primaryButton, loading && { opacity: 0.6 }]}
+                onPress={handleLogIn}
+                disabled={loading}
+              >
                 <Text style={styles.primaryButtonText}>
-                  Sign in as {accountType === 'student' ? 'student' : 'supervisor'}
+                  {loading
+                    ? 'Signing in…'
+                    : `Sign in as ${accountType === 'student' ? 'student' : 'supervisor'}`}
                 </Text>
                 <Feather name="arrow-right" size={16} color="#FFF" />
               </TouchableOpacity>
 
-              {/* Card Footer */}
               <View style={styles.cardFooter}>
                 <Text style={styles.cardFooterText}>{"Don't have an account? "}</Text>
-                {/* UPDATED: Now navigates to signStud.jsx */}
                 <TouchableOpacity onPress={() => router.push('/signStud')}>
                   <Text style={styles.registerLink}>Register here</Text>
                 </TouchableOpacity>
@@ -208,7 +274,6 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* --- PAGE FOOTER --- */}
           <View style={styles.pageFooter}>
             <Text style={styles.footerText}>Need help? </Text>
             <TouchableOpacity>
@@ -223,7 +288,6 @@ export default function LoginScreen() {
         </ScrollView>
       </ImageBackground>
 
-      {/* ==================== FORGOT PASSWORD MODAL ==================== */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -232,8 +296,6 @@ export default function LoginScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Forgot your password?</Text>
               <TouchableOpacity onPress={() => setIsForgotModalVisible(false)} style={styles.closeButton}>
@@ -241,12 +303,10 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Modal Description */}
             <Text style={styles.modalDescription}>
               {"Enter your Staff/Student No. and registered email address. We'll send you instructions to reset your password."}
             </Text>
 
-            {/* Staff/Student No. Input */}
             <View style={styles.modalInputGroup}>
               <Text style={styles.modalLabel}>
                 Staff/Student No. <Text style={styles.required}>*</Text>
@@ -263,7 +323,6 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Email Address Input */}
             <View style={styles.modalInputGroup}>
               <Text style={styles.modalLabel}>
                 Email Address <Text style={styles.required}>*</Text>
@@ -282,18 +341,15 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Submit Reset Link Button */}
             <TouchableOpacity
               style={styles.modalSubmitButton}
               onPress={() => {
-                // Handle send reset link logic here
                 setIsForgotModalVisible(false);
               }}
             >
               <Text style={styles.modalSubmitText}>Send Reset Link</Text>
               <Feather name="arrow-right" size={16} color={COLORS.resetBtnText} />
             </TouchableOpacity>
-
           </View>
         </View>
       </Modal>
@@ -302,7 +358,6 @@ export default function LoginScreen() {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1 },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
@@ -315,8 +370,6 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'space-between',
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -333,24 +386,18 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   themeText: { fontSize: 10, color: COLORS.textMuted, marginLeft: 4 },
-
-  // Main Content
   mainContent: { flex: 1, justifyContent: 'center' },
-
-  // Welcome Section
   welcomeSection: { marginBottom: 32 },
   tag: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   tagDot: { color: COLORS.primary, fontSize: 10, marginRight: 6 },
   tagText: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1 },
   welcomeTitle: {
     fontSize: 28, fontWeight: 'bold', color: COLORS.darkBlue,
-    fontFamily: 'serif', marginBottom: 12, lineHeight: 34,
+    marginBottom: 12, lineHeight: 34,
   },
   welcomeSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 20, marginBottom: 16 },
   securityNote: { flexDirection: 'row', alignItems: 'flex-start' },
   securityText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 8 },
-
-  // Login Card
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
@@ -362,10 +409,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   cardTag: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
-  cardTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif', marginBottom: 4 },
+  cardTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.darkBlue, marginBottom: 4 },
   cardSubtitle: { fontSize: 13, color: COLORS.textMuted, marginBottom: 20 },
-
-  // Toggle
   toggleContainer: {
     flexDirection: 'row', backgroundColor: COLORS.toggleBg,
     borderRadius: 8, padding: 4, marginBottom: 20,
@@ -381,8 +426,6 @@ const styles = StyleSheet.create({
   },
   toggleText: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginLeft: 6 },
   toggleTextActive: { color: COLORS.primary },
-
-  // Inputs
   inputGroup: { marginBottom: 16 },
   label: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 6 },
   required: { color: COLORS.danger },
@@ -393,8 +436,6 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: 8 },
   input: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.textMain },
   eyeIcon: { padding: 4 },
-
-  // Options
   optionsRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 24,
@@ -408,29 +449,39 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxText: { fontSize: 12, color: COLORS.textMuted },
   forgotPassword: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
-
-  // Button
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    flex: 1,
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   primaryButton: {
     backgroundColor: COLORS.primary, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
     paddingVertical: 14, borderRadius: 8, marginBottom: 20,
   },
   primaryButtonText: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginRight: 8 },
-
-  // Card Footer
   cardFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   cardFooterText: { fontSize: 12, color: COLORS.textMuted },
   registerLink: { fontSize: 12, color: COLORS.primary, fontWeight: 'bold' },
-
-  // Page Footer
   pageFooter: {
     flexDirection: 'row', justifyContent: 'center',
     alignItems: 'center', marginTop: 32, flexWrap: 'wrap',
   },
   footerText: { fontSize: 11, color: COLORS.textMuted },
   footerLink: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
-
-  // --- MODAL STYLES ---
   modalOverlay: {
     flex: 1,
     backgroundColor: COLORS.modalOverlay,
