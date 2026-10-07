@@ -39,7 +39,13 @@ export function useStudent() {
           cell: u.cell_number || 'Not provided',
           personalEmail: u.personal_email || '',
           currentYear: u.level_of_study || '',
-          enrolledSince: u.created_at || '',
+                    enrolledSince: u.created_at
+            ? new Date(u.created_at).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })
+            : '',
           // Not tracked in DB yet:
           attendanceRate: 0,
           footerContact: 'General: general@tut.ac.za · Contact: +27 (0)86 110 2421',

@@ -1,11 +1,12 @@
+import { apiFetch, getSession, saveSession } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card, StatusPill } from '../components/studentDash/ui';
-import { USER } from '../constants/studData';
 import { useStudTheme } from '../constants/studTheme';
+import { useStudent } from '../hooks/useStudent';
 
 function SectionHeader({ icon, title }) {
   const { c } = useStudTheme();
@@ -47,11 +48,35 @@ function Field({ label, icon, value, editing, onChangeText, keyboardType, placeh
 export default function Profile() {
   const router = useRouter();
   const { c } = useStudTheme();
+  const { user, loading } = useStudent();
   const [editing, setEditing] = useState(false);
-  const [cell, setCell] = useState(USER.cell);
-  const [personalEmail, setPersonalEmail] = useState(USER.personalEmail);
-  const [draftCell, setDraftCell] = useState(USER.cell);
-  const [draftEmail, setDraftEmail] = useState(USER.personalEmail);
+  const [saving, setSaving] = useState(false);
+  const [cell, setCell] = useState('');
+  const [personalEmail, setPersonalEmail] = useState('');
+  const [draftCell, setDraftCell] = useState('');
+  const [draftEmail, setDraftEmail] = useState('');
+
+  // Sync local state when the fetched user arrives.
+  useEffect(() => {
+    if (user) {
+      setCell(user.cell || '');
+      setPersonalEmail(user.personalEmail || '');
+    }
+  }, [user]);
+
+  // Safe fallback so JSX below doesn't crash while data loads.
+  const USER = user || {
+    name: 'Loading...',
+    initials: '..',
+    studentNumber: '—',
+    department: '—',
+    email: '—',
+    currentYear: '—',
+    enrolledSince: '—',
+    accountType: '—',
+    footerContact: 'General: general@tut.ac.za · Contact: +27 (0)86 110 2421',
+    footerCopy: '© 2026 Faculty of Information and Communication Technology. All rights reserved.',
+  };
 
   const startEdit = () => {
     setDraftCell(cell);
@@ -59,7 +84,7 @@ export default function Profile() {
     setEditing(true);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!/^[0-9+()\s-]{7,20}$/.test(draftCell.trim())) {
       Alert.alert('Invalid number', 'Please enter a valid cell number.');
       return;
@@ -68,10 +93,43 @@ export default function Profile() {
       Alert.alert('Invalid email', 'Please enter a valid personal email address.');
       return;
     }
-    // TODO(API): PATCH /student/profile { cell: draftCell, personalEmail: draftEmail }
-    setCell(draftCell.trim());
-    setPersonalEmail(draftEmail.trim());
-    setEditing(false);
+
+    setSaving(true);
+    try {
+      const res = await apiFetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cell_number: draftCell.trim(),
+          personal_email: draftEmail.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        Alert.alert('Update failed', data.error || 'Could not update profile.');
+        return;
+      }
+
+      // Update the stored session so other screens see the new values.
+      const session = await getSession();
+      if (session?.user) {
+        const updatedSession = {
+          ...session,
+          user: { ...session.user, ...data.profile },
+        };
+        await saveSession(updatedSession);
+      }
+
+      setCell(draftCell.trim());
+      setPersonalEmail(draftEmail.trim());
+      setEditing(false);
+      Alert.alert('Profile updated', 'Your changes have been saved.');
+    } catch (err) {
+      console.error('Save profile error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Logout button: opens the existing logOut screen (src/app/logOut.jsx -> route "/logOut").
@@ -91,7 +149,7 @@ export default function Profile() {
           {editing ? (
             <>
               <AppButton variant="danger" label="Cancel" onPress={() => setEditing(false)} style={{ marginRight: 8 }} />
-              <AppButton icon="checkmark" label="Save" onPress={save} />
+              <AppButton icon="checkmark" label={saving ? 'Saving...' : 'Save'} onPress={save} />
             </>
           ) : (
             <AppButton icon="create-outline" label="Edit Profile" onPress={startEdit} />
@@ -158,7 +216,9 @@ export default function Profile() {
         </View>
         <View style={[styles.verified, { borderTopColor: c.border }]}>
           <Text style={{ color: c.text, fontSize: 12, fontWeight: '800' }}>VERIFIED PROFILE</Text>
-          <Text style={{ color: c.text, fontSize: 12, fontStyle: 'italic' }}>Member since —</Text>
+          <Text style={{ color: c.text, fontSize: 12, fontStyle: 'italic' }}>
+            {USER.enrolledSince ? `Member since ${USER.enrolledSince}` : 'Member since —'}
+          </Text>
         </View>
       </Card>
 
