@@ -1,11 +1,13 @@
 // src/app/supCal.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   ImageBackground,
   Modal,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -16,6 +18,7 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiFetch, getSession } from '@/lib/api';
 
 import LogoImg from '@/assets/images/logo.png';
 
@@ -47,25 +50,21 @@ const COLORS = {
 
 // --- Week Days ---
 const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const SHIFT_COLORS = ['#F59E0B', '#8B5CF6', '#3B82F6', '#10B981', '#EC4899'];
+
+const colorForUser = (userId) => {
+  if (!userId) return SHIFT_COLORS[0];
+  const colorIndex = String(userId)
+    .split('')
+    .reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  return SHIFT_COLORS[colorIndex % SHIFT_COLORS.length];
+};
 
 // --- Closure Event Type Options ---
 const CLOSURE_OPTIONS = [
   { label: 'Library closure', icon: 'book-open' },
   { label: 'Strike', icon: 'alert-triangle' },
 ];
-
-// --- Structured Event Data ---
-const SHIFTS_DATA = {
-  '28': [{ id: 1, title: 'Peter Thomas', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText }],
-  '29': [{ id: 2, title: 'Approved Leave', type: 'Leave', color: COLORS.grayLight, textColor: COLORS.grayText }],
-  '30': [{ id: 3, title: 'Peter Thomas', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText }],
-  '7':  [{ id: 4, title: 'Approved Leave', type: 'Leave', color: COLORS.grayLight, textColor: COLORS.grayText }],
-  '15': [
-    { id: 5, title: 'Sarah Nkosi', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText },
-    { id: 6, title: 'Peter Thomas', type: 'Shift Scheduled', color: COLORS.purpleLight, textColor: COLORS.purpleText }
-  ],
-  '6':  []
-};
 
 // --- Mock Data for Timetables ---
 const TIMETABLES_DATA = [
@@ -128,6 +127,86 @@ export default function MasterSchedule() {
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const [user, setUser] = useState(null);
+  const [shifts, setShifts] = useState([]);
+  const [assistants, setAssistants] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const [shiftRes, assistantRes] = await Promise.all([
+        apiFetch('/api/shifts'),
+        apiFetch('/api/assistants'),
+      ]);
+      const [shiftData, assistantData] = await Promise.all([
+        shiftRes.json(),
+        assistantRes.json(),
+      ]);
+
+      if (shiftRes.ok && Array.isArray(shiftData)) {
+        setShifts(shiftData);
+      } else if (shiftData?.error) {
+        console.warn('Calendar shifts load error:', shiftData.error);
+      }
+      if (assistantRes.ok && Array.isArray(assistantData)) {
+        setAssistants(assistantData);
+      } else if (assistantData?.error) {
+        console.warn('Calendar assistants load error:', assistantData.error);
+      }
+    } catch (err) {
+      console.error('Calendar load error:', err);
+      Alert.alert('Connection error', 'Could not load schedule data.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    getSession()
+      .then((session) => {
+        if (session?.user) setUser(session.user);
+      })
+      .catch((err) => {
+        console.error('Session load error:', err);
+      });
+    loadData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const shiftsByDate = useMemo(() => {
+    const byDate = {};
+    shifts.forEach((shift) => {
+      if (!shift.shiftDate) return;
+      const dateKey = String(shift.shiftDate).slice(0, 10);
+      if (!byDate[dateKey]) byDate[dateKey] = [];
+      const shiftColor = colorForUser(shift.userId);
+      byDate[dateKey].push({
+        ...shift,
+        title: shift.studentName || shift.name || shift.assistantName || shift.userName || 'Assistant',
+        type: shift.startTime && shift.endTime
+          ? `${shift.startTime} - ${shift.endTime}`
+          : shift.shiftTime || shift.shiftType || 'Shift Scheduled',
+        color: shiftColor,
+        textColor: shiftColor,
+      });
+    });
+    return byDate;
+  }, [shifts]);
+
+  const totalShifts = shifts.length;
+  const activeAssistants = assistants.length;
+  const upcomingShifts = shifts.filter((shift) => {
+    if (!shift.shiftDate) return false;
+    const shiftDate = new Date(`${String(shift.shiftDate).slice(0, 10)}T00:00:00`);
+    return !Number.isNaN(shiftDate.getTime()) && shiftDate >= new Date(new Date().setHours(0, 0, 0, 0));
+  }).length;
+  const displayName = user
+    ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor'
+    : 'Supervisor';
 
   // ==========================================
   // CALENDAR HEADER CONTROL FUNCTIONS
@@ -141,7 +220,8 @@ export default function MasterSchedule() {
   };
 
   const handleToday = () => {
-    setDisplayedMonth(new Date(2026, 9, 1));
+    const today = new Date();
+    setDisplayedMonth(new Date(today.getFullYear(), today.getMonth(), 1));
     setSelectedDay(null);
   };
 
@@ -188,7 +268,8 @@ export default function MasterSchedule() {
 
   const getSelectedDayEvents = () => {
     if (!selectedDay) return [];
-    return SHIFTS_DATA[selectedDay] || [];
+    const dateKey = `${displayedMonth.getFullYear()}-${String(displayedMonth.getMonth() + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+    return shiftsByDate[dateKey] || [];
   };
 
   const renderCalendarDays = () => {
@@ -240,7 +321,11 @@ export default function MasterSchedule() {
       >
         <View style={styles.overlay} />
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
 
           {/* --- HEADER --- */}
           <View style={styles.header}>
@@ -270,7 +355,7 @@ export default function MasterSchedule() {
             <View style={styles.titleRow}>
               <Text style={styles.pageTitle}>Master Schedule</Text>
               <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.refreshButton}>
+                <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
                   <Feather name="refresh-cw" size={14} color={COLORS.textMain} />
                 </TouchableOpacity>
                 <TouchableOpacity 
@@ -283,7 +368,7 @@ export default function MasterSchedule() {
               </View>
             </View>
             <Text style={styles.pageSubtitle}>
-              {"Manage every student assistant's shifts from a single monthly view. Each student has a unique color."}
+              {`Welcome, ${displayName}. Manage every student assistant's shifts from a single monthly view.`}
             </Text>
           </View>
 
@@ -293,21 +378,21 @@ export default function MasterSchedule() {
               <View style={[styles.statIndicator, { backgroundColor: COLORS.primary }]} />
               <View>
                 <Text style={styles.statLabel}>TOTAL SHIFTS</Text>
-                <Text style={styles.statValue}>6</Text>
+                <Text style={styles.statValue}>{totalShifts}</Text>
               </View>
             </View>
             <View style={styles.statCard}>
               <View style={[styles.statIndicator, { backgroundColor: COLORS.success }]} />
               <View>
                 <Text style={styles.statLabel}>ACTIVE ASSISTANTS</Text>
-                <Text style={styles.statValue}>3</Text>
+                <Text style={styles.statValue}>{activeAssistants}</Text>
               </View>
             </View>
             <View style={styles.statCard}>
               <View style={[styles.statIndicator, { backgroundColor: '#F59E0B' }]} />
               <View>
                 <Text style={styles.statLabel}>UPCOMING</Text>
-                <Text style={styles.statValue}>2</Text>
+                <Text style={styles.statValue}>{upcomingShifts}</Text>
               </View>
             </View>
           </View>
@@ -345,7 +430,8 @@ export default function MasterSchedule() {
               </View>
               <View style={styles.daysContainer}>
                 {renderMainCalendarDays().map((item, index) => {
-                  const dayEvents = SHIFTS_DATA[item.day] || [];
+                  const dateKey = `${displayedMonth.getFullYear()}-${String(displayedMonth.getMonth() + 1).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`;
+                  const dayEvents = item.current ? shiftsByDate[dateKey] || [] : [];
                   const isSelected = selectedDay === item.day && item.current;
                   
                   return (
@@ -375,9 +461,15 @@ export default function MasterSchedule() {
             <View style={styles.legendContainer}>
               <Text style={styles.legendTitle}>LEGEND</Text>
               <View style={styles.legendRow}>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} /><Text style={styles.legendText}>John Doe</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} /><Text style={styles.legendText}>Peter Thomas</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} /><Text style={styles.legendText}>Sarah Nkosi</Text></View>
+                {assistants.slice(0, 6).map((assistant) => (
+                  <View key={assistant.id} style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: colorForUser(assistant.id) }]} />
+                    <Text style={styles.legendText}>{assistant.name || 'Assistant'}</Text>
+                  </View>
+                ))}
+                {assistants.length === 0 && (
+                  <Text style={styles.legendText}>No assistants yet</Text>
+                )}
               </View>
               <View style={styles.legendDescRow}>
                 <Text style={styles.legendDesc}><Text style={{ color: '#10B981' }}>■</Text> Green box - Holiday</Text>
