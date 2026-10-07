@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import {
+  ImageBackground,
   Modal,
   StyleSheet,
   Text,
@@ -15,7 +16,12 @@ export default function LogoutModal({ visible, onClose, onConfirm }) {
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <ImageBackground
+        source={require('../../assets/images/library.jpg')}
+        style={styles.modalOverlay}
+        imageStyle={styles.modalBackgroundImage}
+        resizeMode="cover"
+      >
         <View style={styles.modalContainer}>
           
           {/* Icon */}
@@ -47,7 +53,7 @@ export default function LogoutModal({ visible, onClose, onConfirm }) {
           </View>
 
         </View>
-      </View>
+      </ImageBackground>
     </Modal>
   );
 }
@@ -60,6 +66,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  modalBackgroundImage: {
+    opacity: 0.7, // 70% opacity background picture
   },
   modalContainer: {
     backgroundColor: '#FFFFFF',
