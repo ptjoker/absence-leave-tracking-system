@@ -2,6 +2,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
+  Image,
   ImageBackground,
   Modal,
   SafeAreaView,
@@ -14,6 +15,8 @@ import {
   View,
 } from 'react-native';
 
+import backImg from '@/assets/images/background.png';
+import LogoImg from '@/assets/images/logo.png';
 import { apiFetch, saveSession } from '@/lib/api';
 
 const COLORS = {
@@ -112,28 +115,24 @@ export default function LoginScreen() {
       <StatusBar barStyle="dark-content" />
 
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        source={backImg}
         style={styles.backgroundImage}
         blurRadius={4}
+        imageStyle={{ opacity: 0.65 }}
       >
         <View style={styles.overlay} />
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
+          {/* --- STANDARD HEADER (Only Logo & Title) --- */}
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="school" size={28} color={COLORS.primary} />
-              <View style={styles.logoTextContainer}>
-                <Text style={styles.logoTitle}>iCenter</Text>
-                <Text style={styles.logoSubtitle}>ABSENCE AND LEAVE TRACKER</Text>
+            <View style={styles.headerLeft}>
+              <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerTitle}>iCenter</Text>
+                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.themeToggle}>
-              <Feather name="moon" size={14} color={COLORS.textMuted} />
-              <Text style={styles.themeText}>
-                Change mode <Text style={{ color: '#F59E0B' }}>Dark</Text>
-              </Text>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.mainContent}>
@@ -280,7 +279,7 @@ export default function LoginScreen() {
               <Text style={styles.footerLink}>Contact iCenter support</Text>
             </TouchableOpacity>
             <Text style={styles.footerText}> • </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.replace('/')}>
               <Text style={styles.footerLink}>Return home</Text>
             </TouchableOpacity>
           </View>
@@ -363,29 +362,41 @@ const styles = StyleSheet.create({
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    // The overlay remains at 65% opacity to give the blue tint
+    backgroundColor: 'rgba(219, 234, 254, 0.65)',
   },
   scrollContent: {
     flexGrow: 1,
     padding: 20,
     justifyContent: 'space-between',
   },
+
+  // --- STANDARD HEADER STYLES ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
     marginBottom: 32,
+    marginHorizontal: -20,
+    marginTop: -20,
   },
-  logoContainer: { flexDirection: 'row', alignItems: 'center' },
-  logoTextContainer: { marginLeft: 8 },
-  logoTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.darkBlue },
-  logoSubtitle: { fontSize: 8, color: COLORS.textMuted, letterSpacing: 1 },
-  themeToggle: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
-    borderWidth: 1, borderColor: COLORS.border,
+  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  logoImage: { width: 40, height: 40, marginRight: 10 },
+  headerTextContainer: { justifyContent: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textMain },
+  headerSubtitle: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: 'red',
+    letterSpacing: 1,
+    marginTop: 2,
   },
-  themeText: { fontSize: 10, color: COLORS.textMuted, marginLeft: 4 },
+
   mainContent: { flex: 1, justifyContent: 'center' },
   welcomeSection: { marginBottom: 32 },
   tag: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
