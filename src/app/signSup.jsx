@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -16,26 +15,26 @@ import {
   View,
 } from 'react-native';
 
-import logoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
 
 export default function SupervisorSignUpScreen() {
   const router = useRouter();
 
-  const [staffNo, setStaffNo] = useState('');
-  const [name, setName] = useState('');
-  const [surname, setSurname] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [department, setDepartment] = useState('');
+  const [cellNumber, setCellNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!staffNo.trim() || !name.trim() || !surname.trim() || !email.trim() || !phone.trim() || !password || !confirmPassword) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !department.trim() || !cellNumber.trim() || !password || !confirmPassword) {
       Alert.alert('Missing details', 'Please fill in all required fields.');
       return;
     }
@@ -51,6 +50,10 @@ export default function SupervisorSignUpScreen() {
       Alert.alert('Passwords do not match', 'Please make sure both passwords are identical.');
       return;
     }
+    if (!agreeTerms) {
+      Alert.alert('Terms & Conditions', 'Please agree to the terms and privacy policy to continue.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -58,13 +61,13 @@ export default function SupervisorSignUpScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          first_name: name.trim(),
-          last_name: surname.trim(),
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
           student_email: email.trim(),
-          student_number: staffNo.trim(),
-          course: 'Faculty',
+          student_number: 'SUP-' + Math.floor(100000 + Math.random() * 900000), // Generate a staff ID for now
+          course: department.trim(),
           level_of_study: 'supervisor',
-          cell_number: phone.trim(),
+          cell_number: cellNumber.trim(),
           password,
           role: 'supervisor',
         }),
@@ -101,42 +104,19 @@ export default function SupervisorSignUpScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
-            <Image
-              source={logoImg}
-              style={styles.iconContainer}
-              resizeMode="contain"
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
-            </View>
-          </View>
-
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop' }}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
-          </View>
-
+          {/* --- FORM CARD --- */}
           <View style={styles.formContainer}>
-            <View style={styles.facultyAccessRow}>
-              <Ionicons name="shield-checkmark" size={16} color="#1E429F" />
-              <Text style={styles.facultyAccessText}>FACULTY ACCESS</Text>
-            </View>
+            <Text style={styles.cardTag}>ACCOUNT REGISTRATION</Text>
+            <Text style={styles.title}>Create your account</Text>
 
-            <Text style={styles.title}>Supervisor Registration</Text>
-            <Text style={styles.subtitle}>Provide your staff details to join the portal.</Text>
-
+            {/* --- TAB TOGGLE --- */}
             <View style={styles.tabContainer}>
               <TouchableOpacity
-                style={[styles.tab, false && styles.activeTab]}
+                style={styles.tab}
                 onPress={() => router.replace('/signStud')}
               >
-                <Ionicons name="school-outline" size={16} color="#6B7280" />
-                <Text style={styles.tabText}>Student Assistant</Text>
+                <Ionicons name="person-outline" size={16} color="#6B7280" />
+                <Text style={styles.tabText}>Student assistant</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -148,119 +128,130 @@ export default function SupervisorSignUpScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="id-card-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Staff No. <Text style={styles.required}>*</Text></Text>
+            {/* --- NAME ROW --- */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
+                <Text style={styles.label}>First name <Text style={styles.required}>*</Text></Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Sarah"
+                  placeholderTextColor="#9CA3AF"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                />
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. STF-882910"
-                placeholderTextColor="#6B7280"
-                value={staffNo}
-                onChangeText={setStaffNo}
-              />
+              <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
+                <Text style={styles.label}>Last name <Text style={styles.required}>*</Text></Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Nkosi"
+                  placeholderTextColor="#9CA3AF"
+                  value={lastName}
+                  onChangeText={setLastName}
+                />
+              </View>
             </View>
 
+            {/* --- WORK EMAIL --- */}
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="person-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Name <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.label}>Work email <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="mail-outline" size={16} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="studentnumber@tut4life.ac.za"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                />
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Jane"
-                placeholderTextColor="#6B7280"
-                value={name}
-                onChangeText={setName}
-              />
             </View>
 
+            {/* --- DEPARTMENT --- */}
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="business-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Surname <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.label}>Department or faculty <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="business-outline" size={16} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Faculty of Information and Communicator"
+                  placeholderTextColor="#9CA3AF"
+                  value={department}
+                  onChangeText={setDepartment}
+                />
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Smith"
-                placeholderTextColor="#6B7280"
-                value={surname}
-                onChangeText={setSurname}
-              />
             </View>
 
+            {/* --- CELL NUMBER --- */}
             <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="at-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>University email <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.label}>Cell number <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="call-outline" size={16} color="#6B7280" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 076 123 4567"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                  value={cellNumber}
+                  onChangeText={setCellNumber}
+                />
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. jane.smith@tut.ac.za"
-                placeholderTextColor="#6B7280"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
             </View>
 
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="call-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Cellphone number <Text style={styles.required}>*</Text></Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 076 123 4567"
-                placeholderTextColor="#6B7280"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
+            {/* --- PASSWORD ROW --- */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={16} color="#6B7280" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your passwo..."
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={16} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#6B7280"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                <Ionicons name="lock-closed-outline" size={14} color="#6B7280" style={styles.labelIcon} />
-                <Text style={styles.label}>Confirm Password <Text style={styles.required}>*</Text></Text>
-              </View>
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Confirm your password"
-                  placeholderTextColor="#6B7280"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                />
-                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#6B7280" />
-                </TouchableOpacity>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
+                <Text style={styles.label}>Confirm password <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={16} color="#6B7280" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your passwo..."
+                    placeholderTextColor="#9CA3AF"
+                    secureTextEntry={!showConfirmPassword}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                  />
+                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                    <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={16} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
+            {/* --- TERMS CHECKBOX --- */}
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setAgreeTerms(!agreeTerms)}
+            >
+              <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+                {agreeTerms && <Ionicons name="checkmark" size={12} color="#FFF" />}
+              </View>
+              <Text style={styles.checkboxText}>
+                I agree to the StudentAssist <Text style={styles.linkText}>terms and privacy policy</Text>.
+              </Text>
+            </TouchableOpacity>
+
+            {/* --- SUBMIT BUTTON --- */}
             <TouchableOpacity
               style={[styles.submitButton, loading && { opacity: 0.6 }]}
               onPress={handleRegister}
@@ -268,37 +259,32 @@ export default function SupervisorSignUpScreen() {
               disabled={loading}
             >
               <Text style={styles.submitButtonText}>
-                {loading ? 'Registering…' : 'Complete Registration'}
+                {loading ? 'Creating account…' : 'Create supervisor account'}
               </Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={styles.submitIcon} />
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={styles.submitIcon} />
             </TouchableOpacity>
 
-            <View style={styles.divider} />
-
-            <Text style={styles.termsText}>
-              By clicking "Complete Registration", you agree to the EduRegister Portal{' '}
-              <Text style={styles.linkText}>Terms of Service</Text> and{' '}
-              <Text style={styles.linkText}>Privacy Policy</Text>.
-            </Text>
-
-            <View style={styles.helpBox}>
-              <Ionicons name="information-circle-outline" size={24} color="#1E429F" style={styles.helpIcon} />
-              <View style={styles.helpTextContainer}>
-                <Text style={styles.helpTitle}>Need help with registration?</Text>
-                <Text style={styles.helpDesc}>
-                  If you encounter any issues with the institutional verification, please{' '}
-                  <Text style={styles.linkText}>reach out to our faculty support desk</Text>.
-                </Text>
-              </View>
-            </View>
-
+            {/* --- FOOTER --- */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.replace('/login')}>
-                <Text style={styles.footerLink}>Sign In</Text>
+                <Text style={styles.footerLink}>Sign in</Text>
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* --- BOTTOM LINKS --- */}
+          <View style={styles.bottomLinks}>
+            <Text style={styles.bottomLinkText}>help? </Text>
+            <TouchableOpacity>
+              <Text style={styles.bottomLink}>Contact iCenter support</Text>
+            </TouchableOpacity>
+            <Text style={styles.bottomLinkText}> </Text>
+            <TouchableOpacity onPress={() => router.replace('/')}>
+              <Text style={styles.bottomLink}>Return home</Text>
+            </TouchableOpacity>
+          </View>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -306,44 +292,47 @@ export default function SupervisorSignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#A0C1DD' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
   keyboardView: { flex: 1 },
-  scrollContainer: { flexGrow: 1, paddingBottom: 40 },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 20,
   },
-  iconContainer: {
-    width: 45,
-    height: 45,
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  headerTextContainer: { justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  headerSubtitle: { fontSize: 10, fontWeight: '600', color: '#6B7280', letterSpacing: 1, marginTop: 2 },
 
-  imageContainer: { width: '100%', height: 180, position: 'relative' },
-  heroImage: { width: '100%', height: '100%' },
-
+  // Form Card
   formContainer: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    marginTop: -20,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    flex: 1,
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 4,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
   },
-  facultyAccessRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  facultyAccessText: { fontSize: 12, fontWeight: '700', color: '#1E429F', letterSpacing: 1, marginLeft: 6 },
-  title: { fontSize: 24, fontWeight: '800', color: '#111827', marginBottom: 6 },
-  subtitle: { fontSize: 14, color: '#6B7280', marginBottom: 24 },
+  cardTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E429F',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#111827',
+    fontFamily: 'serif',
+    marginBottom: 24,
+  },
 
+  // Toggle
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#F3F4F6',
@@ -367,65 +356,138 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  tabText: { fontSize: 13, fontWeight: '600', color: '#6B7280', marginLeft: 6 },
-  activeTabText: { color: '#1E429F' },
-
-  inputGroup: { marginBottom: 18 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  labelIcon: { marginRight: 6 },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151' },
-  required: { color: '#EF4444' },
-
-  input: {
-    backgroundColor: '#93B4D4',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#1F2937',
+  tabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginLeft: 6,
+  },
+  activeTabText: {
+    color: '#1E429F',
   },
 
-  passwordWrapper: {
+  // Form Fields
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  halfWidth: {
+    width: '48%',
+  },
+  inputGroup: {
+    marginBottom: 18,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#EF4444',
+  },
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#93B4D4',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-  },
-  passwordInput: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#1F2937' },
-
-  submitButton: {
-    flexDirection: 'row',
-    backgroundColor: '#1E429F',
-    borderRadius: 10,
-    paddingVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 24,
-  },
-  submitButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  submitIcon: { marginLeft: 8 },
-
-  divider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 20 },
-  termsText: { fontSize: 12, color: '#6B7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
-  linkText: { color: '#1E429F', fontWeight: '600' },
-
-  helpBox: {
-    flexDirection: 'row',
     backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    marginBottom: 30,
+    borderRadius: 8,
+    paddingHorizontal: 12,
   },
-  helpIcon: { marginRight: 12, marginTop: 2 },
-  helpTextContainer: { flex: 1 },
-  helpTitle: { fontSize: 14, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  helpDesc: { fontSize: 12, color: '#6B7280', lineHeight: 18 },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#111827',
+  },
 
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  footerText: { fontSize: 14, color: '#6B7280' },
-  footerLink: { fontSize: 14, fontWeight: '700', color: '#1E429F' },
+  // Checkbox
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+    marginTop: 4,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#6B7280',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: '#1E429F',
+    borderColor: '#1E429F',
+  },
+  checkboxText: {
+    fontSize: 12,
+    color: '#6B7280',
+    flex: 1,
+    lineHeight: 18,
+  },
+  linkText: {
+    color: '#1E429F',
+    fontWeight: 'bold',
+  },
+
+  // Submit Button
+  submitButton: {
+    backgroundColor: '#1E429F',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  submitIcon: {
+    marginLeft: 8,
+  },
+
+  // Footer
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  footerLink: {
+    fontSize: 13,
+    color: '#1E429F',
+    fontWeight: 'bold',
+  },
+
+  // Bottom Links
+  bottomLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+    flexWrap: 'wrap',
+  },
+  bottomLinkText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  bottomLink: {
+    fontSize: 12,
+    color: '#1E429F',
+    fontWeight: '600',
+  },
 });
