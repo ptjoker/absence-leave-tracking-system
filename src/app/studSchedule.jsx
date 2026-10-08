@@ -2,27 +2,28 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    useWindowDimensions,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
 } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card } from '../components/studentDash/ui';
 import {
-    MONTHS,
-    MONTHS_SHORT,
-    WEEKDAYS,
-    WEEKDAYS_LONG,
-    buildMonthGrid,
-    fromKey,
-    getDayInfo,
-    toKey,
+  MONTHS,
+  MONTHS_SHORT,
+  WEEKDAYS,
+  WEEKDAYS_LONG,
+  buildMonthGrid,
+  fromKey,
+  getDayInfo,
+  toKey,
 } from '../constants/studData';
 import { useStudTheme } from '../constants/studTheme';
+import { useShifts } from '../hooks/useShifts';
 
 const CELL_H = 64;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -55,11 +56,11 @@ function cellBg(kind, c) {
   return c.inputBg;
 }
 
-function DayCell({ date, size, selected, onPress, c }) {
+function DayCell({ date, size, selected, onPress, c, shifts }) {
   if (!date) {
     return <View style={{ width: size, height: CELL_H, backgroundColor: c.panel }} />;
   }
-  const info = getDayInfo(date);
+  const info = getDayInfo(date, shifts);
   const tag = tagFor(info);
   return (
     <Pressable
@@ -91,8 +92,8 @@ function DayCell({ date, size, selected, onPress, c }) {
   );
 }
 
-function SelectedDayBody({ date, c }) {
-  const info = getDayInfo(date);
+function SelectedDayBody({ date, c, shifts }) {
+  const info = getDayInfo(date, shifts);
   if (info.kind === 'closure') {
     return (
       <View style={[styles.notice, { backgroundColor: '#fbe4e1' }]}>
@@ -131,6 +132,7 @@ function SelectedDayBody({ date, c }) {
 export default function StudSchedule() {
   const { c } = useStudTheme();
   const { width } = useWindowDimensions();
+  const { shifts, loading: shiftsLoading, error: shiftsError } = useShifts();
   const today = new Date();
   const [view, setView] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selectedKey, setSelectedKey] = useState(toKey(today));
@@ -214,6 +216,14 @@ export default function StudSchedule() {
       subtitle="Your shifts are generated as a stable individual roster: each student assistant works 2–3 days per week, on either a morning or afternoon shift. Sundays and public holidays are never scheduled."
     >
       <Card style={{ padding: 12 }}>
+      {shiftsLoading ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <ActivityIndicator size="small" color={c.primary} />
+            <Text style={{ color: c.muted, fontSize: 12, marginLeft: 8 }}>Loading shifts…</Text>
+          </View>
+        ) : shiftsError ? (
+          <Text style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>{shiftsError}</Text>
+        ) : null}
         <View style={styles.calHead}>
           <View>
             <Text style={[styles.calTitle, { color: c.text }]}>
@@ -254,6 +264,7 @@ export default function StudSchedule() {
                 date={d}
                 size={size}
                 c={c}
+                shifts={shifts}
                 selected={d ? toKey(d) === selectedKey : false}
                 onPress={() => d && setSelectedKey(toKey(d))}
               />
@@ -283,7 +294,7 @@ export default function StudSchedule() {
             </Text>
           </View>
         </View>
-        <SelectedDayBody date={selectedDate} c={c} />
+        <SelectedDayBody date={selectedDate} c={c} shifts={shifts} />
       </Card>
 
       <Card>

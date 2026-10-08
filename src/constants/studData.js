@@ -92,7 +92,7 @@ export const APPROVED_LEAVE = ['2026-10-17', '2026-10-18', '2026-10-19'];
 
 export const SWAPS = [{ from: '2026-10-06', to: '2026-10-08', with: 'Simphiwe Masanabo' }];
 
-export function getDayInfo(date) {
+export function getDayInfo(date, shifts = SHIFTS) {
   const key = toKey(date);
   if (CLOSURES[key]) return { key, kind: 'closure', label: CLOSURES[key] };
   if (HOLIDAYS[key]) return { key, kind: 'holiday', label: HOLIDAYS[key] };
@@ -105,7 +105,7 @@ export function getDayInfo(date) {
     return { key, kind: 'swapTo', label: `Swapped from ${formatLong(fromKey(to.from))}`, swap: to };
   }
   if (APPROVED_LEAVE.includes(key)) return { key, kind: 'leave', label: 'Approved leave' };
-  if (SHIFTS[key]) return { key, kind: 'shift', label: 'Shift', shift: SHIFTS[key] };
+  if (shifts[key]) return { key, kind: 'shift', label: 'Shift', shift: shifts[key] };
   if (date.getDay() === 0) return { key, kind: 'sunday', label: 'Sundays are never scheduled.' };
   return { key, kind: 'none', label: 'No shift scheduled.' };
 }
