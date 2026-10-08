@@ -1,4 +1,4 @@
-// src/app/signStud.jsx
+// src/app/signSup.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -31,11 +31,10 @@ const COLORS = {
   danger: '#EF4444',
 };
 
-export default function SignUpScreen() {
+export default function SupervisorSignUpScreen() {
   const router = useRouter();
-  // This state controls which tab appears active.
-  // Since this is the student page, it starts as 'student'.
-  const [accountType, setAccountType] = useState('student');
+  // Supervisor page → 'supervisor' is active by default
+  const [accountType, setAccountType] = useState('supervisor');
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -46,7 +45,6 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
 
-  // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -54,7 +52,6 @@ export default function SignUpScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Background Image with Light Blue Overlay */}
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
         style={styles.backgroundImage}
@@ -98,17 +95,17 @@ export default function SignUpScreen() {
             <Text style={styles.cardTag}>ACCOUNT REGISTRATION</Text>
             <Text style={styles.cardTitle}>Create your account</Text>
 
-            {/* --- UPDATED ACCOUNT TYPE TOGGLE --- */}
+            {/* --- ACCOUNT TYPE TOGGLE --- */}
             <View style={styles.toggleContainer}>
-              {/* Student Assistant Tab */}
+              {/* Student Assistant Tab (NAVIGATES TO signStud.jsx) */}
               <TouchableOpacity
                 style={[
                   styles.toggleButton,
-                  accountType === 'student' && styles.toggleButtonActive // Active styling if current tab is 'student'
+                  accountType === 'student' && styles.toggleButtonActive,
                 ]}
                 onPress={() => {
-                  setAccountType('student'); // Update the visual state
-                  router.replace('/signStud'); // Navigate to the Student page
+                  setAccountType('student');
+                  router.replace('/signStud');
                 }}
                 activeOpacity={0.7}
               >
@@ -117,23 +114,25 @@ export default function SignUpScreen() {
                   size={14}
                   color={accountType === 'student' ? COLORS.primary : COLORS.textMuted}
                 />
-                <Text style={[
-                  styles.toggleText,
-                  accountType === 'student' && styles.toggleTextActive // Active text styling
-                ]}>
+                <Text
+                  style={[
+                    styles.toggleText,
+                    accountType === 'student' && styles.toggleTextActive,
+                  ]}
+                >
                   Student assistant
                 </Text>
               </TouchableOpacity>
 
-              {/* Supervisor Tab */}
+              {/* Supervisor Tab (ACTIVE) */}
               <TouchableOpacity
                 style={[
                   styles.toggleButton,
-                  accountType === 'supervisor' && styles.toggleButtonActive // Active styling if current tab is 'supervisor'
+                  accountType === 'supervisor' && styles.toggleButtonActive,
                 ]}
                 onPress={() => {
-                  setAccountType('supervisor'); // Update the visual state
-                  router.replace('/signSup'); // Navigate to the Supervisor page
+                  setAccountType('supervisor');
+                  router.replace('/signSup');
                 }}
                 activeOpacity={0.7}
               >
@@ -142,18 +141,18 @@ export default function SignUpScreen() {
                   size={14}
                   color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted}
                 />
-                <Text style={[
-                  styles.toggleText,
-                  accountType === 'supervisor' && styles.toggleTextActive // Active text styling
-                ]}>
+                <Text
+                  style={[
+                    styles.toggleText,
+                    accountType === 'supervisor' && styles.toggleTextActive,
+                  ]}
+                >
                   Supervisor
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* --- FORM FIELDS --- */}
-
-            {/* First & Last Name */}
             <View style={styles.row}>
               <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>First name <Text style={styles.required}>*</Text></Text>
@@ -181,14 +180,13 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Work Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Work email <Text style={styles.required}>*</Text></Text>
               <View style={styles.inputWrapper}>
                 <Ionicons name="mail-outline" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder="studentnumber@tut4life.ac.za"
+                  placeholder="surname.initials@tut.ac.za"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -198,7 +196,6 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Department or Faculty */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Department or faculty <Text style={styles.required}>*</Text></Text>
               <View style={styles.inputWrapper}>
@@ -213,7 +210,6 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Cell Number */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Cell number <Text style={styles.required}>*</Text></Text>
               <View style={styles.inputWrapper}>
@@ -229,7 +225,6 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Passwords */}
             <View style={styles.row}>
               <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
@@ -244,7 +239,11 @@ export default function SignUpScreen() {
                     onChangeText={setPassword}
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={16} color={COLORS.textMuted} />
+                    <Ionicons
+                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={16}
+                      color={COLORS.textMuted}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -261,13 +260,16 @@ export default function SignUpScreen() {
                     onChangeText={setConfirmPassword}
                   />
                   <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                    <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={16} color={COLORS.textMuted} />
+                    <Ionicons
+                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={16}
+                      color={COLORS.textMuted}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
 
-            {/* Terms Checkbox */}
             <TouchableOpacity
               style={styles.checkboxContainer}
               onPress={() => setAgreeTerms(!agreeTerms)}
@@ -280,7 +282,6 @@ export default function SignUpScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Submit Button */}
             <TouchableOpacity style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>
                 Create {accountType === 'student' ? 'student' : 'supervisor'} account
@@ -288,7 +289,6 @@ export default function SignUpScreen() {
               <Feather name="arrow-right" size={16} color="#FFF" />
             </TouchableOpacity>
 
-            {/* Card Footer */}
             <View style={styles.cardFooter}>
               <Text style={styles.cardFooterText}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/logIn')}>
@@ -297,7 +297,6 @@ export default function SignUpScreen() {
             </View>
           </View>
 
-          {/* --- PAGE FOOTER --- */}
           <View style={styles.pageFooter}>
             <Text style={styles.footerText}>Need help? </Text>
             <TouchableOpacity>
@@ -315,7 +314,7 @@ export default function SignUpScreen() {
   );
 }
 
-// --- Styles ---
+// --- Styles (Same as signStud.jsx) ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
@@ -329,8 +328,6 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     justifyContent: 'space-between',
   },
-
-  // --- STANDARD HEADER ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -355,8 +352,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 2,
   },
-
-  // Welcome Section
   welcomeSection: { marginBottom: 24 },
   tag: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   tagDot: { color: COLORS.primary, fontSize: 10, marginRight: 6 },
@@ -368,8 +363,6 @@ const styles = StyleSheet.create({
   welcomeSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 20, marginBottom: 16 },
   securityNote: { flexDirection: 'row', alignItems: 'flex-start' },
   securityText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 8 },
-
-  // Card
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
@@ -382,8 +375,6 @@ const styles = StyleSheet.create({
   },
   cardTag: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
   cardTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif', marginBottom: 20 },
-
-  // Toggle
   toggleContainer: {
     flexDirection: 'row', backgroundColor: COLORS.toggleBg,
     borderRadius: 8, padding: 4, marginBottom: 20,
@@ -399,8 +390,6 @@ const styles = StyleSheet.create({
   },
   toggleText: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginLeft: 6 },
   toggleTextActive: { color: COLORS.primary },
-
-  // Form Layout
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   halfWidth: { width: '48%' },
   inputGroup: { marginBottom: 16 },
@@ -412,8 +401,6 @@ const styles = StyleSheet.create({
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.textMain },
-
-  // Checkbox
   checkboxContainer: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20, marginTop: 8 },
   checkbox: {
     width: 18, height: 18, borderRadius: 4, borderWidth: 1,
@@ -423,21 +410,15 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxText: { fontSize: 12, color: COLORS.textMuted, flex: 1, lineHeight: 18 },
   linkText: { color: COLORS.primary, fontWeight: 'bold' },
-
-  // Button
   primaryButton: {
     backgroundColor: COLORS.primary, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
     paddingVertical: 14, borderRadius: 8, marginBottom: 20,
   },
   primaryButtonText: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginRight: 8 },
-
-  // Card Footer
   cardFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   cardFooterText: { fontSize: 12, color: COLORS.textMuted },
   registerLink: { fontSize: 12, color: COLORS.primary, fontWeight: 'bold' },
-
-  // Page Footer
   pageFooter: {
     flexDirection: 'row', justifyContent: 'center',
     alignItems: 'center', marginTop: 24, flexWrap: 'wrap',
