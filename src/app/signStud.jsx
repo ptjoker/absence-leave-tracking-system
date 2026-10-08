@@ -96,23 +96,33 @@ export default function SignUpScreen() {
             {/* Account Type Toggle */}
             <View style={styles.toggleContainer}>
               <TouchableOpacity
-                style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
-                onPress={() => setAccountType('student')}
-              >
-                <Feather name="user" size={14} color={accountType === 'student' ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
-                  Student assistant
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
-                onPress={() => setAccountType('supervisor')}
-              >
-                <Feather name="users" size={14} color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
-                  Supervisor
-                </Text>
-              </TouchableOpacity>
+              style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
+              onPress={() => router.replace('/signStud')} // 👈 Navigates to Student Registration
+            >
+              <Feather
+                name="user"
+                size={14}
+                color={accountType === 'student' ? COLORS.primary : COLORS.textMuted}
+              />
+              <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
+                Student assistant
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
+              onPress={() => router.replace('/signSup')} // 👈 Navigates to Supervisor Registration
+            >
+              <Feather
+                name="users"
+                size={14}
+                color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted}
+              />
+              <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
+                Supervisor
+              </Text>
+            </TouchableOpacity>
+
             </View>
 
             {/* Form Fields */}
