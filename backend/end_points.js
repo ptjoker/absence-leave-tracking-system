@@ -3,18 +3,54 @@ import express from 'express';
 import sql from './db.js';
 import supabaseAdmin from './supabaseAdmin.js';
 import { verifyToken } from './jwt.js';
+import rateLimit from 'express-rate-limit';
 
 // Verify the JWT sent by the frontend and return the user, or null if invalid.
 async function getUserFromToken(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return null;
-  // Local verification — no network round-trip to Supabase Auth.
+  // Local verification â€” no network round-trip to Supabase Auth.
   const user = await verifyToken(token);
   return user;
 }
 
 const router = express.Router();
+
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many OTP requests. Please try again later.'
+  }
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many login attempts. Please try again later.'
+  }
+});
+
+
+const verifyOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many verification attempts. Please try again later.'
+  }
+});
+
 
 // ============================================
 // Existing endpoints
@@ -32,23 +68,163 @@ router.get('/test-db', async (req, res) => {
 
 router.get('/profile/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
-    const profile = await sql`
-      SELECT * FROM profiles WHERE id = ${userId}
-    `;
-    if (profile.length === 0) {
-      return res.status(404).json({ error: 'Profile not found' });
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'Unauthorized'
+      });
     }
+
+    const { userId } = req.params;
+
+    const callerProfile = await sql`
+      SELECT role
+      FROM public.profiles
+      WHERE id = ${user.id}
+      LIMIT 1
+    `;
+
+    if (callerProfile.length === 0) {
+      return res.status(404).json({
+        error: 'User profile not found'
+      });
+    }
+
+    const callerRole = callerProfile[0].role;
+
+    // Users may view their own profile.
+    // Admins and supervisors may view other profiles.
+    if (
+      user.id !== userId &&
+      callerRole !== 'admin' &&
+      callerRole !== 'supervisor'
+    ) {
+      return res.status(403).json({
+        error: 'You are not allowed to view this profile'
+      });
+    }
+
+    const profile = await sql`
+      SELECT *
+      FROM public.profiles
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+
+    if (profile.length === 0) {
+      return res.status(404).json({
+        error: 'Profile not found'
+      });
+    }
+
     res.json(profile[0]);
+
   } catch (error) {
-    console.error('Database Error:', error);
-    res.status(500).json({ error: 'Something went wrong' });
+    console.error('Get profile error:', error);
+
+    res.status(500).json({
+      error: 'Something went wrong'
+    });
   }
 });
+
 
 // ============================================
 // Auth endpoints
 // ============================================
+
+// ============================================
+// Send Email OTP
+// ============================================
+
+// POST /api/auth/send-otp
+router.post('/auth/send-otp', otpLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email is required'
+      });
+    }
+
+    const { error } = await supabaseAdmin.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false
+      }
+    });
+
+    if (error) {
+      console.error('Send OTP error:', error);
+
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully'
+    });
+
+  } catch (error) {
+    console.error('Send OTP server error:', error);
+
+    res.status(500).json({
+      error: 'Could not send OTP'
+    });
+  }
+});
+
+
+// ============================================
+// Verify Email OTP
+// ============================================
+
+// POST /api/auth/verify-otp
+router.post('/auth/verify-otp', verifyOtpLimiter, async (req, res) => {
+  try {
+    const { email, token } = req.body;
+
+    if (!email || !token) {
+      return res.status(400).json({
+        error: 'Email and OTP token are required'
+      });
+    }
+
+    const { data, error } = await supabaseAdmin.auth.verifyOtp({
+      email,
+      token,
+      type: 'email'
+    });
+
+    if (error) {
+      console.error('Verify OTP error:', error);
+
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      session: data.session,
+      user: data.user
+    });
+
+  } catch (error) {
+    console.error('Verify OTP server error:', error);
+
+    res.status(500).json({
+      error: 'Could not verify OTP'
+    });
+  }
+});
+
+
 
 router.post('/register', async (req, res) => {
   try {
@@ -65,43 +241,79 @@ router.post('/register', async (req, res) => {
     } = req.body;
 
     if (!student_email || !password || !first_name || !last_name) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({
+        error: 'Missing required fields'
+      });
     }
 
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: student_email,
-      password: password,
-      email_confirm: true,
-      user_metadata: {
-        first_name,
-        last_name,
-        student_number,
-        course,
-        level_of_study,
-        student_email,
-        cell_number,
-        role: role || 'student'
-      }
-    });
+    // Self-signup is allowed only for Student Assistants
+    // and Supervisors. Admin accounts are created by Admin.
+    const signupRole = role || 'student';
+
+    if (!['student', 'supervisor'].includes(signupRole)) {
+      return res.status(400).json({
+        error: 'Invalid registration role'
+      });
+    }
+
+    // Use the normal Supabase signup flow so that
+    // Supabase sends the Confirm Signup email/OTP.
+    const { data: authData, error: authError } =
+      await supabaseAdmin.auth.signUp({
+        email: student_email,
+        password: password,
+        options: {
+          data: {
+            first_name,
+            last_name,
+            student_number,
+            course,
+            level_of_study,
+            student_email,
+            cell_number,
+            role: signupRole
+          }
+        }
+      });
 
     if (authError) {
-      return res.status(400).json({ error: authError.message });
+      return res.status(400).json({
+        error: authError.message
+      });
     }
 
+    if (!authData.user) {
+      return res.status(500).json({
+        error: 'Registration did not create a user'
+      });
+    }
+
+
     res.status(201).json({
-      message: 'User registered successfully',
+      success: true,
+      message: 'Registration successful. A verification code has been sent to your email.',
       user: {
         id: authData.user.id,
-        email: authData.user.email
+        email: authData.user.email,
+        role: signupRole
       }
     });
+
   } catch (error) {
     console.error('Registration Error:', error);
-    res.status(500).json({ error: 'Something went wrong during registration' });
+
+    res.status(500).json({
+      error: 'Something went wrong during registration'
+    });
   }
 });
 
-router.post('/login', async (req, res) => {
+
+// ============================================
+// Login
+// ============================================
+
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
@@ -165,7 +377,7 @@ res.status(200).json({
 // Absence request endpoints
 // ============================================
 
-// POST /api/requests — create a new absence request
+// POST /api/requests â€” create a new absence request
 router.post('/requests', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -220,7 +432,7 @@ router.post('/requests', async (req, res) => {
   }
 });
 
-// GET /api/requests — list requests (students see own, supervisors see all)
+// GET /api/requests â€” list requests (students see own, supervisors see all)
 router.get('/requests', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -271,7 +483,7 @@ router.get('/requests', async (req, res) => {
   }
 });
 
-// PATCH /api/requests/:id/status — supervisor approves or rejects
+// PATCH /api/requests/:id/status â€” supervisor approves or rejects
 router.patch('/requests/:id/status', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -321,7 +533,7 @@ router.patch('/requests/:id/status', async (req, res) => {
 // Profile endpoints
 // ============================================
 
-// PATCH /api/profile — update the logged-in user's editable profile fields
+// PATCH /api/profile â€” update the logged-in user's editable profile fields
 router.patch('/profile', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -384,7 +596,7 @@ router.patch('/profile', async (req, res) => {
 // Supervisor endpoints
 // ============================================
 
-// GET /api/assistants — list all student assistants with request stats (supervisors only)
+// GET /api/assistants â€” list all student assistants with request stats (supervisors only)
 router.get('/assistants', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -453,7 +665,7 @@ router.get('/assistants', async (req, res) => {
 // Shift endpoints
 // ============================================
 
-// POST /api/shifts — create a shift (supervisors only)
+// POST /api/shifts â€” create a shift (supervisors only)
 router.post('/shifts', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -514,7 +726,7 @@ router.post('/shifts', async (req, res) => {
   }
 });
 
-// GET /api/shifts — list shifts (students see own, supervisors see all)
+// GET /api/shifts â€” list shifts (students see own, supervisors see all)
 router.get('/shifts', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -570,7 +782,7 @@ router.get('/shifts', async (req, res) => {
   }
 });
 
-// DELETE /api/shifts/:id — delete a shift (supervisors only)
+// DELETE /api/shifts/:id â€” delete a shift (supervisors only)
 router.delete('/shifts/:id', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -603,7 +815,7 @@ router.delete('/shifts/:id', async (req, res) => {
 // Session refresh endpoint
 // ============================================
 
-// POST /api/refresh — exchange a refresh_token for a new access_token
+// POST /api/refresh â€” exchange a refresh_token for a new access_token
 router.post('/refresh', async (req, res) => {
   try {
     const { refresh_token } = req.body;
