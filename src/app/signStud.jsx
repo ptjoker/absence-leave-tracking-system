@@ -3,7 +3,6 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Image,
   ImageBackground,
   SafeAreaView,
@@ -17,8 +16,8 @@ import {
 } from 'react-native';
 
 import LogoImg from '@/assets/images/logo.png';
-import { apiFetch } from '@/lib/api';
 
+// --- Theme Colors ---
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
@@ -32,8 +31,6 @@ const COLORS = {
   danger: '#EF4444',
 };
 
-const YEAR_OPTIONS = ['First year', 'Second year', 'Third year', 'Postgraduate'];
-
 export default function SignUpScreen() {
   const router = useRouter();
   const [accountType, setAccountType] = useState('student');
@@ -43,101 +40,16 @@ export default function SignUpScreen() {
   const [studentNumber, setStudentNumber] = useState('');
   const [course, setCourse] = useState('');
   const [currentYear, setCurrentYear] = useState('');
-  const [department, setDepartment] = useState('');
   const [cellNumber, setCellNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
-
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [showYearPicker, setShowYearPicker] = useState(false);
-
-  const isStudent = accountType === 'student';
-  const isSupervisor = accountType === 'supervisor';
-
-  const handleRegister = async () => {
-    setErrorMsg('');
-
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !cellNumber.trim() || !password || !confirmPassword) {
-      setErrorMsg('Please fill in all required fields.');
-      return;
-    }
-    if (!email.includes('@')) {
-      setErrorMsg('Please enter a valid email address.');
-      return;
-    }
-    if (password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match.');
-      return;
-    }
-    if (isStudent) {
-      if (!studentNumber.trim() || !course.trim() || !currentYear) {
-        setErrorMsg('Please fill in your student number, course, and year.');
-        return;
-      }
-    }
-    if (isSupervisor) {
-      if (!department.trim() || !studentNumber.trim()) {
-        setErrorMsg('Please fill in your department and staff number.');
-        return;
-      }
-    }
-    if (!agreeTerms) {
-      setErrorMsg('Please agree to the terms and privacy policy.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const body = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        student_email: email.trim(),
-        student_number: studentNumber.trim(),
-        course: isStudent ? course.trim() : department.trim(),
-        level_of_study: isStudent ? currentYear : 'supervisor',
-        cell_number: cellNumber.trim(),
-        password,
-        role: isStudent ? 'student' : 'supervisor',
-      };
-
-      const res = await apiFetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Registration failed. Please try again.');
-        return;
-      }
-
-      Alert.alert(
-        'Account created',
-        `Your ${isStudent ? 'student' : 'supervisor'} account has been created. Please log in to continue.`,
-        [{ text: 'OK', onPress: () => router.replace('/login') }]
-      );
-    } catch (err) {
-      console.error('Register error:', err);
-      setErrorMsg('Could not reach the server. Check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
+      {/* Background Image with Light Blue Overlay for better text contrast */}
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
         style={styles.backgroundImage}
@@ -147,6 +59,7 @@ export default function SignUpScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
+          {/* --- STANDARD HEADER (No icons on the right) --- */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -157,6 +70,7 @@ export default function SignUpScreen() {
             </View>
           </View>
 
+          {/* --- WELCOME SECTION (Left side on web) --- */}
           <View style={styles.welcomeSection}>
             <View style={styles.tag}>
               <Text style={styles.tagDot}>●</Text>
@@ -174,31 +88,34 @@ export default function SignUpScreen() {
             </View>
           </View>
 
+          {/* --- REGISTRATION CARD (Right side on web) --- */}
           <View style={styles.card}>
             <Text style={styles.cardTag}>ACCOUNT REGISTRATION</Text>
             <Text style={styles.cardTitle}>Create your account</Text>
 
+            {/* Account Type Toggle */}
             <View style={styles.toggleContainer}>
               <TouchableOpacity
-                style={[styles.toggleButton, isStudent && styles.toggleButtonActive]}
+                style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
                 onPress={() => setAccountType('student')}
               >
-                <Feather name="user" size={14} color={isStudent ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.toggleText, isStudent && styles.toggleTextActive]}>
+                <Feather name="user" size={14} color={accountType === 'student' ? COLORS.primary : COLORS.textMuted} />
+                <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
                   Student assistant
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.toggleButton, isSupervisor && styles.toggleButtonActive]}
+                style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
                 onPress={() => setAccountType('supervisor')}
               >
-                <Feather name="users" size={14} color={isSupervisor ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.toggleText, isSupervisor && styles.toggleTextActive]}>
+                <Feather name="users" size={14} color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted} />
+                <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
                   Supervisor
                 </Text>
               </TouchableOpacity>
             </View>
 
+            {/* Form Fields */}
             <View style={styles.row}>
               <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>First name <Text style={styles.required}>*</Text></Text>
@@ -208,7 +125,7 @@ export default function SignUpScreen() {
                     placeholder="e.g. Sarah"
                     placeholderTextColor="#9CA3AF"
                     value={firstName}
-                    onChangeText={(v) => { setFirstName(v); if (errorMsg) setErrorMsg(''); }}
+                    onChangeText={setFirstName}
                   />
                 </View>
               </View>
@@ -220,126 +137,66 @@ export default function SignUpScreen() {
                     placeholder="e.g. Nkosi"
                     placeholderTextColor="#9CA3AF"
                     value={lastName}
-                    onChangeText={(v) => { setLastName(v); if (errorMsg) setErrorMsg(''); }}
+                    onChangeText={setLastName}
                   />
                 </View>
               </View>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>
-                {isStudent ? 'University email' : 'Work email'} <Text style={styles.required}>*</Text>
-              </Text>
+              <Text style={styles.label}>University email <Text style={styles.required}>*</Text></Text>
               <View style={styles.inputWrapper}>
                 <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder={isStudent ? 'studentnumber@tut4life.ac.za' : 'name@tut.ac.za'}
+                  placeholder="studentnumber@tut4life.ac.za"
                   placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
-                  onChangeText={(v) => { setEmail(v); if (errorMsg) setErrorMsg(''); }}
+                  onChangeText={setEmail}
                 />
               </View>
             </View>
 
-            {isStudent && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Student number <Text style={styles.required}>*</Text></Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="hash" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. 20240123"
-                      placeholderTextColor="#9CA3AF"
-                      value={studentNumber}
-                      onChangeText={(v) => { setStudentNumber(v); if (errorMsg) setErrorMsg(''); }}
-                    />
-                  </View>
-                </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Student number <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="hash" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 20240123"
+                  placeholderTextColor="#9CA3AF"
+                  value={studentNumber}
+                  onChangeText={setStudentNumber}
+                />
+              </View>
+            </View>
 
-                <View style={styles.row}>
-                  <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
-                    <Text style={styles.label}>Course or department <Text style={styles.required}>*</Text></Text>
-                    <View style={styles.inputWrapper}>
-                      <Feather name="book" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                      <TextInput
-                        style={styles.input}
-                        placeholder="e.g. Info Tech"
-                        placeholderTextColor="#9CA3AF"
-                        value={course}
-                        onChangeText={(v) => { setCourse(v); if (errorMsg) setErrorMsg(''); }}
-                      />
-                    </View>
-                  </View>
-                  <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
-                    <Text style={styles.label}>Current year <Text style={styles.required}>*</Text></Text>
-                    <TouchableOpacity
-                      style={styles.inputWrapper}
-                      onPress={() => setShowYearPicker(!showYearPicker)}
-                    >
-                      <Text style={[styles.input, !currentYear && { color: '#9CA3AF' }]}>
-                        {currentYear || 'Select year'}
-                      </Text>
-                      <Feather name="chevron-down" size={16} color={COLORS.textMuted} />
-                    </TouchableOpacity>
-                    {showYearPicker && (
-                      <View style={styles.yearDropdown}>
-                        {YEAR_OPTIONS.map((y) => (
-                          <TouchableOpacity
-                            key={y}
-                            style={styles.yearOption}
-                            onPress={() => {
-                              setCurrentYear(y);
-                              setShowYearPicker(false);
-                              if (errorMsg) setErrorMsg('');
-                            }}
-                          >
-                            <Text style={[styles.yearOptionText, currentYear === y && styles.yearOptionTextSelected]}>
-                              {y}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
+                <Text style={styles.label}>Course or department <Text style={styles.required}>*</Text></Text>
+                <View style={styles.inputWrapper}>
+                  <Feather name="book" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Information Te..."
+                    placeholderTextColor="#9CA3AF"
+                    value={course}
+                    onChangeText={setCourse}
+                  />
                 </View>
-              </>
-            )}
-
-            {isSupervisor && (
-              <>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Department <Text style={styles.required}>*</Text></Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="briefcase" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. Information Technology"
-                      placeholderTextColor="#9CA3AF"
-                      value={department}
-                      onChangeText={(v) => { setDepartment(v); if (errorMsg) setErrorMsg(''); }}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Staff number <Text style={styles.required}>*</Text></Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="hash" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. STAFF-0451"
-                      placeholderTextColor="#9CA3AF"
-                      value={studentNumber}
-                      onChangeText={(v) => { setStudentNumber(v); if (errorMsg) setErrorMsg(''); }}
-                    />
-                  </View>
-                </View>
-              </>
-            )}
+              </View>
+              <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
+                <Text style={styles.label}>Current year <Text style={styles.required}>*</Text></Text>
+                <TouchableOpacity style={styles.inputWrapper}>
+                  <Text style={[styles.input, !currentYear && { color: '#9CA3AF' }]}>
+                    {currentYear || 'Select year'}
+                  </Text>
+                  <Feather name="chevron-down" size={16} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+            </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Cell number <Text style={styles.required}>*</Text></Text>
@@ -351,7 +208,7 @@ export default function SignUpScreen() {
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
                   value={cellNumber}
-                  onChangeText={(v) => { setCellNumber(v); if (errorMsg) setErrorMsg(''); }}
+                  onChangeText={setCellNumber}
                 />
               </View>
             </View>
@@ -363,15 +220,13 @@ export default function SignUpScreen() {
                   <Feather name="lock" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter password"
+                    placeholder="Enter your passwo..."
                     placeholderTextColor="#9CA3AF"
-                    secureTextEntry={!showPassword}
+                    secureTextEntry
                     value={password}
-                    onChangeText={(v) => { setPassword(v); if (errorMsg) setErrorMsg(''); }}
+                    onChangeText={setPassword}
                   />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={COLORS.textMuted} />
-                  </TouchableOpacity>
+                  <Feather name="eye" size={16} color={COLORS.textMuted} />
                 </View>
               </View>
               <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
@@ -380,60 +235,48 @@ export default function SignUpScreen() {
                   <Feather name="lock" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Confirm password"
+                    placeholder="Enter your passwo..."
                     placeholderTextColor="#9CA3AF"
-                    secureTextEntry={!showConfirmPassword}
+                    secureTextEntry
                     value={confirmPassword}
-                    onChangeText={(v) => { setConfirmPassword(v); if (errorMsg) setErrorMsg(''); }}
+                    onChangeText={setConfirmPassword}
                   />
-                  <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                    <Feather name={showConfirmPassword ? 'eye-off' : 'eye'} size={16} color={COLORS.textMuted} />
-                  </TouchableOpacity>
+                  <Feather name="eye" size={16} color={COLORS.textMuted} />
                 </View>
               </View>
             </View>
 
+            {/* Terms Checkbox */}
             <TouchableOpacity
               style={styles.checkboxContainer}
-              onPress={() => { setAgreeTerms(!agreeTerms); if (errorMsg) setErrorMsg(''); }}
+              onPress={() => setAgreeTerms(!agreeTerms)}
             >
               <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
                 {agreeTerms && <Feather name="check" size={12} color="#FFF" />}
               </View>
               <Text style={styles.checkboxText}>
-                I agree to the StudentAssist <Text style={styles.linkText}>terms and privacy policy</Text>.
+                I agree to the StudentAssist <Text style={styles.linkText}>terms and privacy policy</Text> .
               </Text>
             </TouchableOpacity>
 
-            {errorMsg ? (
-              <View style={styles.errorBanner}>
-                <Feather name="alert-circle" size={16} color="#DC2626" />
-                <Text style={styles.errorText}>{errorMsg}</Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.primaryButton, loading && { opacity: 0.6 }]}
-              onPress={handleRegister}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
+            {/* Submit Button */}
+            <TouchableOpacity style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>
-                {loading
-                  ? 'Creating account…'
-                  : `Create ${isStudent ? 'student' : 'supervisor'} account`}
+                Create {accountType === 'student' ? 'student' : 'supervisor'} account
               </Text>
               <Feather name="arrow-right" size={16} color="#FFF" />
             </TouchableOpacity>
 
+            {/* Card Footer */}
             <View style={styles.cardFooter}>
               <Text style={styles.cardFooterText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/login')}>
+              <TouchableOpacity onPress={() => router.push('/logIn')}>
                 <Text style={styles.registerLink}>Sign in</Text>
               </TouchableOpacity>
             </View>
           </View>
 
+          {/* --- PAGE FOOTER --- */}
           <View style={styles.pageFooter}>
             <Text style={styles.footerText}>Need help? </Text>
             <TouchableOpacity>
@@ -451,11 +294,13 @@ export default function SignUpScreen() {
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
     ...StyleSheet.absoluteFillObject,
+    // Light blue tint (instead of pure white) for better text color contrast
     backgroundColor: 'rgba(219, 234, 254, 0.75)',
   },
   scrollContent: {
@@ -464,6 +309,8 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     justifyContent: 'space-between',
   },
+
+  // --- STANDARD HEADER ---
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -474,7 +321,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     marginBottom: 24,
-    marginHorizontal: -20,
+    marginHorizontal: -20, // Negative margin to stretch edge-to-edge
     marginTop: -20,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
@@ -488,6 +335,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 2,
   },
+
+  // Welcome Section
   welcomeSection: { marginBottom: 24 },
   tag: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   tagDot: { color: COLORS.primary, fontSize: 10, marginRight: 6 },
@@ -499,6 +348,8 @@ const styles = StyleSheet.create({
   welcomeSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 20, marginBottom: 16 },
   securityNote: { flexDirection: 'row', alignItems: 'flex-start' },
   securityText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 8 },
+
+  // Card
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
@@ -511,6 +362,8 @@ const styles = StyleSheet.create({
   },
   cardTag: { fontSize: 10, fontWeight: 'bold', color: COLORS.primary, letterSpacing: 1, marginBottom: 6 },
   cardTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif', marginBottom: 20 },
+
+  // Toggle
   toggleContainer: {
     flexDirection: 'row', backgroundColor: COLORS.toggleBg,
     borderRadius: 8, padding: 4, marginBottom: 20,
@@ -526,6 +379,8 @@ const styles = StyleSheet.create({
   },
   toggleText: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted, marginLeft: 6 },
   toggleTextActive: { color: COLORS.primary },
+
+  // Form Layout
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   halfWidth: { width: '48%' },
   inputGroup: { marginBottom: 16 },
@@ -537,22 +392,8 @@ const styles = StyleSheet.create({
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.textMain },
-  yearDropdown: {
-    marginTop: 4,
-    backgroundColor: '#FFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  yearOption: { paddingVertical: 10, paddingHorizontal: 12 },
-  yearOptionText: { fontSize: 13, color: COLORS.textMain },
-  yearOptionTextSelected: { color: COLORS.primary, fontWeight: 'bold' },
+
+  // Checkbox
   checkboxContainer: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20, marginTop: 8 },
   checkbox: {
     width: 18, height: 18, borderRadius: 4, borderWidth: 1,
@@ -562,33 +403,21 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxText: { fontSize: 12, color: COLORS.textMuted, flex: 1, lineHeight: 18 },
   linkText: { color: COLORS.primary, fontWeight: 'bold' },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-  },
-  errorText: {
-    flex: 1,
-    color: '#DC2626',
-    fontSize: 13,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
+
+  // Button
   primaryButton: {
     backgroundColor: COLORS.primary, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
     paddingVertical: 14, borderRadius: 8, marginBottom: 20,
   },
   primaryButtonText: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginRight: 8 },
+
+  // Card Footer
   cardFooter: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   cardFooterText: { fontSize: 12, color: COLORS.textMuted },
   registerLink: { fontSize: 12, color: COLORS.primary, fontWeight: 'bold' },
+
+  // Page Footer
   pageFooter: {
     flexDirection: 'row', justifyContent: 'center',
     alignItems: 'center', marginTop: 24, flexWrap: 'wrap',
