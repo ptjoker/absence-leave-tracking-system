@@ -5,6 +5,7 @@ import { useState } from 'react';
 import {
   Image,
   ImageBackground,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -12,7 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 import LogoImg from '@/assets/images/logo.png';
@@ -29,7 +30,19 @@ const COLORS = {
   inputBg: '#F9FAFB',
   toggleBg: '#F3F4F6',
   danger: '#EF4444',
+  selectedBg: '#EFF6FF',
 };
+
+// --- Year Options (with icons) ---
+const YEAR_OPTIONS = [
+  { label: 'First year',    icon: 'sunrise' },
+  { label: 'Second year',   icon: 'trending-up' },
+  { label: 'Third year',    icon: 'award' },
+  { label: 'Post Graduate', icon: 'star' },
+];
+
+// High zIndex used on the row that owns the dropdown so it renders above later siblings
+const Z_TOP = 1000;
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -40,10 +53,13 @@ export default function SignUpScreen() {
   const [studentNumber, setStudentNumber] = useState('');
   const [course, setCourse] = useState('');
   const [currentYear, setCurrentYear] = useState('');
+  const [isYearDropdownOpen, setYearDropdownOpen] = useState(false);
   const [cellNumber, setCellNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
+
+  const selectedYear = YEAR_OPTIONS.find((y) => y.label === currentYear);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -70,7 +86,7 @@ export default function SignUpScreen() {
             </View>
           </View>
 
-          {/* --- WELCOME SECTION (Left side on web) --- */}
+          {/* --- WELCOME SECTION --- */}
           <View style={styles.welcomeSection}>
             <View style={styles.tag}>
               <Text style={styles.tagDot}>●</Text>
@@ -88,7 +104,7 @@ export default function SignUpScreen() {
             </View>
           </View>
 
-          {/* --- REGISTRATION CARD (Right side on web) --- */}
+          {/* --- REGISTRATION CARD --- */}
           <View style={styles.card}>
             <Text style={styles.cardTag}>ACCOUNT REGISTRATION</Text>
             <Text style={styles.cardTitle}>Create your account</Text>
@@ -97,18 +113,27 @@ export default function SignUpScreen() {
             <View style={styles.toggleContainer}>
               <TouchableOpacity
                 style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
-                onPress={() => setAccountType('student')}
+                onPress={() => router.replace('/signStud')}
               >
-                <Feather name="user" size={14} color={accountType === 'student' ? COLORS.primary : COLORS.textMuted} />
+                <Feather
+                  name="user"
+                  size={14}
+                  color={accountType === 'student' ? COLORS.primary : COLORS.textMuted}
+                />
                 <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
                   Student assistant
                 </Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
-                onPress={() => setAccountType('supervisor')}
+                onPress={() => router.replace('/signSup')}
               >
-                <Feather name="users" size={14} color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted} />
+                <Feather
+                  name="users"
+                  size={14}
+                  color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted}
+                />
                 <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
                   Supervisor
                 </Text>
@@ -173,7 +198,10 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            <View style={styles.row}>
+            {/* ========================================= */}
+            {/* ROW CONTAINING THE DROPDOWN — HIGH zIndex */}
+            {/* ========================================= */}
+            <View style={[styles.row, { zIndex: Z_TOP, position: 'relative' }]}>
               <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>Course or department <Text style={styles.required}>*</Text></Text>
                 <View style={styles.inputWrapper}>
@@ -187,18 +215,109 @@ export default function SignUpScreen() {
                   />
                 </View>
               </View>
+
+              {/* --- CURRENT YEAR DROPDOWN --- */}
               <View style={[styles.inputGroup, styles.halfWidth, { marginLeft: 8 }]}>
                 <Text style={styles.label}>Current year <Text style={styles.required}>*</Text></Text>
-                <TouchableOpacity style={styles.inputWrapper}>
-                  <Text style={[styles.input, !currentYear && { color: '#9CA3AF' }]}>
-                    {currentYear || 'Select year'}
-                  </Text>
-                  <Feather name="chevron-down" size={16} color={COLORS.textMuted} />
+
+                <TouchableOpacity
+                  style={[
+                    styles.inputWrapper,
+                    isYearDropdownOpen && styles.inputWrapperOpen,
+                  ]}
+                  onPress={() => setYearDropdownOpen((v) => !v)}
+                  activeOpacity={0.7}
+                >
+                  {selectedYear ? (
+                    <View style={styles.selectedYearRow}>
+                      <Feather
+                        name={selectedYear.icon}
+                        size={14}
+                        color={COLORS.primary}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={[styles.input, { color: COLORS.textMain }]}>
+                        {selectedYear.label}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.input, { color: '#9CA3AF' }]}>Select year</Text>
+                  )}
+                  <Feather
+                    name={isYearDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={isYearDropdownOpen ? COLORS.primary : COLORS.textMuted}
+                  />
                 </TouchableOpacity>
+
+                {isYearDropdownOpen && (
+                  <>
+                    {/* Tap-outside overlay */}
+                    <Pressable
+                      style={styles.dropdownBackdrop}
+                      onPress={() => setYearDropdownOpen(false)}
+                    />
+
+                    <View style={styles.dropdownList}>
+                      <ScrollView
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {YEAR_OPTIONS.map((option, index) => {
+                          const isSelected = currentYear === option.label;
+                          return (
+                            <TouchableOpacity
+                              key={option.label}
+                              style={[
+                                styles.dropdownItem,
+                                isSelected && styles.dropdownItemSelected,
+                                index === YEAR_OPTIONS.length - 1 && { borderBottomWidth: 0 },
+                              ]}
+                              onPress={() => {
+                                setCurrentYear(option.label);
+                                setYearDropdownOpen(false);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.dropdownItemLeft}>
+                                <View
+                                  style={[
+                                    styles.dropdownIconCircle,
+                                    isSelected && styles.dropdownIconCircleSelected,
+                                  ]}
+                                >
+                                  <Feather
+                                    name={option.icon}
+                                    size={13}
+                                    color={isSelected ? '#FFFFFF' : COLORS.primary}
+                                  />
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.dropdownItemText,
+                                    isSelected && styles.dropdownItemTextSelected,
+                                  ]}
+                                >
+                                  {option.label}
+                                </Text>
+                              </View>
+                              {isSelected && (
+                                <Feather name="check" size={14} color={COLORS.primary} />
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
+            {/* ============ END DROPDOWN ROW ============ */}
 
-            <View style={styles.inputGroup}>
+            {/* All later siblings get zIndex: 0 so they don't paint over the open dropdown */}
+            <View style={[styles.inputGroup, { zIndex: 0, position: 'relative' }]}>
               <Text style={styles.label}>Cell number <Text style={styles.required}>*</Text></Text>
               <View style={styles.inputWrapper}>
                 <Feather name="phone" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
@@ -213,7 +332,7 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            <View style={styles.row}>
+            <View style={[styles.row, { zIndex: 0, position: 'relative' }]}>
               <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>Password <Text style={styles.required}>*</Text></Text>
                 <View style={styles.inputWrapper}>
@@ -248,7 +367,7 @@ export default function SignUpScreen() {
 
             {/* Terms Checkbox */}
             <TouchableOpacity
-              style={styles.checkboxContainer}
+              style={[styles.checkboxContainer, { zIndex: 0, position: 'relative' }]}
               onPress={() => setAgreeTerms(!agreeTerms)}
             >
               <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
@@ -260,7 +379,7 @@ export default function SignUpScreen() {
             </TouchableOpacity>
 
             {/* Submit Button */}
-            <TouchableOpacity style={styles.primaryButton}>
+            <TouchableOpacity style={[styles.primaryButton, { zIndex: 0, position: 'relative' }]}>
               <Text style={styles.primaryButtonText}>
                 Create {accountType === 'student' ? 'student' : 'supervisor'} account
               </Text>
@@ -268,7 +387,7 @@ export default function SignUpScreen() {
             </TouchableOpacity>
 
             {/* Card Footer */}
-            <View style={styles.cardFooter}>
+            <View style={[styles.cardFooter, { zIndex: 0, position: 'relative' }]}>
               <Text style={styles.cardFooterText}>Already have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/logIn')}>
                 <Text style={styles.registerLink}>Sign in</Text>
@@ -300,7 +419,6 @@ const styles = StyleSheet.create({
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    // Light blue tint (instead of pure white) for better text color contrast
     backgroundColor: 'rgba(219, 234, 254, 0.75)',
   },
   scrollContent: {
@@ -321,7 +439,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     marginBottom: 24,
-    marginHorizontal: -20, // Negative margin to stretch edge-to-edge
+    marginHorizontal: -20,
     marginTop: -20,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
@@ -388,10 +506,88 @@ const styles = StyleSheet.create({
   required: { color: COLORS.danger },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg,
-    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    paddingHorizontal: 12, minHeight: 44,
+  },
+  inputWrapperOpen: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#FFFFFF',
   },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, paddingVertical: 12, fontSize: 14, color: COLORS.textMain },
+
+  // Selected year row inside the trigger
+  selectedYearRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  // --- YEAR DROPDOWN ---
+  dropdownBackdrop: {
+    position: 'absolute',
+    top: -2000,
+    bottom: -2000,
+    left: -2000,
+    right: -2000,
+    zIndex: 90,
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    maxHeight: 220,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 20,
+    zIndex: 200,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  dropdownItemSelected: {
+    backgroundColor: COLORS.selectedBg,
+  },
+  dropdownItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dropdownIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  dropdownIconCircleSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: COLORS.textMain,
+  },
+  dropdownItemTextSelected: {
+    color: COLORS.primary,
+    fontWeight: 'bold',
+  },
 
   // Checkbox
   checkboxContainer: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20, marginTop: 8 },

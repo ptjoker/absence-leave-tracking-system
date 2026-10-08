@@ -71,6 +71,80 @@ const textColorForBg = (hex) => {
 };
 
 // ============================================================
+// --- TIME VALIDATION HELPERS ---
+// Accepts 24h HH:MM (or H:MM), hours 0-23, minutes 0-59.
+// Examples valid: "08:00", "8:05", "23:59", "00:00"
+// Examples invalid: "8", "25:00", "12:60", "abc", "8:5"
+// ============================================================
+const isValidTime = (value) => {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(trimmed);
+  if (!match) return false;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+};
+
+const timeToMinutes = (value) => {
+  if (!isValidTime(value)) return null;
+  const [h, m] = value.trim().split(':').map(Number);
+  return h * 60 + m;
+};
+
+// Allowed shift time windows by day of week (0 = Sun … 6 = Sat)
+const SHIFT_TIME_WINDOWS = {
+  0: null, // Sunday — no shifts
+  1: { start: '08:00', end: '21:00', dayLabel: 'Monday' },
+  2: { start: '08:00', end: '21:00', dayLabel: 'Tuesday' },
+  3: { start: '08:00', end: '21:00', dayLabel: 'Wednesday' },
+  4: { start: '08:00', end: '21:00', dayLabel: 'Thursday' },
+  5: { start: '08:00', end: '16:00', dayLabel: 'Friday' },
+  6: { start: '09:00', end: '17:00', dayLabel: 'Saturday' },
+};
+
+// Resolves the allowed window for a given date key YYYY-MM-DD
+const getShiftWindowForDate = (dateKey) => {
+  if (!dateKey || typeof dateKey !== 'string') return null;
+  const [y, m, d] = dateKey.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const dow = new Date(y, m - 1, d).getDay();
+  return SHIFT_TIME_WINDOWS[dow] || null;
+};
+
+// Full validator: format + range against the date's window
+const validateShiftTimeForDate = (timeStr, dateKey) => {
+  if (!timeStr) return { valid: false, error: '' };
+
+  if (!isValidTime(timeStr)) {
+    return {
+      valid: false,
+      error: 'Use HH:MM (e.g. 08:00). Hours 0-23, minutes 0-59.',
+    };
+  }
+
+  const win = getShiftWindowForDate(dateKey);
+  if (!win) {
+    return {
+      valid: false,
+      error: 'Shifts cannot be scheduled on Sundays.',
+    };
+  }
+
+  const t = timeToMinutes(timeStr);
+  const startMin = timeToMinutes(win.start);
+  const endMin = timeToMinutes(win.end);
+  if (t < startMin || t > endMin) {
+    return {
+      valid: false,
+      error: `On ${win.dayLabel}, starting time must be between ${win.start} and ${win.end}.`,
+    };
+  }
+  return { valid: true, error: '' };
+};
+
+// ============================================================
 // --- HOLIDAY UTILITIES ---
 // ============================================================
 const pad = (n) => String(n).padStart(2, '0');
@@ -88,7 +162,7 @@ const getEasterSunday = (year) => {
   const h = (19 * a + b - d - g + 15) % 30;
   const i = Math.floor(c / 4);
   const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const l = (32 * 2 + 2 * e + 2 * i - h - k) % 7;
   const m = Math.floor((a + 11 * h + 22 * l) / 451);
   const month = Math.floor((h + l - 7 * m + 114) / 31);
   const day = ((h + l - 7 * m + 114) % 31) + 1;
@@ -208,6 +282,7 @@ export default function MasterSchedule() {
   const [isPositionDropdownOpen, setPositionDropdownOpen] = useState(false);
   const [shiftDuration, setShiftDuration] = useState('');
   const [shiftStartTime, setShiftStartTime] = useState('');
+  const [shiftStartTimeError, setShiftStartTimeError] = useState('');
   const [shiftNotes, setShiftNotes] = useState('');
 
   const [isClosureModalVisible, setClosureModalVisible] = useState(false);
@@ -231,6 +306,20 @@ export default function MasterSchedule() {
   const [closures, setClosures] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Derived: allowed window for the currently selected shift date
+  const selectedDateKey = useMemo(
+    () => String(selectedDate || '').replace(/\//g, '-'),
+    [selectedDate]
+  );
+  const currentShiftWindow = useMemo(
+    () => getShiftWindowForDate(selectedDateKey),
+    [selectedDateKey]
+  );
+  const isShiftTimeValid = useMemo(() => {
+    const res = validateShiftTimeForDate(shiftStartTime, selectedDateKey);
+    return res.valid;
+  }, [shiftStartTime, selectedDateKey]);
+
   const loadData = async () => {
     try {
       const [shiftRes, assistantRes] = await Promise.all([
@@ -247,6 +336,7 @@ export default function MasterSchedule() {
       } else if (shiftData?.error) {
         console.warn('Calendar shifts load error:', shiftData.error);
       }
+
       if (assistantRes.ok && Array.isArray(assistantData)) {
         setAssistants(assistantData);
       } else if (assistantData?.error) {
@@ -286,37 +376,6 @@ export default function MasterSchedule() {
     loadData();
   };
 
-  const shiftsByDate = useMemo(() => {
-    const byDate = {};
-    shifts.forEach((shift) => {
-      if (!shift.shiftDate) return;
-      const dateKey = String(shift.shiftDate).slice(0, 10);
-      if (!byDate[dateKey]) byDate[dateKey] = [];
-      const shiftColor = colorForUser(shift.userId);
-      const startTime = shift.startTime || shift.start_time || null;
-      const endTime = shift.endTime || shift.end_time || null;
-      byDate[dateKey].push({
-        ...shift,
-        title: shift.studentName || shift.name || shift.assistantName || shift.userName || 'Assistant',
-        type: startTime && endTime
-          ? `${startTime} - ${endTime}`
-          : shift.shiftTime || shift.shiftType || 'Shift Scheduled',
-        time: startTime || null,
-        color: shiftColor,
-        textColor: textColorForBg(shiftColor),
-      });
-    });
-    Object.keys(byDate).forEach((k) => {
-      byDate[k].sort((a, b) => {
-        if (!a.time && !b.time) return 0;
-        if (!a.time) return 1;
-        if (!b.time) return -1;
-        return String(a.time).localeCompare(String(b.time));
-      });
-    });
-    return byDate;
-  }, [shifts]);
-
   const closuresByDate = useMemo(() => {
     const map = {};
     closures.forEach((c) => {
@@ -328,6 +387,43 @@ export default function MasterSchedule() {
   }, [closures]);
 
   const getClosureForDate = (dateKey) => closuresByDate[dateKey] || null;
+
+  const shiftsByDate = useMemo(() => {
+    const byDate = {};
+    shifts.forEach((shift) => {
+      if (!shift.shiftDate) return;
+      const dateKey = String(shift.shiftDate).slice(0, 10);
+      if (!byDate[dateKey]) byDate[dateKey] = [];
+      const shiftColor = colorForUser(shift.userId);
+      const startTime = shift.startTime || shift.start_time || null;
+      const endTime = shift.endTime || shift.end_time || null;
+
+      const closureOnDay = closuresByDate[dateKey];
+      const isCancelled = !!closureOnDay || !!shift.cancelled;
+
+      byDate[dateKey].push({
+        ...shift,
+        title: shift.studentName || shift.name || shift.assistantName || shift.userName || 'Assistant',
+        type: startTime && endTime
+          ? `${startTime} - ${endTime}`
+          : shift.shiftTime || shift.shiftType || 'Shift Scheduled',
+        time: startTime || null,
+        color: shiftColor,
+        textColor: textColorForBg(shiftColor),
+        cancelled: isCancelled,
+        cancelReason: isCancelled ? (closureOnDay?.type || 'Closure') : null,
+      });
+    });
+    Object.keys(byDate).forEach((k) => {
+      byDate[k].sort((a, b) => {
+        if (!a.time && !b.time) return 0;
+        if (!a.time) return 1;
+        if (!b.time) return -1;
+        return String(a.time).localeCompare(String(b.time));
+      });
+    });
+    return byDate;
+  }, [shifts, closuresByDate]);
 
   const totalShifts = shifts.length;
   const activeAssistants = assistants.length;
@@ -442,6 +538,7 @@ export default function MasterSchedule() {
     setPositionDropdownOpen(false);
     setShiftDuration('');
     setShiftStartTime('');
+    setShiftStartTimeError('');
     setShiftNotes('');
     setNewShiftModalVisible(true);
   };
@@ -579,6 +676,13 @@ export default function MasterSchedule() {
   const selectedHoliday = getSelectedDayHoliday();
   const selectedClosure = getSelectedDayClosure();
 
+  const getAffectedShiftCount = (dateStr) => {
+    if (!dateStr) return 0;
+    const dateKey = String(dateStr).replace(/\//g, '-');
+    const list = shiftsByDate[dateKey] || [];
+    return list.filter((s) => !s.cancelled).length;
+  };
+
   const handleDeclareClosure = async () => {
     if (!closureDate) {
       Alert.alert('Missing date', 'Please pick a date for the closure.');
@@ -586,12 +690,14 @@ export default function MasterSchedule() {
     }
 
     const dateKey = closureDate.replace(/\//g, '-');
+    const affectedCount = getAffectedShiftCount(closureDate);
 
     const newClosure = {
       id: `closure-${dateKey}-${Date.now()}`,
       date: dateKey,
       type: closureType,
       note: closureNote,
+      affectedShifts: affectedCount,
     };
 
     setClosures((prev) => {
@@ -611,6 +717,79 @@ export default function MasterSchedule() {
     setClosureModalVisible(false);
     setClosureDropdownOpen(false);
     setClosureNote('');
+
+    if (affectedCount > 0) {
+      Alert.alert(
+        'Closure declared',
+        `${affectedCount} scheduled shift${affectedCount === 1 ? '' : 's'} on that day have been marked as cancelled.`
+      );
+    }
+  };
+
+  const handleCreateShift = () => {
+    if (!selectedAssistant) {
+      Alert.alert('Missing assistant', 'Please select a student assistant.');
+      return;
+    }
+    if (!selectedDate) {
+      Alert.alert('Missing date', 'No date was selected. Please reopen from a calendar day.');
+      return;
+    }
+
+    // Validate starting time against the day's allowed window
+    const validation = validateShiftTimeForDate(shiftStartTime, selectedDateKey);
+    if (!validation.valid) {
+      setShiftStartTimeError(validation.error);
+      Alert.alert(
+        'Invalid starting time',
+        validation.error || 'Please enter a valid starting time.'
+      );
+      return;
+    }
+
+    const dateKey = String(selectedDate).replace(/\//g, '-');
+    if (getClosureForDate(dateKey)) {
+      Alert.alert(
+        'Closure day',
+        'This day is marked as a closure. Please pick another day.'
+      );
+      return;
+    }
+
+    const newShift = {
+      id: `shift-${Date.now()}`,
+      userId: selectedAssistant.id,
+      studentName:
+        selectedAssistant.name ||
+        `${selectedAssistant.first_name || ''} ${selectedAssistant.last_name || ''}`.trim() ||
+        'Assistant',
+      shiftDate: dateKey,
+      startTime: shiftStartTime.trim(),
+      endTime: '',
+      position: selectedPosition,
+      duration: shiftDuration,
+      notes: shiftNotes,
+    };
+
+    setShifts((prev) => [...prev, newShift]);
+
+    apiFetch('/api/shifts', {
+      method: 'POST',
+      body: JSON.stringify(newShift),
+    }).catch((e) => {
+      console.warn('Shift POST failed (may not be implemented yet):', e?.message || e);
+    });
+
+    setNewShiftModalVisible(false);
+    setAssistantDropdownOpen(false);
+    setPositionDropdownOpen(false);
+  };
+
+  // Handler for the Starting time field — validates in real-time against day window
+  const handleShiftStartTimeChange = (value) => {
+    setShiftStartTime(value);
+    const res = validateShiftTimeForDate(value, selectedDateKey);
+    setShiftStartTimeError(res.error);
   };
 
   return (
@@ -797,34 +976,53 @@ export default function MasterSchedule() {
                       )}
 
                       <View style={styles.eventsStack}>
-                        {item.current && visibleEvents.map((event, idx) => (
-                          <View
-                            key={event.id || idx}
-                            style={[
-                              styles.eventTag,
-                              {
-                                backgroundColor: event.color,
-                                borderColor: event.color,
-                                opacity: isPast ? 0.55 : 1,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[styles.eventText, { color: event.textColor }]}
-                              numberOfLines={1}
+                        {item.current && visibleEvents.map((event, idx) => {
+                          const cancelled = !!event.cancelled;
+                          return (
+                            <View
+                              key={event.id || idx}
+                              style={[
+                                styles.eventTag,
+                                cancelled
+                                  ? styles.eventTagCancelled
+                                  : {
+                                      backgroundColor: event.color,
+                                      borderColor: event.color,
+                                    },
+                                { opacity: isPast ? 0.55 : 1 },
+                              ]}
                             >
-                              {event.title}
-                            </Text>
-                            {!!event.time && (
                               <Text
-                                style={[styles.eventTimeText, { color: event.textColor }]}
+                                style={[
+                                  styles.eventText,
+                                  cancelled
+                                    ? styles.eventTextCancelled
+                                    : { color: event.textColor },
+                                ]}
                                 numberOfLines={1}
                               >
-                                {event.time}
+                                {event.title}
                               </Text>
-                            )}
-                          </View>
-                        ))}
+                              {cancelled ? (
+                                <Text
+                                  style={[styles.eventTimeText, styles.eventCancelledLabel]}
+                                  numberOfLines={1}
+                                >
+                                  CANCELLED
+                                </Text>
+                              ) : (
+                                !!event.time && (
+                                  <Text
+                                    style={[styles.eventTimeText, { color: event.textColor }]}
+                                    numberOfLines={1}
+                                  >
+                                    {event.time}
+                                  </Text>
+                                )
+                              )}
+                            </View>
+                          );
+                        })}
                       </View>
 
                       {item.current && dayEvents.length > visibleEvents.length && (
@@ -858,20 +1056,20 @@ export default function MasterSchedule() {
                 <Text style={styles.legendDesc}><Text style={{ color: '#9CA3AF' }}>■</Text> Grey box - Sunday (locked)</Text>
                 <Text style={styles.legendDesc}><Text style={{ color: '#E5E7EB' }}>■</Text> Light grey - Past day (locked)</Text>
                 <Text style={styles.legendDesc}><Text style={{ color: '#EF4444' }}>■</Text> Red box - Closure (no new shifts)</Text>
+                <Text style={styles.legendDesc}><Text style={{ color: '#B91C1C' }}>▨</Text> Cancelled shift</Text>
               </View>
             </View>
           </View>
 
           {/* --- SIDEBAR PANELS --- */}
           <View style={styles.sidePanel}>
-            {/* Closure management (compact — day info removed) */}
             <View style={styles.panelCard}>
               <View style={styles.panelHeader}>
                 <Feather name="bell" size={16} color={COLORS.danger} />
                 <Text style={styles.panelTitle}>Closure management</Text>
               </View>
               <Text style={styles.panelSubtitle}>
-                Declare a strike or library closure for any future working day.
+                Declare a strike or library closure for any future working day. Any shifts already scheduled on that day will be cancelled automatically.
               </Text>
               <TouchableOpacity
                 style={styles.closureButton}
@@ -890,7 +1088,9 @@ export default function MasterSchedule() {
               <Text style={styles.tipText}>• Every assistant has a unique colour used on all their shifts.</Text>
               <Text style={styles.tipText}>• Days show up to {MAX_VISIBLE_EVENTS} shifts before collapsing.</Text>
               <Text style={styles.tipText}>• Past days, Sundays, and holidays are locked for scheduling.</Text>
+              <Text style={styles.tipText}>• Shifts Mon–Thu: 08:00–21:00 · Fri: 08:00–16:00 · Sat: 09:00–17:00.</Text>
               <Text style={styles.tipText}>• Closure days (red) block new shifts automatically.</Text>
+              <Text style={styles.tipText}>• Shifts on a closure day are marked CANCELLED.</Text>
             </View>
 
             <View style={styles.panelCard}>
@@ -1001,16 +1201,50 @@ export default function MasterSchedule() {
                   <Text style={styles.modalEmptyText}>No activities scheduled for this day.</Text>
                 </View>
               ) : (
-                getSelectedDayEvents().map((event, index) => (
-                  <View key={index} style={styles.modalEventRow}>
-                    <View style={[styles.modalEventIndicator, { backgroundColor: event.color }]} />
-                    <View style={styles.modalEventDetails}>
-                      <Text style={styles.modalEventTitle}>{event.title}</Text>
-                      <Text style={styles.modalEventType}>{event.type}</Text>
+                getSelectedDayEvents().map((event, index) => {
+                  const cancelled = !!event.cancelled;
+                  return (
+                    <View
+                      key={index}
+                      style={[
+                        styles.modalEventRow,
+                        cancelled && styles.modalEventRowCancelled,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.modalEventIndicator,
+                          { backgroundColor: cancelled ? '#B91C1C' : event.color },
+                        ]}
+                      />
+                      <View style={styles.modalEventDetails}>
+                        <Text
+                          style={[
+                            styles.modalEventTitle,
+                            cancelled && styles.modalEventTitleCancelled,
+                          ]}
+                        >
+                          {event.title}
+                        </Text>
+                        <Text style={styles.modalEventType}>{event.type}</Text>
+                        {cancelled && (
+                          <View style={styles.cancelledTag}>
+                            <Feather name="x-octagon" size={10} color="#991B1B" />
+                            <Text style={styles.cancelledTagText}>
+                              CANCELLED {event.cancelReason ? `• ${event.cancelReason}` : ''}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View
+                        style={[
+                          styles.modalEventColorDot,
+                          { backgroundColor: cancelled ? '#B91C1C' : event.color },
+                        ]}
+                      />
                     </View>
-                    <View style={[styles.modalEventColorDot, { backgroundColor: event.color }]} />
-                  </View>
-                ))
+                  );
+                })
               )}
             </ScrollView>
 
@@ -1267,14 +1501,33 @@ export default function MasterSchedule() {
                   />
                 </View>
                 <View style={styles.formCol}>
-                  <Text style={styles.formLabel}>Starting time</Text>
+                  <Text style={styles.formLabel}>
+                    Starting time <Text style={{ color: COLORS.danger }}>*</Text>
+                  </Text>
                   <TextInput
-                    style={styles.formInputFull}
+                    style={[
+                      styles.formInputFull,
+                      !!shiftStartTimeError && styles.formInputError,
+                    ]}
                     placeholder="e.g. 08:00"
                     placeholderTextColor={COLORS.textMuted}
                     value={shiftStartTime}
-                    onChangeText={setShiftStartTime}
+                    onChangeText={handleShiftStartTimeChange}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={5}
+                    autoCorrect={false}
                   />
+                  {!!shiftStartTimeError && (
+                    <View style={styles.inputErrorRow}>
+                      <Feather name="alert-circle" size={11} color="#B91C1C" />
+                      <Text style={styles.inputErrorText}>{shiftStartTimeError}</Text>
+                    </View>
+                  )}
+                  {!shiftStartTimeError && currentShiftWindow && (
+                    <Text style={styles.timeWindowHint}>
+                      {currentShiftWindow.dayLabel}: {currentShiftWindow.start} – {currentShiftWindow.end}
+                    </Text>
+                  )}
                 </View>
               </View>
 
@@ -1304,29 +1557,13 @@ export default function MasterSchedule() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.submitBtn}
-                onPress={() => {
-                  if (!selectedAssistant) {
-                    Alert.alert('Missing assistant', 'Please select a student assistant.');
-                    return;
-                  }
-                  if (!selectedDate) {
-                    Alert.alert('Missing date', 'No date was selected. Please reopen from a calendar day.');
-                    return;
-                  }
-                  const dateKey = String(selectedDate).replace(/\//g, '-');
-                  if (getClosureForDate(dateKey)) {
-                    Alert.alert(
-                      'Closure day',
-                      'This day is marked as a closure. Please pick another day.'
-                    );
-                    return;
-                  }
-                  // TODO: POST to /api/shifts
-                  setNewShiftModalVisible(false);
-                  setAssistantDropdownOpen(false);
-                  setPositionDropdownOpen(false);
-                }}
+                style={[
+                  styles.submitBtn,
+                  !isShiftTimeValid && styles.submitBtnDisabled,
+                ]}
+                onPress={handleCreateShift}
+                disabled={!isShiftTimeValid}
+                activeOpacity={isShiftTimeValid ? 0.7 : 1}
               >
                 <Feather name="plus" size={16} color="#FFF" style={{ marginRight: 6 }} />
                 <Text style={styles.submitBtnText}>Create Shift</Text>
@@ -1385,6 +1622,17 @@ export default function MasterSchedule() {
                 style={styles.formInputIcon}
               />
             </TouchableOpacity>
+
+            {closureDate && getAffectedShiftCount(closureDate) > 0 && (
+              <View style={styles.cancelWarning}>
+                <Feather name="alert-triangle" size={14} color="#92400E" />
+                <Text style={styles.cancelWarningText}>
+                  {getAffectedShiftCount(closureDate)} shift
+                  {getAffectedShiftCount(closureDate) === 1 ? '' : 's'} on this day will be
+                  marked as cancelled.
+                </Text>
+              </View>
+            )}
 
             <View style={styles.formLabelContainer}>
               <Text style={styles.formLabel}>
@@ -1770,16 +2018,31 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     borderWidth: 1,
   },
+  eventTagCancelled: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#B91C1C',
+    borderStyle: 'dashed',
+  },
   eventText: {
     fontSize: 7,
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  eventTextCancelled: {
+    color: '#B91C1C',
+    textDecorationLine: 'line-through',
   },
   eventTimeText: {
     fontSize: 6,
     fontWeight: '600',
     opacity: 0.9,
     marginTop: 1,
+  },
+  eventCancelledLabel: {
+    color: '#B91C1C',
+    fontWeight: 'bold',
+    opacity: 1,
+    letterSpacing: 0.4,
   },
   moreEventsText: {
     fontSize: 6,
@@ -1882,11 +2145,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC',
     padding: 12, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border,
   },
+  modalEventRowCancelled: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
   modalEventIndicator: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
   modalEventColorDot: { width: 14, height: 14, borderRadius: 7, marginLeft: 8 },
   modalEventDetails: { flex: 1 },
   modalEventTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 2 },
+  modalEventTitleCancelled: {
+    color: '#7F1D1D',
+    textDecorationLine: 'line-through',
+  },
   modalEventType: { fontSize: 12, color: COLORS.textMuted },
+  cancelledTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 6,
+  },
+  cancelledTagText: {
+    color: '#991B1B',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginLeft: 4,
+    letterSpacing: 0.3,
+  },
   modalCloseButton: {
     backgroundColor: COLORS.primary, paddingVertical: 12,
     borderRadius: 8, alignItems: 'center',
@@ -1969,6 +2259,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
     color: COLORS.textMain, marginBottom: 16, backgroundColor: '#FFFFFF',
   },
+  formInputError: {
+    borderColor: '#B91C1C',
+    backgroundColor: '#FEF2F2',
+  },
+  inputErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -10,
+    marginBottom: 12,
+  },
+  inputErrorText: {
+    fontSize: 11,
+    color: '#B91C1C',
+    fontWeight: '600',
+    marginLeft: 4,
+    flex: 1,
+  },
+  timeWindowHint: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: -10,
+    marginBottom: 12,
+    fontWeight: '600',
+  },
   formTextArea: { height: 90, textAlignVertical: 'top' },
   formDropdown: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -2038,6 +2352,9 @@ const styles = StyleSheet.create({
   submitBtn: {
     paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8,
     backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center',
+  },
+  submitBtnDisabled: {
+    backgroundColor: '#9CA3AF',
   },
   submitBtnText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
 
@@ -2127,6 +2444,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
     color: COLORS.textMain, marginBottom: 24, backgroundColor: '#FFFFFF',
     width: '100%', height: 80, textAlignVertical: 'top',
+  },
+  cancelWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  cancelWarningText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+    marginLeft: 6,
+    flex: 1,
   },
   closureFooter: {
     flexDirection: 'row', justifyContent: 'space-between',
