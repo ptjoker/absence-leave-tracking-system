@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -75,13 +76,14 @@ const staffData = [
   { id: '8', initials: 'NN', name: 'Nothando Nkosi', hours: '0.0h', requests: '1', location: '—', days: '0 days' },
 ];
 
-// --- Bottom Nav Items (Mapped to Pages) ---
+// ✅ UPDATED: Added Profile item
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
   { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
+  { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
 ];
 
 export default function PerformanceReports() {
@@ -89,10 +91,8 @@ export default function PerformanceReports() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  // Header State
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -123,21 +123,21 @@ export default function PerformanceReports() {
                 <Feather
                   name={isDarkMode ? 'sun' : 'moon'}
                   size={22}
-                  color={COLORS.primary}
+                  color={theme.primary}
                 />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => router.push('/supNotif')}
+                onPress={() => router.push('/supNotification')}
               >
-                <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+                <Ionicons name="notifications-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={() => router.push('/logOut')} 
               >
-                <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+                <Ionicons name="log-out-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -327,7 +327,7 @@ export default function PerformanceReports() {
                   <Ionicons
                     name={item.icon}
                     size={22}
-                    color={isActive ? COLORS.primary : '#A0AEC0'}
+                    color={isActive ? theme.primary : theme.textMuted}
                   />
                   {item.badge ? (
                     <View style={styles.navBadge}>
@@ -348,7 +348,7 @@ export default function PerformanceReports() {
 }
 
 // --- Styles ---
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     marginBottom: 20,
-    marginHorizontal: -16, // Negative margin to stretch edge-to-edge
+    marginHorizontal: -16,
     marginTop: -16,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   staffLocation: { fontSize: 10, color: COLORS.textMuted, marginBottom: 2 },
   staffDays: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain },
 
-  // Bottom Navigation Bar
+  // ✅ UPDATED: Bottom Navigation Bar for 6 items
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -496,8 +496,9 @@ const styles = StyleSheet.create({
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 4,
-    minWidth: 55,
+    padding: 2,
+    minWidth: 50,
+    flex: 1,
   },
   navIconContainer: {
     position: 'relative',
@@ -522,7 +523,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   navText: {
-    fontSize: 10,
+    fontSize: 9,
     color: COLORS.textMuted,
     marginTop: 4,
   },

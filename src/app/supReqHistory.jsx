@@ -1,6 +1,6 @@
 // src/app/supRequestHistory.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
@@ -12,9 +12,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -25,15 +26,27 @@ const COLORS = {
   bg: '#F8FAFC',
   card: '#FFFFFF',
   border: '#E5E7EB',
+  danger: '#EF4444',
 };
+
+// ✅ Supervisor navigation with Profile
+const NAV_ITEMS = [
+  { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
+  { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
+  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest'     },
+  { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
+  { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
+  { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
+];
 
 export default function SupervisorRequestHistory() {
   const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const { submissions: submissionsParam } = useLocalSearchParams();
   
-  // Header State
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
 
   let submissions = [];
 
@@ -75,20 +88,20 @@ export default function SupervisorRequestHistory() {
               <Feather
                 name={isDarkMode ? 'sun' : 'moon'}
                 size={22}
-                color={COLORS.primary}
+                color={theme.primary}
               />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => router.push('/supNotif')}
+              onPress={() => router.push('/supNotification')}
             >
-              <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+              <Ionicons name="notifications-outline" size={22} color={theme.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
               onPress={() => router.push('/logOut')}
             >
-              <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+              <Ionicons name="log-out-outline" size={22} color={theme.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -100,7 +113,7 @@ export default function SupervisorRequestHistory() {
             onPress={() => router.replace('/supRequest')}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={22} color={COLORS.darkBlue} />
+            <Ionicons name="arrow-back" size={22} color={theme.darkBlue} />
           </TouchableOpacity>
           <View>
             <Text style={styles.title}>Request History</Text>
@@ -130,25 +143,63 @@ export default function SupervisorRequestHistory() {
                 </View>
                 <Text style={styles.reason}>{item.reason}</Text>
                 <View style={styles.dateRow}>
-                  <Ionicons name="calendar-outline" size={16} color="#718096" />
+                  <Ionicons name="calendar-outline" size={16} color={theme.textMuted} />
                   <Text style={styles.date}>{item.date}</Text>
                 </View>
               </View>
             );
           }) : (
             <View style={styles.emptyState}>
-              <Ionicons name="file-tray-outline" size={32} color="#718096" />
+              <Ionicons name="file-tray-outline" size={32} color={theme.textMuted} />
               <Text style={styles.emptyTitle}>No request history</Text>
               <Text style={styles.emptyMessage}>Submitted requests will appear here.</Text>
             </View>
           )}
+
+          {/* Extra padding so content doesn't hide behind bottom nav */}
+          <View style={{ height: 100 }} />
         </ScrollView>
+
+        {/* --- BOTTOM NAVIGATION BAR --- */}
+        <View
+          style={[
+            styles.bottomNav,
+            { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 },
+          ]}
+        >
+          {NAV_ITEMS.map((item) => {
+            // ✅ Keep "Requests" tab active on the Request History page
+            const isActive =
+              pathname === item.path ||
+              (item.name === 'Requests' && pathname === '/supRequestHistory');
+
+            return (
+              <TouchableOpacity
+                key={item.name}
+                style={styles.navItem}
+                activeOpacity={0.7}
+                onPress={() => router.push(item.path)}
+              >
+                <View style={styles.navIconContainer}>
+                  <Ionicons
+                    name={item.icon}
+                    size={22}
+                    color={isActive ? theme.primary : theme.textMuted}
+                  />
+                </View>
+                <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </ImageBackground>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.bg,
@@ -305,5 +356,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 6,
     textAlign: 'center',
+  },
+
+  // --- Bottom Navigation Bar ---
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 10,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    minWidth: 50,
+    flex: 1,
+  },
+  navIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navText: {
+    fontSize: 9,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  navTextActive: {
+    color: COLORS.primary,
+    fontWeight: 'bold',
   },
 });

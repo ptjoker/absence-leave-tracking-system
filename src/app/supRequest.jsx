@@ -19,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import logoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -33,17 +34,18 @@ const COLORS = {
   success: '#10B981',
 };
 
-// --- Bottom Nav Items (Mapped to Pages) ---
+// ✅ UPDATED: Added Profile item — matches supervisor dashboard nav
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
   { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest'     },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
+  { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
 ];
 
 // --- Submission Card Component ---
-const SubmissionCard = ({ item, onApprove, onReject, disabled }) => (
+const SubmissionCard = ({ item, onApprove, onReject, disabled, styles, theme }) => (
   <View style={styles.card}>
     <View style={styles.cardHeader}>
       <View style={styles.cardHeaderLeft}>
@@ -65,7 +67,7 @@ const SubmissionCard = ({ item, onApprove, onReject, disabled }) => (
 
     <View style={styles.metaRow}>
       <View style={styles.dateContainer}>
-        <Ionicons name="calendar-outline" size={16} color="#718096" style={styles.metaIcon} />
+        <Ionicons name="calendar-outline" size={16} color={theme.textMuted} style={styles.metaIcon} />
         <Text style={styles.dateText}>{item.date}</Text>
       </View>
       <View style={[
@@ -129,9 +131,8 @@ export default function SupervisorRequests() {
   const [busyId, setBusyId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Header State
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
 
   const loadRequests = async () => {
     try {
@@ -236,16 +237,16 @@ export default function SupervisorRequests() {
               <Feather
                 name={isDarkMode ? 'sun' : 'moon'}
                 size={22}
-                color={COLORS.primary}
+                color={theme.primary}
               />
             </TouchableOpacity>
 
             {/* Notifications */}
             <TouchableOpacity
               style={styles.iconButton}
-              onPress={() => router.push('/supNotif')}
+              onPress={() => router.push('/supNotification')}
             >
-              <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+              <Ionicons name="notifications-outline" size={22} color={theme.primary} />
             </TouchableOpacity>
 
             {/* Logout */}
@@ -253,7 +254,7 @@ export default function SupervisorRequests() {
               style={styles.iconButton}
               onPress={() => router.push('/logOut')}
             >
-              <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+              <Ionicons name="log-out-outline" size={22} color={theme.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -266,7 +267,7 @@ export default function SupervisorRequests() {
         >
           <View style={styles.approvalCard}>
             <View style={styles.approvalIconContainer}>
-              <Ionicons name="pie-chart-outline" size={20} color="#1E3A8A" />
+              <Ionicons name="pie-chart-outline" size={20} color={theme.darkBlue} />
             </View>
             <View style={styles.approvalTextContainer}>
               <Text style={styles.approvalLabel}>APPROVAL RATE</Text>
@@ -275,7 +276,7 @@ export default function SupervisorRequests() {
           </View>
 
           <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color="#A0AEC0" style={styles.searchIcon} />
+            <Ionicons name="search-outline" size={20} color={theme.textMuted} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search by student name..."
@@ -286,7 +287,7 @@ export default function SupervisorRequests() {
           </View>
 
           <View style={styles.sectionHeader}>
-            <Ionicons name="swap-horizontal-outline" size={18} color="#1E3A8A" style={{ marginRight: 6 }} />
+            <Ionicons name="swap-horizontal-outline" size={18} color={theme.darkBlue} style={{ marginRight: 6 }} />
             <Text style={styles.sectionTitle}>
               RECENT SUBMISSIONS {pendingCount > 0 ? `(${pendingCount} PENDING)` : ''}
             </Text>
@@ -307,11 +308,13 @@ export default function SupervisorRequests() {
               onApprove={(i) => handleAction(i, 'Approved')}
               onReject={(i) => handleAction(i, 'Rejected')}
               disabled={busyId === item.id}
+              styles={styles}
+              theme={theme}
             />
           ))}
 
           <View style={styles.footerNote}>
-            <Ionicons name="information-circle-outline" size={18} color="#4A5568" style={{ marginRight: 10, marginTop: 2 }} />
+            <Ionicons name="information-circle-outline" size={18} color={theme.textMuted} style={{ marginRight: 10, marginTop: 2 }} />
             <Text style={styles.footerNoteText}>
               All changes are logged for institutional audit compliance. Decisions made here are final and notified to students immediately.
             </Text>
@@ -341,7 +344,7 @@ export default function SupervisorRequests() {
                   <Ionicons
                     name={item.icon}
                     size={22}
-                    color={isActive ? COLORS.primary : '#A0AEC0'}
+                    color={isActive ? theme.primary : theme.textMuted}
                   />
                   {item.name === 'Requests' && pendingCount > 0 ? (
                     <View style={styles.navBadge}>
@@ -362,7 +365,7 @@ export default function SupervisorRequests() {
 }
 
 // --- Styles ---
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
@@ -486,7 +489,7 @@ const styles = StyleSheet.create({
   },
   footerNoteText: { flex: 1, fontSize: 12, color: '#2D3748', lineHeight: 18 },
 
-  // Bottom Navigation Bar
+  // ✅ UPDATED: Bottom Navigation Bar — matches supervisor dashboard (6 items)
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -500,7 +503,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  navItem: { alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 55 },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    minWidth: 50,
+    flex: 1,
+  },
   navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   navBadge: {
     position: 'absolute', top: -4, right: -8,
@@ -509,6 +518,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
-  navText: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
   navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 });

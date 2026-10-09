@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import {
   ImageBackground,
   Modal,
@@ -11,6 +12,7 @@ import {
 
 export default function LogoutModal({ visible = true, onClose, onConfirm }) {
   const router = useRouter();
+  const { resetTheme } = useSupervisorTheme();
 
   const handleCancel = () => {
     if (onClose) {
@@ -21,6 +23,7 @@ export default function LogoutModal({ visible = true, onClose, onConfirm }) {
   };
 
   const handleConfirm = () => {
+    resetTheme();
     if (onConfirm) onConfirm();
     router.replace('/endSession');
   };

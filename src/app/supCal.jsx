@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 const formatDate = (date) => {
   if (!date) return '';
@@ -72,9 +73,6 @@ const textColorForBg = (hex) => {
 
 // ============================================================
 // --- TIME VALIDATION HELPERS ---
-// Accepts 24h HH:MM (or H:MM), hours 0-23, minutes 0-59.
-// Examples valid: "08:00", "8:05", "23:59", "00:00"
-// Examples invalid: "8", "25:00", "12:60", "abc", "8:5"
 // ============================================================
 const isValidTime = (value) => {
   if (typeof value !== 'string') return false;
@@ -93,9 +91,8 @@ const timeToMinutes = (value) => {
   return h * 60 + m;
 };
 
-// Allowed shift time windows by day of week (0 = Sun … 6 = Sat)
 const SHIFT_TIME_WINDOWS = {
-  0: null, // Sunday — no shifts
+  0: null,
   1: { start: '08:00', end: '21:00', dayLabel: 'Monday' },
   2: { start: '08:00', end: '21:00', dayLabel: 'Tuesday' },
   3: { start: '08:00', end: '21:00', dayLabel: 'Wednesday' },
@@ -104,7 +101,6 @@ const SHIFT_TIME_WINDOWS = {
   6: { start: '09:00', end: '17:00', dayLabel: 'Saturday' },
 };
 
-// Resolves the allowed window for a given date key YYYY-MM-DD
 const getShiftWindowForDate = (dateKey) => {
   if (!dateKey || typeof dateKey !== 'string') return null;
   const [y, m, d] = dateKey.split('-').map(Number);
@@ -113,7 +109,6 @@ const getShiftWindowForDate = (dateKey) => {
   return SHIFT_TIME_WINDOWS[dow] || null;
 };
 
-// Full validator: format + range against the date's window
 const validateShiftTimeForDate = (timeStr, dateKey) => {
   if (!timeStr) return { valid: false, error: '' };
 
@@ -252,12 +247,14 @@ const TIMETABLES_DATA = [
   }
 ];
 
+// ✅ UPDATED: Added Profile item for 6-tab navigation
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
   { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
+  { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
 ];
 
 const MAX_VISIBLE_EVENTS = 3;
@@ -298,15 +295,14 @@ export default function MasterSchedule() {
   const [selectedTimetable, setSelectedTimetable] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
   const [user, setUser] = useState(null);
   const [shifts, setShifts] = useState([]);
   const [assistants, setAssistants] = useState([]);
   const [closures, setClosures] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Derived: allowed window for the currently selected shift date
   const selectedDateKey = useMemo(
     () => String(selectedDate || '').replace(/\//g, '-'),
     [selectedDate]
@@ -736,7 +732,6 @@ export default function MasterSchedule() {
       return;
     }
 
-    // Validate starting time against the day's allowed window
     const validation = validateShiftTimeForDate(shiftStartTime, selectedDateKey);
     if (!validation.valid) {
       setShiftStartTimeError(validation.error);
@@ -785,7 +780,6 @@ export default function MasterSchedule() {
     setPositionDropdownOpen(false);
   };
 
-  // Handler for the Starting time field — validates in real-time against day window
   const handleShiftStartTimeChange = (value) => {
     setShiftStartTime(value);
     const res = validateShiftTimeForDate(value, selectedDateKey);
@@ -821,13 +815,13 @@ export default function MasterSchedule() {
 
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
-                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={COLORS.primary} />
+                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={theme.primary} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotif')}>
-                <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotification')}>
+                <Ionicons name="notifications-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
-                <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+                <Ionicons name="log-out-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1135,7 +1129,7 @@ export default function MasterSchedule() {
                   <Ionicons
                     name={item.icon}
                     size={22}
-                    color={isActive ? COLORS.primary : '#A0AEC0'}
+                    color={isActive ? theme.primary : theme.textMuted}
                   />
                   {item.badge ? (
                     <View style={styles.navBadge}>
@@ -1911,7 +1905,7 @@ export default function MasterSchedule() {
 }
 
 // --- Styles ---
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
@@ -2106,20 +2100,46 @@ const styles = StyleSheet.create({
   },
   viewAllText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
 
+  // ✅ UPDATED: Bottom nav for 6 items
   bottomNav: {
-    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
-    backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border,
-    paddingTop: 10, position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 10,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  navItem: { alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 55 },
-  navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    minWidth: 50,
+    flex: 1,
+  },
+  navIconContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navBadge: {
-    position: 'absolute', top: -4, right: -8, backgroundColor: COLORS.danger,
-    borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3,
-    justifyContent: 'center', alignItems: 'center',
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: COLORS.danger,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
-  navText: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
   navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 
   modalOverlay: {

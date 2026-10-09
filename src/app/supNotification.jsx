@@ -8,6 +8,7 @@ import {
   Modal,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import logoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -28,7 +30,7 @@ function formatDate(iso) {
   }
 }
 
-const NotificationCard = ({ item, onPress }) => (
+const NotificationCard = ({ item, onPress, styles, theme }) => (
   <TouchableOpacity
     style={styles.card}
     onPress={() => onPress(item)}
@@ -56,7 +58,7 @@ const NotificationCard = ({ item, onPress }) => (
 
     <View style={styles.metaRow}>
       <View style={styles.dateContainer}>
-        <Ionicons name="calendar-outline" size={16} color="#718096" style={styles.metaIcon} />
+        <Ionicons name="calendar-outline" size={16} color={theme.textMuted} style={styles.metaIcon} />
         <Text style={styles.dateText}>{item.date}</Text>
       </View>
     </View>
@@ -65,6 +67,8 @@ const NotificationCard = ({ item, onPress }) => (
 
 export default function SupervisorNotifications() {
   const router = useRouter();
+  const { isDarkMode, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,10 +130,11 @@ export default function SupervisorNotifications() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-            <Ionicons name="chevron-back-outline" size={24} color="#1A202C" />
+            <Ionicons name="chevron-back-outline" size={24} color={theme.textMain} />
           </TouchableOpacity>
           <Image source={logoImg} style={styles.iconContainerLogo} resizeMode="contain" />
           <View style={styles.headerTextContainer}>
@@ -139,10 +144,10 @@ export default function SupervisorNotifications() {
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="search-outline" size={22} color="#1E3A8A" />
+            <Ionicons name="search-outline" size={22} color={theme.darkBlue} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
-            <Ionicons name="log-out-outline" size={22} color="#1E3A8A" />
+            <Ionicons name="log-out-outline" size={22} color={theme.darkBlue} />
           </TouchableOpacity>
         </View>
       </View>
@@ -168,6 +173,8 @@ export default function SupervisorNotifications() {
             key={item.id}
             item={item}
             onPress={handleNotificationPress}
+            styles={styles}
+            theme={theme}
           />
         ))}
       </ScrollView>
@@ -176,7 +183,7 @@ export default function SupervisorNotifications() {
         <Ionicons
           name="information-circle-outline"
           size={16}
-          color="#A0AEC0"
+          color={theme.textMuted}
           style={{ marginRight: 8, marginTop: 2 }}
         />
         <Text style={styles.footerNoteText}>
@@ -224,7 +231,7 @@ export default function SupervisorNotifications() {
                     </View>
                   </View>
                   <TouchableOpacity onPress={() => setIsModalVisible(false)}>
-                    <Ionicons name="close-circle" size={28} color="#A0AEC0" />
+                    <Ionicons name="close-circle" size={28} color={theme.textMuted} />
                   </TouchableOpacity>
                 </View>
 
@@ -259,7 +266,7 @@ export default function SupervisorNotifications() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F0F4F8' },
   header: {
     flexDirection: 'row',

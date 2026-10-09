@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 const COLORS = {
   primary: '#2563EB',
@@ -44,12 +45,14 @@ const COLORS = {
   avatarTextColors: ['#4F46E5', '#D97706', '#059669', '#DB2777', '#2563EB'],
 };
 
+// ✅ UPDATED: Added Profile item — matches supervisor navigation
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
   { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest'     },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
+  { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     }, // 👈 NEW
 ];
 
 function initialsFromName(name) {
@@ -77,8 +80,8 @@ export default function StudentAssistances() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
 
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -177,13 +180,13 @@ export default function StudentAssistances() {
 
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
-                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={COLORS.primary} />
+                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={theme.primary} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotif')}>
-                <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotification')}>
+                <Ionicons name="notifications-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
-                <Ionicons name="log-out-outline" size={22} color={COLORS.primary} />
+                <Ionicons name="log-out-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -328,6 +331,7 @@ export default function StudentAssistances() {
           <View style={{ height: 100 }} />
         </ScrollView>
 
+        {/* --- BOTTOM NAVIGATION BAR --- */}
         <View
           style={[
             styles.bottomNav,
@@ -349,7 +353,7 @@ export default function StudentAssistances() {
                   <Ionicons
                     name={item.icon}
                     size={22}
-                    color={isActive ? COLORS.primary : '#A0AEC0'}
+                    color={isActive ? theme.primary : theme.textMuted}
                   />
                   {showBadge && (
                     <View style={styles.navBadge}>
@@ -369,7 +373,7 @@ export default function StudentAssistances() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
@@ -470,6 +474,8 @@ const styles = StyleSheet.create({
   issueStrikeText: { color: COLORS.danger, fontSize: 10, fontWeight: 'bold', marginLeft: 4 },
   footerNote: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 8 },
   footerNoteText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 6 },
+
+  // ✅ UPDATED: Bottom Navigation Bar — matches supervisor dashboard (6 items)
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -483,7 +489,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  navItem: { alignItems: 'center', justifyContent: 'center', padding: 4, minWidth: 55 },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 2,
+    minWidth: 50,
+    flex: 1,
+  },
   navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   navBadge: {
     position: 'absolute', top: -4, right: -8, backgroundColor: COLORS.danger,
@@ -491,6 +503,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
-  navText: { fontSize: 10, color: COLORS.textMuted, marginTop: 4 },
+  navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
   navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 });
