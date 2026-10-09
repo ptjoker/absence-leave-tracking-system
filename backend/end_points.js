@@ -19,7 +19,7 @@ const router = express.Router();
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 100,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: {
@@ -30,7 +30,7 @@ const otpLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 100,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: {
@@ -42,7 +42,7 @@ const loginLimiter = rateLimit({
 
 const verifyOtpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 5,
+  limit: 100,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: {
