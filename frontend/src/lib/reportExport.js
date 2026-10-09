@@ -98,8 +98,9 @@ function makeDocx(rows, title) {
   ];
   rows.forEach((row) => {
     paragraphs.push(`<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${xmlEscape(row.name)}</w:t></w:r></w:p>`);
-    paragraphs.push(`<w:p><w:r><w:t>Hours worked: ${xmlEscape(row.hours)} | Total requests: ${xmlEscape(row.requests)} | ${xmlEscape(row.site)} | ${xmlEscape(row.days)} shifts</w:t></w:r></w:p>`);
+    paragraphs.push(`<w:p><w:r><w:t>Hours worked: ${xmlEscape(row.hours)} | Total requests: ${xmlEscape(row.requests)} (${xmlEscape(row.requestDays || 0)} days) | ${xmlEscape(row.site)} | ${xmlEscape(row.days)} shifts</w:t></w:r></w:p>`);
     if (row.shiftDetails) paragraphs.push(`<w:p><w:r><w:t>Shift details: ${xmlEscape(row.shiftDetails)}</w:t></w:r></w:p>`);
+    if (row.requestDetails) paragraphs.push(`<w:p><w:r><w:t>Request details: ${xmlEscape(row.requestDetails)}</w:t></w:r></w:p>`);
   });
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -120,11 +121,11 @@ function makeDocx(rows, title) {
 }
 
 function makeExcelXml(rows, title) {
-  const headers = ['Report Period', 'Student Assistant', 'Hours Worked', 'Total Requests', 'Site', 'Days', 'Shift Details'];
+  const headers = ['Report Period', 'Student Assistant', 'Hours Worked', 'Total Requests', 'Request Days', 'Site', 'Assigned Shifts', 'Shift Details', 'Request Details'];
   const tableRows = [
     `<Row><Cell><Data ss:Type="String">${xmlEscape(title)}</Data></Cell></Row>`,
     `<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${xmlEscape(h)}</Data></Cell>`).join('')}</Row>`,
-    ...rows.map((row) => `<Row><Cell><Data ss:Type="String">${xmlEscape(title.replace(/^Performance Reports\s*[—-]?\s*/, ''))}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.name)}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.hours)}</Data></Cell><Cell><Data ss:Type="Number">${Number(row.requests) || 0}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.site)}</Data></Cell><Cell><Data ss:Type="Number">${Number(row.days) || 0}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.shiftDetails || '')}</Data></Cell></Row>`),
+    ...rows.map((row) => `<Row><Cell><Data ss:Type="String">${xmlEscape(title.replace(/^Performance Reports\s*[—-]?\s*/, ''))}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.name)}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.hours)}</Data></Cell><Cell><Data ss:Type="Number">${Number(row.requests) || 0}</Data></Cell><Cell><Data ss:Type="Number">${Number(row.requestDays) || 0}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.site)}</Data></Cell><Cell><Data ss:Type="Number">${Number(row.days) || 0}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.shiftDetails || '')}</Data></Cell><Cell><Data ss:Type="String">${xmlEscape(row.requestDetails || '')}</Data></Cell></Row>`),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Performance Report"><Table>${tableRows.join('')}</Table></Worksheet></Workbook>`;
@@ -142,8 +143,8 @@ function makePdf(rows, title) {
     `Generated: ${new Date().toLocaleDateString('en-ZA')}`,
     '',
     'Report period: ' + title.replace(/^Performance Reports\s*[—-]?\s*/, ''),
-    'Student Assistant | Hours | Requests | Site | Shifts',
-    ...rows.map((row) => `${row.name} | ${row.hours} | ${row.requests} | ${row.site} | ${row.days}`),
+    'Student Assistant | Hours | Requests | Request days | Site | Assigned shifts',
+    ...rows.map((row) => `${row.name} | ${row.hours} | ${row.requests} | ${row.requestDays || 0} | ${row.site} | ${row.days}`),
     ...rows.flatMap((row) => row.shiftDetails ? [`Shift details — ${row.name}: ${row.shiftDetails}`] : []),
   ];
   for (let i = 0; i < lines.length; i += 28) pages.push(lines.slice(i, i + 28));

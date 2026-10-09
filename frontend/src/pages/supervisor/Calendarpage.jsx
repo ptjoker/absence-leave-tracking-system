@@ -22,7 +22,7 @@ import { useNotifications } from '@/context/NotificationsContext';
 import { useRequests } from '@/context/RequestsContext';
 import { declareInstitutionalClosure, removeInstitutionalClosure, useStrikeDays } from '@/lib/strikes';
 import { institutionalStrikeNotification } from '@/lib/notifications';
-import { isPublicHoliday, isSunday, approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
+import { isPublicHoliday, isSunday, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 import { useTimetables, formatFileSize } from '@/lib/timetables';
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -229,6 +229,14 @@ export default function CalendarPage() {
     if (!form.user_id) return setFormError('Please select a student.');
     if (!form.shift_date) return setFormError('Please pick a date.');
     if (!form.shift_time) return setFormError('Please select a shift time.');
+    const selected = new Date(`${form.shift_date}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selected < today) return setFormError('Shifts cannot be assigned on past dates.');
+    if (isSunday(selected)) return setFormError('Shifts cannot be assigned on Sundays.');
+    if (isPublicHoliday(selected)) return setFormError('Shifts cannot be assigned on public holidays.');
+    if ((shiftsByDate[form.shift_date] || []).some((shift) => shift.userId === form.user_id)) return setFormError('This student already has a shift assigned on that date.');
+    const [start_time, end_time] = form.shift_time === 'Morning' ? ['08:00', '12:00'] : ['12:00', '16:00'];
 
     setSaving(true);
     try {
@@ -244,7 +252,7 @@ export default function CalendarPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ user_id: form.user_id, shift_date: form.shift_date, start_time, end_time, role: form.role, location: form.location, notes: form.notes }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -277,7 +285,6 @@ export default function CalendarPage() {
 
   const cells = useMemo(() => buildCalendarGrid(monthDate), [monthDate]);
   const selectedKey = ymd(selectedDate);
-  const approvedLeave = useMemo(() => new Set(approvedLeaveDates(requests)), [requests]);
   const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
   const swapDateKeys = useMemo(() => {
     const to = new Set(); const from = new Set();
@@ -443,7 +450,6 @@ export default function CalendarPage() {
                   const isHoliday = isPublicHoliday(cell.date);
                   const isSundayDay = isSunday(cell.date);
                   const isPastDay = key < todayKey;
-                  const hasLeave = approvedLeave.has(key);
                   const isSwapTo = swapDateKeys.to.has(key);
                   const isSwapFrom = swapDateKeys.from.has(key);
                   const overflowCount = dayShifts.length > 2 ? dayShifts.length - 2 : 0;
@@ -454,7 +460,7 @@ export default function CalendarPage() {
                       type="button"
                       onClick={() => setSelectedDate(cell.date)}
                       className={`focus-ring flex min-h-[104px] flex-col gap-1.5 border-b border-r border-[#e2eaf1] p-2 text-left transition-colors last:border-r-0 hover:bg-[#f4f8fb] ${
-                        !cell.inMonth ? 'calendar-outside-month bg-[#fafbfc] text-[#c3cfd9]' : isStrike ? 'bg-[#d05b48] text-white' : isHoliday ? 'bg-[#d9f3e3] text-[#243e5b]' : hasLeave ? 'bg-[#d9dde2] text-[#243e5b]' : isSwapFrom ? 'bg-[#dce9ff] text-[#163f8a]' : isSwapTo ? 'bg-[#d9dde2] text-[#243e5b]' : 'bg-white text-[#243e5b]'
+                        !cell.inMonth ? 'calendar-outside-month bg-[#fafbfc] text-[#c3cfd9]' : isStrike ? 'bg-[#d05b48] text-white' : isHoliday ? 'bg-[#d9f3e3] text-[#243e5b]' : isSwapFrom ? 'bg-[#dce9ff] text-[#163f8a]' : isSwapTo ? 'bg-[#d9dde2] text-[#243e5b]' : 'bg-white text-[#243e5b]'
                       }`}
                     >
                       <span className="flex items-center justify-between">
@@ -478,7 +484,6 @@ export default function CalendarPage() {
                       <span className="flex flex-col gap-1">
                         {isStrike && <span className="mono truncate rounded bg-[#d05b48] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[.04em] text-white">Institutional closure</span>}
                         {isHoliday && <span className="mono truncate rounded bg-[#d9f3e3] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#246b45]">Holiday</span>}
-                        {hasLeave && <span className="mono truncate rounded bg-[#d9dde2] px-1.5 py-0.5 text-[9px] font-bold uppercase text-black">Approved leave</span>}
                         {isSwapTo && <span className="mono truncate rounded bg-[#d9dde2] px-1.5 py-0.5 text-[9px] font-bold uppercase text-black">Date swapped to</span>}
                         {isSwapFrom && <span className="mono truncate rounded bg-[#dce9ff] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#163f8a]">Date swapped from</span>}
                         {dayShifts.slice(0, 2).map((s) => {
@@ -814,6 +819,7 @@ export default function CalendarPage() {
                     <input
                       type="date"
                       value={form.shift_date}
+                      min={ymd(new Date())}
                       onChange={(e) => setForm((f) => ({ ...f, shift_date: e.target.value }))}
                       className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
                     />

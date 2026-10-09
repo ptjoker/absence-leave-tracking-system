@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Clock3, MapPin, ChevronLeft, ChevronRight, CheckCircle2, Upload, FileText, Trash2, Download } from 'lucide-react';
 import { PortalShell, STUDENT } from '@/components/portal/PortalComponents';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns';
@@ -36,6 +36,7 @@ export default function SchedulePage() {
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [assignedShifts, setAssignedShifts] = useState([]);
   const handleTimetableChange = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -57,7 +58,39 @@ export default function SchedulePage() {
   const today = new Date();
   const [monthDate, setMonthDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState(today);
-  const schedule = useMemo(() => generateStudentSchedule(studentNumber, year), [studentNumber]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadAssignedShifts = async () => {
+      try {
+        const session = JSON.parse(localStorage.getItem('session') || 'null');
+        if (!session?.access_token) return;
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data)) setAssignedShifts(data);
+      } catch (error) {
+        console.error('Load assigned shifts error:', error);
+      }
+    };
+    loadAssignedShifts();
+    return () => { cancelled = true; };
+  }, []);
+  const assignedSchedule = useMemo(() => assignedShifts.reduce((result, shift) => {
+    result[shift.shiftDate] = {
+      date: shift.shiftDate,
+      time: `${shift.startTime} – ${shift.endTime}`,
+      shift: shift.startTime === '08:00' ? 'Morning' : 'Afternoon',
+      location: shift.location,
+      role: shift.role,
+    };
+    return result;
+  }, {}), [assignedShifts]);
+  const schedule = useMemo(
+    () => (assignedShifts.length ? assignedSchedule : generateStudentSchedule(studentNumber, year)),
+    [assignedShifts.length, assignedSchedule, studentNumber, year],
+  );
   const approvedLeave = useMemo(() => new Set(approvedLeaveDates(requests)), [requests]);
   const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
   const swapByDate = useMemo(() => {

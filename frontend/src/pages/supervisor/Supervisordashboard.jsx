@@ -39,7 +39,21 @@ export default function SupervisorDashboard() {
 
         <div className="mt-8 grid gap-6 border-t border-white/40 pt-8 lg:grid-cols-[1.3fr_1fr]">
           <div><h2 className="text-base font-bold italic text-[#10253f]">Operational note</h2><p className="mt-3 max-w-xl text-sm leading-6 text-[#243e5b]">Approvals and rejections made from Operational Requests are written to the shared request store, so the student dashboard and history reflect the latest decision.</p></div>
-          <div className="flex items-center gap-4 rounded-xl bg-[#f4f8fb] px-5 py-4"><span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white text-[#1f70d0]"><CalendarDays size={20}/></span><div><strong className="block text-sm font-bold text-[#162c4d]">Current workflow</strong><span className="mono mt-1 block text-[11px] font-bold uppercase tracking-[.06em] text-[#7890a4]">Student → Supervisor → Student</span></div></div>
+          <div className="rounded-xl bg-[#f4f8fb] px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-white text-[#1f70d0]"><CalendarDays size={20}/></span>
+              <strong className="text-sm font-bold text-[#162c4d]">Recent Supervisor Activities</strong>
+            </div>
+            <div className="mt-3 space-y-2">
+              {requests.slice(0, 3).map((request) => (
+                <div key={request.id} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate text-[#52708b]">{request.name || 'Student assistant'} · {request.type || 'Request'}</span>
+                  <StatusBadge status={request.status} />
+                </div>
+              ))}
+              {!requests.length && <p className="text-xs text-[#7890a4]">No supervisor activity yet.</p>}
+            </div>
+          </div>
         </div>
       </main>
     </PortalShell>

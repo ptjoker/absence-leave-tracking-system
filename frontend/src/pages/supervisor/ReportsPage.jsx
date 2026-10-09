@@ -7,12 +7,7 @@ import { parseDateRangeKeys } from '@/lib/schedule';
 import { exportPerformanceReport } from '@/lib/reportExport';
 
 const REPORT_ROSTER = [
-  { name: 'Simphiwe Masanabo', site: 'CIRCULAR 2', hours: '18.5h', days: 6 },
-  { name: 'Segomotso Lencwe', site: 'ICENTER', hours: '19h', days: 6 },
-  { name: 'Shoba Thabiso', site: 'ICENTER', hours: '20h', days: 6 },
-  { name: 'Mawelela Sibusiso', site: 'ICENTER', hours: '19.2h', days: 6 },
-  { name: 'Mashabela Basetsana', site: 'ICENTER2', hours: '21.8h', days: 6 },
-  { name: 'Jiyane Duduzile', site: 'ICENTER', hours: '12.1h', days: 6 },
+  
 ];
 
 function StatCard({ label, value, icon }) {
@@ -58,6 +53,7 @@ function requestMatchesPeriod(request, period) {
 
 function shiftMatchesPeriod(shift, period) { const d = dateFromInput(shift?.shiftDate); return d && !isBefore(endOfDay(d), period.start) && !isAfter(startOfDay(d), period.end); }
 function shiftHours(shift) { const value = Number(shift?.durationHours); return Number.isFinite(value) && value > 0 ? value : 4; }
+function requestDays(request) { return Math.max(parseDateRangeKeys(request?.dateRange).length, 1); }
 
 export default function ReportsPage() {
   const { requests } = useRequests();
@@ -83,8 +79,9 @@ export default function ReportsPage() {
       const personRequests = periodRequests.filter((request) => (request.name || '') === name || request.replacement === name || String(request.type || '').includes(name));
       const personShifts = periodShifts.filter((shift) => shift.studentName === name);
       const hours = personShifts.reduce((sum, shift) => sum + shiftHours(shift), 0);
+      const requestDaysTotal = personRequests.reduce((sum, request) => sum + requestDays(request), 0);
       const site = personShifts[0]?.position || personShifts[0]?.role || base.site;
-      return { ...base, name, site, hours: `${hours.toFixed(1)}h`, days: personShifts.length, requests: personRequests.length, shifts: personShifts.length, shiftHours: hours, shiftDetails: personShifts.map((shift) => `${shift.shiftDate} | ${shift.position || shift.role || '—'} | ${shift.startTime}-${shift.endTime} | ${shiftHours(shift)}h`).join(' ; ') };
+      return { ...base, name, site, hours: `${hours.toFixed(1)}h`, days: personShifts.length, requests: personRequests.length, requestDays: requestDaysTotal, shifts: personShifts.length, shiftHours: hours, shiftDetails: personShifts.map((shift) => `${shift.shiftDate} | ${shift.position || shift.role || '—'} | ${shift.startTime}-${shift.endTime} | ${shiftHours(shift)}h`).join(' ; '), requestDetails: personRequests.map((request) => `${request.type || 'Request'} | ${request.dateRange || 'Date not provided'} | ${requestDays(request)} day(s) | ${request.status || 'Pending'}`).join(' ; ') };
     });
   }, [periodRequests, periodShifts]);
 

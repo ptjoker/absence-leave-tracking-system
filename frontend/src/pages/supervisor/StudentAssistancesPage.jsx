@@ -9,12 +9,8 @@ import {
   Clock3,
   CalendarDays,
   RefreshCw,
-  AlertTriangle,
 } from 'lucide-react';
 import { PortalShell, StatusBadge } from '@/components/portal/PortalComponents';
-import { useNotifications } from '@/context/NotificationsContext';
-import { addStudentStrike, useStudentStrikes } from '@/lib/strikes';
-import { strikeNotification } from '@/lib/notifications';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -55,7 +51,7 @@ function RequestPill({ label, count, tone }) {
   );
 }
 
-function AssistantRow({ assistant, strikeCount, onIssueStrike }) {
+function AssistantRow({ assistant }) {
   return (
     <tr className="border-t border-[#e2eaf1] align-top">
       <td className="py-4 pl-6 pr-4">
@@ -105,21 +101,6 @@ function AssistantRow({ assistant, strikeCount, onIssueStrike }) {
       </td>
       <td className="py-4 pr-6">
         <StatusBadge status={assistant.status || 'Active'} />
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {strikeCount > 0 && (
-            <span className="rounded-full bg-[#fbe4e1] px-2.5 py-1 text-xs font-semibold text-[#d05b48]" data-testid={`text-strikes-${assistant.id}`}>
-              {strikeCount} strike{strikeCount === 1 ? '' : 's'}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => onIssueStrike(assistant)}
-            className="focus-ring flex items-center gap-1 rounded-lg border border-[#d05b48] bg-white px-2.5 py-1 text-xs font-bold text-[#d05b48] hover:bg-[#fbe4e1]"
-            data-testid={`button-issue-strike-${assistant.id}`}
-          >
-            <AlertTriangle size={12} /> Issue strike
-          </button>
-        </div>
       </td>
     </tr>
   );
@@ -130,34 +111,6 @@ export default function StudentAssistancesPage() {
   const [assistants, setAssistants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const strikes = useStudentStrikes();
-  const { push } = useNotifications();
-  const [strikeTarget, setStrikeTarget] = useState(null);
-  const [strikeReason, setStrikeReason] = useState('');
-  const [strikeError, setStrikeError] = useState('');
-
-  const closeStrikeDialog = () => {
-    setStrikeTarget(null);
-    setStrikeReason('');
-    setStrikeError('');
-  };
-
-  const confirmStrike = (e) => {
-    e.preventDefault();
-    const reason = strikeReason.trim();
-    if (!reason) {
-      setStrikeError('A reason is required to issue a strike.');
-      return;
-    }
-    const count = addStudentStrike(strikeTarget.id, reason);
-    push(strikeNotification({
-      studentKeys: [strikeTarget.id, strikeTarget.email].filter(Boolean),
-      reason,
-      count,
-    }));
-    closeStrikeDialog();
-  };
-
   const loadAssistants = async () => {
     setLoading(true);
     setError('');
@@ -284,7 +237,7 @@ export default function StudentAssistancesPage() {
                 </tr>
               ) : filtered.length ? (
                 filtered.map((assistant) => (
-                  <AssistantRow key={assistant.id} assistant={assistant} strikeCount={(strikes[assistant.id] || []).length} onIssueStrike={setStrikeTarget} />
+                  <AssistantRow key={assistant.id} assistant={assistant} />
                 ))
               ) : (
                 <tr>
@@ -303,36 +256,6 @@ export default function StudentAssistancesPage() {
           <CheckCircle2 size={13} /> Counts update automatically whenever students submit or supervisors decide on a request.
         </p>
       </main>
-      {strikeTarget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4" onMouseDown={(e) => { if (e.target === e.currentTarget) closeStrikeDialog(); }}>
-          <form onSubmit={confirmStrike} noValidate role="dialog" aria-modal="true" aria-labelledby="issue-strike-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.25)]" data-testid="dialog-issue-strike">
-            <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#fbe4e1] text-[#d05b48]"><AlertTriangle size={22} /></div>
-            <h3 id="issue-strike-title" className="serif mt-4 text-center text-2xl text-[#162c4d]">Issue a strike</h3>
-            <p className="mt-2 text-center text-sm text-[#60768c]">
-              {strikeTarget.name} will be notified that they received a strike, together with your reason.
-            </p>
-            <label htmlFor="issue-strike-reason" className="mt-5 block">
-              <span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]">Reason<em className="not-italic text-[#d05b48]">*</em></span>
-              <textarea
-                id="issue-strike-reason"
-                rows={3}
-                maxLength={300}
-                autoFocus
-                value={strikeReason}
-                onChange={(e) => { setStrikeReason(e.target.value); if (strikeError) setStrikeError(''); }}
-                placeholder="e.g. Absent from scheduled shift without approved leave."
-                className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-[#9baebe] ${strikeError ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`}
-                data-testid="input-strike-reason"
-              />
-              {strikeError && <span className="mt-1 block text-xs font-medium text-[#c54f43]" role="alert">{strikeError}</span>}
-            </label>
-            <div className="mt-5 flex gap-3">
-              <button type="button" onClick={closeStrikeDialog} className="focus-ring flex-1 rounded-lg border border-[#cfdee9] bg-white px-4 py-2.5 text-sm font-bold text-[#385570] hover:bg-[#f4f8fb]">Cancel</button>
-              <button type="submit" className="focus-ring flex-1 rounded-lg bg-[#d05b48] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#bd4c3a]" data-testid="button-confirm-strike">Issue strike</button>
-            </div>
-          </form>
-        </div>
-      )}
     </PortalShell>
   );
 }

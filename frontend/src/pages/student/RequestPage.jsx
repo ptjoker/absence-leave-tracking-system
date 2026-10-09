@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, endOfYear, isBefore, startOfDay, isSameMonth, addDays } from 'date-fns';
-import { FileText, RefreshCw, Upload, Trash2, ChevronRight, CheckCircle2, CalendarDays } from 'lucide-react';
+import { FileText, RefreshCw, Upload, Trash2, ChevronRight, CalendarDays } from 'lucide-react';
 import { Link, useLocation, useSearch } from 'wouter';
 import { PortalShell, FieldLabel, SuggestionBox } from '@/components/portal/PortalComponents';
 import { Calendar } from '@/components/ui/calendar';
@@ -276,7 +276,7 @@ export default function RequestPage() {
       </div>
       <div className="mt-6"><label htmlFor="request-comments"><FieldLabel>Justification &amp; Comments</FieldLabel><textarea id="request-comments" rows={4} value={comments} onChange={e => setComments(e.target.value)} placeholder="Example: I need leave to attend a scheduled examination / medical appointment. I will complete my assigned hours before or after this period." className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-black outline-none placeholder:text-black focus:border-[#1f70d0]" /></label><SuggestionBox title="Suggested text" suggestions={["Medical appointment and recovery", "Scheduled examination", "Family or personal commitment", "University-related activity"]} /></div>
       {errors.submit && <p className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-3 text-sm font-bold text-[#c54f43]">{errors.submit}</p>}
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2eaf1] pt-6"><span className="flex items-center gap-1.5 text-sm font-semibold text-black"><CheckCircle2 size={16} />Draft is kept while you complete the form.</span><div className="flex gap-3"><button type="button" onClick={() => setLocation(editing ? returnTo : '/dashboard')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">{editing ? 'Stop editing' : 'Cancel'}</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Leave Request'}<ChevronRight size={18} /></button></div></div>
+      <div className="mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-[#e2eaf1] pt-6"><div className="flex gap-3"><button type="button" onClick={() => setLocation(editing ? returnTo : '/dashboard')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">{editing ? 'Stop editing' : 'Cancel'}</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Leave Request'}<ChevronRight size={18} /></button></div></div>
     </form>
   </main></PortalShell>;
 }

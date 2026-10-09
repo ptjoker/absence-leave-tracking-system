@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format, endOfYear, isBefore, startOfDay } from 'date-fns';
-import { RefreshCw, Clock3, FileText, Info, CheckCircle2, ChevronRight, Users, CalendarDays } from 'lucide-react';
+import { RefreshCw, Clock3, FileText, Info, ChevronRight, Users, CalendarDays } from 'lucide-react';
 import { useLocation, useSearch } from 'wouter';
 import { PortalShell, FieldLabel, SuggestionBox, BackButton, STUDENT } from '@/components/portal/PortalComponents';
 import { Calendar } from '@/components/ui/calendar';
@@ -110,7 +110,6 @@ export default function ShiftSwapPage() {
   const { addRequest, updateRequest, requests } = useRequests();
   const strikeDays = useStrikeDays();
   const [shift, setShift] = useState('');
-  const [swapCount, setSwapCount] = useState(1);
   const [colleague, setColleague] = useState('');
   const [newDate, setNewDate] = useState();
   const [reason, setReason] = useState('');
@@ -172,7 +171,6 @@ export default function ShiftSwapPage() {
     e.preventDefault();
     const next = {};
     if (!currentShift) next.shift = 'Select one of your upcoming assigned shifts.';
-    if (swapCount !== 1) next.swapCount = 'A shift swap request currently supports one shift per submission.';
     if (!newDate) next.newDate = 'Select a future working date in 2026.';
     if (newDate && currentShift && format(newDate, 'yyyy-MM-dd') === currentShift.date) next.newDate = 'The new date must be different from the current shift.';
     if (!colleague || !availableStudents.some((item) => item.name === colleague)) next.colleague = newDate ? 'Select one of the available student assistants.' : 'Choose a new shift date first, then select an available student assistant.';
@@ -209,14 +207,6 @@ export default function ShiftSwapPage() {
         </> : <p className="rounded-lg bg-[#eef1f4] p-4 text-sm font-semibold text-black">No upcoming working shifts are available for swapping.</p>}
         {errors.shift && <p className="mt-2 text-sm font-bold text-[#c54f43]">{errors.shift}</p>}
       </div>
-      <div className="mt-7 max-w-xl">
-        <label htmlFor="swap-count" className="mb-2 block text-xs font-bold uppercase tracking-[.08em] text-black">Number of Shifts</label>
-        <select id="swap-count" value={swapCount} onChange={(e) => { setSwapCount(Number(e.target.value)); setErrors((current) => ({ ...current, swapCount: undefined })); }} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm font-semibold text-black outline-none focus:border-[#1f70d0]">
-          <option value={1}>1 shift</option>
-        </select>
-        <p className="mt-1.5 text-sm text-black">Shift Swap is limited to 1 current shift and 1 replacement date per request.</p>
-        {errors.swapCount && <p className="mt-2 text-sm font-bold text-[#c54f43]">{errors.swapCount}</p>}
-      </div>
       <div className="mt-7 grid gap-8 lg:grid-cols-2">
         <div>
           <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[.08em] text-black"><span className="inline-block h-3.5 w-1 rounded-full bg-[#1f70d0]"/>2. New Shift Date</p>
@@ -238,7 +228,7 @@ export default function ShiftSwapPage() {
       <div className="mt-7"><label htmlFor="swap-reason"><FieldLabel icon={<FileText size={16} className="text-black"/>}>Reason for Swap</FieldLabel><textarea id="swap-reason" rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Example: I need to exchange this shift with an available colleague because of a university timetable conflict." className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-black focus:border-[#1f70d0]"/></label><SuggestionBox suggestions={["Medical appointment", "Family commitment", "Academic timetable conflict", "Transport or scheduling issue"]}/></div>
       <div className="mt-6 flex items-start gap-3 rounded-lg border border-[#d0e0ea] bg-[#f4f8fb] p-4"><Info size={20} className="mt-0.5 shrink-0 text-[#1f70d0]"/><div><p className="text-sm font-bold text-[#243e5b]">Swap Policy Notice</p><p className="mt-1 text-sm leading-5 text-black">All swaps are subject to department lead approval. Approved swaps are shown on your schedule and the swapped dates become unavailable for another request.</p></div></div>
       {errors.submit && <p className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-3 text-sm font-bold text-[#c54f43]">{errors.submit}</p>}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#e2eaf1] pt-6"><span className="flex items-center gap-1.5 text-sm font-semibold text-black"><CheckCircle2 size={16}/>Draft is kept while you complete the form.</span><div className="flex gap-3"><button type="button" onClick={()=>setLocation(editing ? '/dashboard' : '/dashboard/request')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">Cancel</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Swap Request'}<ChevronRight size={18}/></button></div></div>
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#e2eaf1] pt-6"><div className="flex gap-3"><button type="button" onClick={()=>setLocation(editing ? '/dashboard' : '/dashboard/request')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">Cancel</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Swap Request'}<ChevronRight size={18}/></button></div></div>
     </form>
   </main></PortalShell>;
 }
