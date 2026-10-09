@@ -3,11 +3,10 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
-  Alert,
   Image,
   ImageBackground,
-  Keyboard,
   Modal,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -19,8 +18,8 @@ import {
 } from 'react-native';
 
 import LogoImg from '@/assets/images/logo.png';
+import { apiFetch } from '@/lib/api';
 
-// --- Theme Colors ---
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
@@ -51,68 +50,36 @@ export default function SupervisorSignUpScreen() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // --- Verification Modal State ---
   const [isVerifyModalVisible, setVerifyModalVisible] = useState(false);
-  const [verificationCode, setVerificationCode] = useState(Array(CODE_LENGTH).fill(''));
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
+  const [verifyError, setVerifyError] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const inputRefs = useRef([]);
 
-  // --- Handle clicking "Create account" ---
-  const handleCreateAccount = () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert('Missing details', 'Please enter your first and last name.');
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      Alert.alert('Invalid email', 'Please enter a valid work email.');
-      return;
-    }
-    if (!department.trim()) {
-      Alert.alert('Missing details', 'Please enter your department or faculty.');
-      return;
-    }
-    if (!cellNumber.trim()) {
-      Alert.alert('Missing details', 'Please enter your cell number.');
-      return;
-    }
-    if (password.length < 8) {
-      Alert.alert('Weak password', 'Password must be at least 8 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert('Passwords do not match', 'Please make sure both passwords are identical.');
-      return;
-    }
-    if (!agreeTerms) {
-      Alert.alert('Terms & Conditions', 'Please agree to the terms and privacy policy to continue.');
-      return;
-    }
-
-    // Reset code and show the verification modal
-    setVerificationCode(Array(CODE_LENGTH).fill(''));
+  const openVerifyModal = () => {
+    setCode(Array(CODE_LENGTH).fill(''));
+    setVerifyError('');
     setVerifyModalVisible(true);
-    setTimeout(() => inputRefs.current[0]?.focus(), 300);
+    setTimeout(() => {
+      if (inputRefs.current[0]) inputRefs.current[0].focus();
+    }, 100);
   };
 
-  // --- Verification code handlers ---
-  const handleCodeChange = (text, index) => {
-    if (text.length > 1) {
-      const digits = text.replace(/\D/g, '').slice(0, CODE_LENGTH).split('');
-      const newCode = [...verificationCode];
-      digits.forEach((d, i) => {
-        if (index + i < CODE_LENGTH) newCode[index + i] = d;
-      });
-      setVerificationCode(newCode);
-      const nextIndex = Math.min(index + digits.length, CODE_LENGTH - 1);
-      inputRefs.current[nextIndex]?.focus();
-      return;
-    }
+  const closeVerifyModal = () => {
+    setVerifyModalVisible(false);
+    setCode(Array(CODE_LENGTH).fill(''));
+    setVerifyError('');
+  };
 
-    const digit = text.replace(/\D/g, '');
-    const newCode = [...verificationCode];
-    newCode[index] = digit;
-    setVerificationCode(newCode);
+  const handleCodeChange = (value, index) => {
+    const digit = value.replace(/[^0-9]/g, '').slice(-1);
+    const next = [...code];
+    next[index] = digit;
+    setCode(next);
+    if (verifyError) setVerifyError('');
 
     if (digit && index < CODE_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
@@ -120,46 +87,88 @@ export default function SupervisorSignUpScreen() {
   };
 
   const handleCodeKeyPress = (e, index) => {
-    if (e.nativeEvent.key === 'Backspace') {
-      if (verificationCode[index]) {
-        const newCode = [...verificationCode];
-        newCode[index] = '';
-        setVerificationCode(newCode);
-      } else if (index > 0) {
-        const newCode = [...verificationCode];
-        newCode[index - 1] = '';
-        setVerificationCode(newCode);
-        inputRefs.current[index - 1]?.focus();
-      }
+    if (e.nativeEvent.key === 'Backspace' && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleVerify = () => {
-    const codeString = verificationCode.join('');
-    if (codeString.length !== CODE_LENGTH) {
-      Alert.alert('Incomplete code', `Please enter all ${CODE_LENGTH} digits.`);
+  const handleVerifyAndCreate = () => {
+    const fullCode = code.join('');
+    if (fullCode.length < CODE_LENGTH) {
+      setVerifyError('Please enter the full 8-digit code.');
       return;
     }
 
-    setIsVerifying(true);
-
+    setVerifying(true);
     setTimeout(() => {
-      setIsVerifying(false);
-      setVerifyModalVisible(false);
-      Keyboard.dismiss();
-
-      Alert.alert(
-        'Account created',
-        'Your supervisor account was created successfully. Please log in to continue.',
-        [{ text: 'OK', onPress: () => router.replace('/logIn') }]
-      );
-    }, 800);
+      setVerifying(false);
+      closeVerifyModal();
+      router.replace('/logIn');
+    }, 600);
   };
 
-  const handleResendCode = () => {
-    setVerificationCode(Array(CODE_LENGTH).fill(''));
-    setTimeout(() => inputRefs.current[0]?.focus(), 200);
-    Alert.alert('Code sent', 'A new 8-digit verification code has been sent to your email.');
+  const handleResend = () => {
+    setCode(Array(CODE_LENGTH).fill(''));
+    setVerifyError('');
+    if (inputRefs.current[0]) inputRefs.current[0].focus();
+  };
+
+  const handleRegister = async () => {
+    setErrorMsg('');
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !department.trim() || !cellNumber.trim() || !password || !confirmPassword) {
+      setErrorMsg('Please fill in all required fields.');
+      return;
+    }
+    if (!email.includes('@')) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+    if (!agreeTerms) {
+      setErrorMsg('Please agree to the terms and privacy policy.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          student_email: email.trim(),
+          student_number: department.trim(),
+          course: department.trim(),
+          level_of_study: 'supervisor',
+          cell_number: cellNumber.trim(),
+          password,
+          role: 'supervisor',
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setErrorMsg(data.error || 'Registration failed. Please try again.');
+        return;
+      }
+
+      openVerifyModal();
+    } catch (err) {
+      console.error('Register error:', err);
+      setErrorMsg('Could not reach the server. Check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -175,7 +184,6 @@ export default function SupervisorSignUpScreen() {
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-          {/* --- STANDARD HEADER --- */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -186,7 +194,6 @@ export default function SupervisorSignUpScreen() {
             </View>
           </View>
 
-          {/* --- WELCOME SECTION --- */}
           <View style={styles.welcomeSection}>
             <View style={styles.tag}>
               <Text style={styles.tagDot}>●</Text>
@@ -204,12 +211,10 @@ export default function SupervisorSignUpScreen() {
             </View>
           </View>
 
-          {/* --- REGISTRATION CARD --- */}
           <View style={styles.card}>
             <Text style={styles.cardTag}>ACCOUNT REGISTRATION</Text>
             <Text style={styles.cardTitle}>Create your account</Text>
 
-            {/* --- ACCOUNT TYPE TOGGLE --- */}
             <View style={styles.toggleContainer}>
               <TouchableOpacity
                 style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
@@ -229,7 +234,6 @@ export default function SupervisorSignUpScreen() {
                 style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
                 onPress={() => {
                   setAccountType('supervisor');
-                  router.replace('/signSup');
                 }}
                 activeOpacity={0.7}
               >
@@ -240,7 +244,6 @@ export default function SupervisorSignUpScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* --- FORM FIELDS --- */}
             <View style={styles.row}>
               <View style={[styles.inputGroup, styles.halfWidth, { marginRight: 8 }]}>
                 <Text style={styles.label}>First name <Text style={styles.required}>*</Text></Text>
@@ -250,7 +253,7 @@ export default function SupervisorSignUpScreen() {
                     placeholder="e.g. Sarah"
                     placeholderTextColor="#9CA3AF"
                     value={firstName}
-                    onChangeText={setFirstName}
+                    onChangeText={(v) => { setFirstName(v); if (errorMsg) setErrorMsg(''); }}
                   />
                 </View>
               </View>
@@ -262,7 +265,7 @@ export default function SupervisorSignUpScreen() {
                     placeholder="e.g. Nkosi"
                     placeholderTextColor="#9CA3AF"
                     value={lastName}
-                    onChangeText={setLastName}
+                    onChangeText={(v) => { setLastName(v); if (errorMsg) setErrorMsg(''); }}
                   />
                 </View>
               </View>
@@ -279,7 +282,7 @@ export default function SupervisorSignUpScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(v) => { setEmail(v); if (errorMsg) setErrorMsg(''); }}
                 />
               </View>
             </View>
@@ -293,7 +296,7 @@ export default function SupervisorSignUpScreen() {
                   placeholder="e.g. Faculty of Information and Communicator"
                   placeholderTextColor="#9CA3AF"
                   value={department}
-                  onChangeText={setDepartment}
+                  onChangeText={(v) => { setDepartment(v); if (errorMsg) setErrorMsg(''); }}
                 />
               </View>
             </View>
@@ -308,7 +311,7 @@ export default function SupervisorSignUpScreen() {
                   placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
                   value={cellNumber}
-                  onChangeText={setCellNumber}
+                  onChangeText={(v) => { setCellNumber(v); if (errorMsg) setErrorMsg(''); }}
                 />
               </View>
             </View>
@@ -320,11 +323,11 @@ export default function SupervisorSignUpScreen() {
                   <Ionicons name="lock-closed-outline" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter your passwo..."
+                    placeholder="Enter password"
                     placeholderTextColor="#9CA3AF"
                     secureTextEntry={!showPassword}
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(v) => { setPassword(v); if (errorMsg) setErrorMsg(''); }}
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                     <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={16} color={COLORS.textMuted} />
@@ -337,11 +340,11 @@ export default function SupervisorSignUpScreen() {
                   <Ionicons name="lock-closed-outline" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter your passwo..."
+                    placeholder="Confirm password"
                     placeholderTextColor="#9CA3AF"
                     secureTextEntry={!showConfirmPassword}
                     value={confirmPassword}
-                    onChangeText={setConfirmPassword}
+                    onChangeText={(v) => { setConfirmPassword(v); if (errorMsg) setErrorMsg(''); }}
                   />
                   <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                     <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={16} color={COLORS.textMuted} />
@@ -350,7 +353,10 @@ export default function SupervisorSignUpScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.checkboxContainer} onPress={() => setAgreeTerms(!agreeTerms)}>
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => { setAgreeTerms(!agreeTerms); if (errorMsg) setErrorMsg(''); }}
+            >
               <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
                 {agreeTerms && <Feather name="check" size={12} color="#FFF" />}
               </View>
@@ -359,13 +365,23 @@ export default function SupervisorSignUpScreen() {
               </Text>
             </TouchableOpacity>
 
+            {errorMsg ? (
+              <View style={styles.errorBanner}>
+                <Feather name="alert-circle" size={16} color="#DC2626" />
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            ) : null}
+
             <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={handleCreateAccount}
+              style={[styles.primaryButton, loading && { opacity: 0.6 }]}
+              onPress={handleRegister}
+              disabled={loading}
               activeOpacity={0.8}
             >
               <Text style={styles.primaryButtonText}>
-                Create {accountType === 'student' ? 'student' : 'supervisor'} account
+                {loading
+                  ? 'Creating account…'
+                  : `Create ${accountType === 'student' ? 'student' : 'supervisor'} account`}
               </Text>
               <Feather name="arrow-right" size={16} color="#FFF" />
             </TouchableOpacity>
@@ -392,71 +408,71 @@ export default function SupervisorSignUpScreen() {
         </ScrollView>
       </ImageBackground>
 
-      {/* ============================================= */}
-      {/* 8-DIGIT VERIFICATION CODE MODAL               */}
-      {/* ============================================= */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={isVerifyModalVisible}
-        onRequestClose={() => setVerifyModalVisible(false)}
+        onRequestClose={closeVerifyModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalIconContainer}>
-              <Feather name="shield" size={26} color={COLORS.primary} />
+        <View style={styles.verifyOverlay}>
+          <View style={styles.verifyCard}>
+            <View style={styles.verifyIconCircle}>
+              <Feather name="shield" size={26} color="#2563EB" />
             </View>
 
-            <Text style={styles.modalTitle}>Verify your email</Text>
-            <Text style={styles.modalSubtitle}>
-              We've sent an 8-digit verification code to{'\n'}
-              <Text style={styles.modalEmail}>{email || 'your email'}</Text>
+            <Text style={styles.verifyTitle}>Verify your email</Text>
+            <Text style={styles.verifySubtitle}>
+              We've sent an 8-digit verification code to
             </Text>
+            <Text style={styles.verifyEmail}>{email || 'your email'}</Text>
 
             <View style={styles.codeRow}>
-              {Array(CODE_LENGTH).fill(0).map((_, index) => (
+              {code.map((digit, index) => (
                 <TextInput
                   key={index}
-                  ref={(el) => (inputRefs.current[index] = el)}
-                  style={[styles.codeBox, verificationCode[index] && styles.codeBoxFilled]}
-                  value={verificationCode[index]}
-                  onChangeText={(text) => handleCodeChange(text, index)}
+                  ref={(el) => { inputRefs.current[index] = el; }}
+                  style={[styles.codeInput, digit && styles.codeInputFilled]}
+                  value={digit}
+                  onChangeText={(v) => handleCodeChange(v, index)}
                   onKeyPress={(e) => handleCodeKeyPress(e, index)}
                   keyboardType="number-pad"
                   maxLength={1}
+                  textAlign="center"
                   selectTextOnFocus
-                  editable={!isVerifying}
                 />
               ))}
             </View>
 
-            <TouchableOpacity onPress={handleResendCode} style={styles.resendRow}>
-              <Text style={styles.resendText}>
-                Didn't receive the code? <Text style={styles.resendLink}>Resend</Text>
-              </Text>
-            </TouchableOpacity>
+            {verifyError ? (
+              <Text style={styles.verifyError}>{verifyError}</Text>
+            ) : null}
 
-            <View style={styles.modalFooter}>
+            <View style={styles.verifyResendRow}>
+              <Text style={styles.verifyResendText}>Didn't receive the code? </Text>
+              <Pressable onPress={handleResend}>
+                <Text style={styles.verifyResendLink}>Resend</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.verifyActions}>
               <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setVerifyModalVisible(false);
-                  Keyboard.dismiss();
-                }}
-                disabled={isVerifying}
+                style={styles.verifyCancelBtn}
+                onPress={closeVerifyModal}
+                activeOpacity={0.8}
+                disabled={verifying}
               >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.verifyCancelText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.verifyBtn, isVerifying && { opacity: 0.6 }]}
-                onPress={handleVerify}
-                disabled={isVerifying}
-                activeOpacity={0.8}
+                style={[styles.verifyCreateBtn, verifying && { opacity: 0.6 }]}
+                onPress={handleVerifyAndCreate}
+                activeOpacity={0.85}
+                disabled={verifying}
               >
-                <Feather name={isVerifying ? 'loader' : 'check-circle'} size={16} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.verifyBtnText}>
-                  {isVerifying ? 'Verifying…' : 'Verify & Create'}
+                <Feather name="check-circle" size={16} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.verifyCreateText}>
+                  {verifying ? 'Verifying…' : 'Verify & Create'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -468,7 +484,6 @@ export default function SupervisorSignUpScreen() {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
@@ -564,6 +579,24 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxText: { fontSize: 12, color: COLORS.textMuted, flex: 1, lineHeight: 18 },
   linkText: { color: COLORS.primary, fontWeight: 'bold' },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    flex: 1,
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   primaryButton: {
     backgroundColor: COLORS.primary, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
@@ -580,125 +613,137 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 11, color: COLORS.textMuted },
   footerLink: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
 
-  // =============================================
-  // VERIFICATION MODAL STYLES
-  // =============================================
-  modalOverlay: {
+  // --- Verify email modal ---
+  verifyOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  modalContainer: {
+  verifyCard: {
     width: '100%',
-    maxWidth: 440,
+    maxWidth: 460,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 28,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  modalIconContainer: {
+  verifyIconCircle: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#E7F1FA',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  verifyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
     color: COLORS.darkBlue,
-    marginBottom: 8,
-    textAlign: 'center',
     fontFamily: 'serif',
+    marginBottom: 10,
+    textAlign: 'center',
   },
-  modalSubtitle: {
+  verifySubtitle: {
     fontSize: 13,
     color: COLORS.textMuted,
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 24,
   },
-  modalEmail: {
+  verifyEmail: {
+    fontSize: 13,
     color: COLORS.primary,
     fontWeight: '700',
+    marginTop: 4,
+    marginBottom: 22,
+    textAlign: 'center',
   },
   codeRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 6,
+    flexWrap: 'wrap',
+    marginBottom: 16,
   },
-  codeBox: {
+  codeInput: {
     width: 38,
     height: 48,
-    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.inputBg,
-    textAlign: 'center',
+    borderRadius: 10,
+    marginHorizontal: 4,
+    marginBottom: 8,
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: COLORS.textMain,
-    paddingVertical: 0,
+    backgroundColor: '#FFFFFF',
   },
-  codeBoxFilled: {
+  codeInputFilled: {
     borderColor: COLORS.primary,
-    backgroundColor: '#EFF6FF',
-    color: COLORS.primary,
   },
-  resendRow: {
-    marginBottom: 20,
+  verifyError: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginBottom: 12,
+    textAlign: 'center',
   },
-  resendText: {
+  verifyResendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    flexWrap: 'wrap',
+  },
+  verifyResendText: {
     fontSize: 12,
     color: COLORS.textMuted,
-    textAlign: 'center',
   },
-  resendLink: {
+  verifyResendLink: {
+    fontSize: 12,
+    fontWeight: '700',
     color: COLORS.primary,
-    fontWeight: 'bold',
   },
-  modalFooter: {
+  verifyActions: {
     flexDirection: 'row',
     width: '100%',
     gap: 12,
   },
-  cancelBtn: {
+  verifyCancelBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  cancelBtnText: {
+  verifyCancelText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textMain,
   },
-  verifyBtn: {
-    flex: 1.5,
-    paddingVertical: 12,
-    borderRadius: 8,
+  verifyCreateBtn: {
+    flex: 1.4,
+    paddingVertical: 14,
+    borderRadius: 10,
     backgroundColor: COLORS.primary,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
   },
-  verifyBtnText: {
+  verifyCreateText: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
 });
+//nsukushrewdness@gmail.com
