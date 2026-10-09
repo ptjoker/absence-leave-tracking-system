@@ -35,7 +35,7 @@ const COLORS = {
 
 // --- Year Options (with icons) ---
 const YEAR_OPTIONS = [
-  { label: 'First year',    icon: 'sunrise' },
+
   { label: 'Second year',   icon: 'trending-up' },
   { label: 'Third year',    icon: 'award' },
   { label: 'Post Graduate', icon: 'star' },
