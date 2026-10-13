@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Check, ChevronDown, Clock3, Filter, Search, ShieldCheck, X, RefreshCw, XCircle } from 'lucide-react';
+import { CalendarDays, ChevronDown, Clock3, Filter, Search, ShieldCheck, X, RefreshCw, XCircle, Eye } from 'lucide-react';
 import { PortalShell, StatusBadge} from '@/components/portal/PortalComponents';
+import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { useRequests } from '@/context/RequestsContext';
 
 const typeOptions = ['All Types', 'Shift Swap', 'Leave'];
@@ -10,8 +11,7 @@ function SupervisorStatus({ status }) {
   return <StatusBadge status={studentStatus} />;
 }
 
-function RequestRow({ request, onApprove, onDecline, busy }) {
-  const pending = request.status === 'Pending';
+function RequestRow({ request, onOpen, onViewDocument }) {
   return (
     <tr className="border-t border-[#e2eaf1] align-top">
       <td className="py-4 pr-4">
@@ -28,14 +28,19 @@ function RequestRow({ request, onApprove, onDecline, busy }) {
         <p className="mt-1 flex items-center gap-1 text-[11px] text-[#9aabb9]"><Clock3 size={11} />{request.filed || 'Filed recently'}</p>
         {request.status === 'Rejected' && request.declineReason && <p className="mt-2 rounded-md bg-[#fbe4e1] px-2.5 py-1.5 text-xs leading-5 text-[#8f3a2d]"><strong className="font-bold">Declined: </strong>{request.declineReason}</p>}
       </td>
-      <td className="py-4 pr-4"><SupervisorStatus status={request.status} /></td>
+      <td className="py-4 pr-4"><SupervisorStatus status={request.status} />      </td>
       <td className="py-4">
-        {pending ? (
-          <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={() => onDecline(request)} className="focus-ring flex items-center gap-1.5 rounded-lg bg-[#d05b48] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#bd4c3a] disabled:opacity-50" data-testid={`button-reject-${request.id}`}><X size={14}/>Decline</button>
-            <button type="button" disabled={busy} onClick={() => onApprove(request.id)} className="focus-ring flex items-center gap-1.5 rounded-lg bg-[#1f70d0] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#256fc6] disabled:opacity-50" data-testid={`button-approve-${request.id}`}><Check size={14}/>{busy ? 'Saving…' : 'Approve'}</button>
-          </div>
-        ) : <span className="text-xs font-semibold text-[#7890a4]">Decision recorded</span>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onOpen(request)} className="focus-ring rounded-lg border border-[#d0e0ea] bg-white px-3.5 py-2 text-xs font-bold text-[#1f70d0] transition-colors hover:bg-[#e7f1fa] hover:text-[#1555aa]" data-testid={`button-view-request-${request.id}`}>
+            View details
+          </button>
+          {request.supportingDocument && (
+            <button type="button" onClick={() => onViewDocument(request)} className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-[#1f70d0] px-3.5 py-2 text-xs font-bold text-white transition-colors hover:bg-[#1555aa]" data-testid={`button-view-document-${request.id}`}>
+              <Eye size={14} />
+              View document
+            </button>
+          )}
+        </div>
       </td>
     </tr>
   );
@@ -138,6 +143,8 @@ export default function RequestsPage() {
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor';
   const [refreshing, setRefreshing] = useState(false);
   const [declineTarget, setDeclineTarget] = useState(null);
+  const [requestDetailsId, setRequestDetailsId] = useState(null);
+  const [focusDocumentRequestId, setFocusDocumentRequestId] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState('');
 
@@ -158,6 +165,11 @@ export default function RequestsPage() {
     setDeclineTarget(null);
   };
 
+  const handleDeclineFromDetails = (request) => {
+    setRequestDetailsId(null);
+    setDeclineTarget(request);
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -171,6 +183,7 @@ export default function RequestsPage() {
     ...request,
     detail: request.detail || request.reason,
   })), [requests]);
+  const requestDetails = operationalRequests.find((request) => String(request.id) === String(requestDetailsId));
 
   const pendingCount = operationalRequests.filter((request) => request.status === 'Pending').length;
   const filtered = operationalRequests.filter((request) => {
@@ -223,9 +236,21 @@ export default function RequestsPage() {
           <div className="flex gap-3"><FilterDropdown label="Filter Type" icon={<Filter size={15}/>} options={typeOptions} value={type} onChange={setType}/></div>
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl bg-[#f4f8fb]"><table className="w-full min-w-[920px] text-left"><thead><tr className="mono text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="px-6 pb-3 pt-5">Requester</th><th className="pb-3 pt-5">Type</th><th className="pb-3 pt-5">Request Details</th><th className="pb-3 pt-5">Status</th><th className="pb-3 pt-5">Actions</th></tr></thead><tbody className="[&>tr>td:first-child]:pl-6">{filtered.length ? filtered.map((request) => <RequestRow key={request.id} request={request} onApprove={handleApprove} onDecline={setDeclineTarget} busy={busyId === request.id}/>) : <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#7890a4]">No requests match your filters.</td></tr>}</tbody></table></div>
+        <div className="mt-5 overflow-x-auto rounded-xl bg-[#f4f8fb]"><table className="w-full min-w-[920px] text-left"><thead><tr className="mono text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="px-6 pb-3 pt-5">Requester</th><th className="pb-3 pt-5">Type</th><th className="pb-3 pt-5">Request Details</th><th className="pb-3 pt-5">Status</th><th className="pb-3 pt-5">Actions</th></tr></thead><tbody className="[&>tr>td:first-child]:pl-6">{filtered.length ? filtered.map((request) => <RequestRow key={request.id} request={request} onOpen={(selected) => { setFocusDocumentRequestId(null); setRequestDetailsId(selected.id); }} onViewDocument={(selected) => { setFocusDocumentRequestId(selected.id); setRequestDetailsId(selected.id); }}/>) : <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#7890a4]">No requests match your filters.</td></tr>}</tbody></table></div>
               </main>
       {declineTarget && <DeclineDialog request={declineTarget} onCancel={() => setDeclineTarget(null)} onConfirm={handleConfirmDecline} />}
+      {requestDetails && (
+        <RequestDetailsDialog
+          request={requestDetails}
+          supervisor
+          focusDocument={focusDocumentRequestId === requestDetails.id}
+          busy={busyId === requestDetails.id}
+          error={actionError}
+          onApprove={handleApprove}
+          onDecline={handleDeclineFromDetails}
+          onClose={() => { setRequestDetailsId(null); setFocusDocumentRequestId(null); }}
+        />
+      )}
     </PortalShell>
   );
 }

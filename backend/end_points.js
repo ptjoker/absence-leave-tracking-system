@@ -16,6 +16,43 @@ async function getUserFromToken(req) {
 }
 
 const router = express.Router();
+const MAX_SUPPORTING_DOCUMENT_BYTES = 5 * 1024 * 1024;
+const DOCUMENT_REQUIRED_TYPES = new Set(['sick leave', 'exam leave']);
+
+function parseSupportingDocument(value) {
+  if (!value) return { document: null, error: null };
+  if (typeof value !== 'object' || typeof value.fileName !== 'string' || typeof value.dataUrl !== 'string') {
+    return { document: null, error: 'Choose a valid PNG or JPG supporting document.' };
+  }
+
+  const match = value.dataUrl.match(/^data:(image\/png|image\/jpeg);base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match) return { document: null, error: 'Supporting documents must be PNG or JPG images.' };
+
+  const [, contentType, encoded] = match;
+  const contents = Buffer.from(encoded, 'base64');
+  if (contents.length === 0 || contents.length > MAX_SUPPORTING_DOCUMENT_BYTES) {
+    return { document: null, error: 'Supporting document must be no larger than 5 MB.' };
+  }
+  if (contents.toString('base64') !== encoded) {
+    return { document: null, error: 'The supporting document is invalid.' };
+  }
+
+  const isPng = contentType === 'image/png'
+    && contents.length >= 8
+    && contents.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const isJpeg = contentType === 'image/jpeg'
+    && contents.length >= 3
+    && contents[0] === 0xff && contents[1] === 0xd8 && contents[2] === 0xff;
+  if (!isPng && !isJpeg) return { document: null, error: 'The selected file does not match its PNG or JPG format.' };
+
+  const fileName = value.fileName.trim().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255);
+  if (!fileName) return { document: null, error: 'The supporting document must have a file name.' };
+
+  return {
+    document: { fileName, contentType, size: contents.length, data: encoded },
+    error: null,
+  };
+}
 
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -391,20 +428,36 @@ router.post('/requests', async (req, res) => {
     if (!type) {
       return res.status(400).json({ error: 'Request type is required' });
     }
+    const parsedDocument = parseSupportingDocument(req.body.supportingDocument);
+    if (parsedDocument.error) return res.status(400).json({ error: parsedDocument.error });
+    if (DOCUMENT_REQUIRED_TYPES.has(String(type).trim().toLowerCase()) && !parsedDocument.document) {
+      return res.status(400).json({ error: 'A supporting document is required for Sick Leave and Exam Leave.' });
+    }
 
     // Single query: INSERT + fetch profile in one round-trip.
     const rows = await sql`
       WITH inserted AS (
-        INSERT INTO public.absence_requests (user_id, type, date_range, detail, replacement, reason)
+        INSERT INTO public.absence_requests (user_id, type, date_range, detail, replacement, reason, supporting_document)
         VALUES (
           ${user.id},
           ${type},
           ${finalDateRange || null},
           ${detail || null},
           ${replacement || null},
-          ${reason || null}
+          ${reason || null},
+          ${parsedDocument.document ? JSON.stringify(parsedDocument.document) : null}::jsonb
         )
-        RETURNING *
+        RETURNING
+          id,
+          user_id,
+          type,
+          status,
+          date_range,
+          detail,
+          replacement,
+          reason,
+          created_at,
+          supporting_document - 'data' AS supporting_document
       )
       SELECT i.*, p.first_name, p.last_name
       FROM inserted i
@@ -423,6 +476,11 @@ router.post('/requests', async (req, res) => {
       detail: row.detail,
       replacement: row.replacement,
       reason: row.reason,
+      supportingDocument: row.supporting_document ? {
+        fileName: row.supporting_document.fileName,
+        contentType: row.supporting_document.contentType,
+        size: row.supporting_document.size,
+      } : null,
       filed: 'Filed recently',
       createdAt: row.created_at,
     });
@@ -443,7 +501,16 @@ router.get('/requests', async (req, res) => {
     // Single query: it figures out the caller's role AND fetches requests in one shot.
     const rows = await sql`
       SELECT
-        r.*,
+        r.id,
+        r.user_id,
+        r.type,
+        r.status,
+        r.date_range,
+        r.detail,
+        r.replacement,
+        r.reason,
+        r.created_at,
+        r.supporting_document - 'data' AS supporting_document,
         p.first_name,
         p.last_name,
         p.student_email,
@@ -472,6 +539,11 @@ router.get('/requests', async (req, res) => {
       detail: row.detail,
       replacement: row.replacement,
       reason: row.reason,
+      supportingDocument: row.supporting_document ? {
+        fileName: row.supporting_document.fileName,
+        contentType: row.supporting_document.contentType,
+        size: row.supporting_document.size,
+      } : null,
       filed: 'Filed recently',
       createdAt: row.created_at,
     }));
@@ -483,7 +555,133 @@ router.get('/requests', async (req, res) => {
   }
 });
 
+// PATCH /api/requests/:id — update a student's pending request.
+router.patch('/requests/:id', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const existingRows = await sql`
+      SELECT type, supporting_document, status
+      FROM public.absence_requests
+      WHERE id = ${req.params.id} AND user_id = ${user.id}
+      LIMIT 1
+    `;
+    const existing = existingRows[0];
+    if (!existing) return res.status(404).json({ error: 'Request not found' });
+    if (existing.status !== 'Pending') {
+      return res.status(409).json({ error: 'Only pending requests can be edited.' });
+    }
+
+    const type = req.body.type ?? existing.type;
+    if (typeof type !== 'string' || !type.trim()) {
+      return res.status(400).json({ error: 'Request type is required' });
+    }
+
+    const hasDocument = Object.prototype.hasOwnProperty.call(req.body, 'supportingDocument');
+    const parsedDocument = hasDocument
+      ? parseSupportingDocument(req.body.supportingDocument)
+      : { document: existing.supporting_document, error: null };
+    if (parsedDocument.error) return res.status(400).json({ error: parsedDocument.error });
+    if (DOCUMENT_REQUIRED_TYPES.has(type.trim().toLowerCase()) && !parsedDocument.document) {
+      return res.status(400).json({ error: 'A supporting document is required for Sick Leave and Exam Leave.' });
+    }
+
+    const dateRange = req.body.dateRange ?? req.body.date_range;
+    const detail = req.body.detail ?? req.body.comments ?? null;
+    const replacement = req.body.replacement ?? null;
+    const reason = req.body.reason ?? null;
+    const updated = await sql`
+      UPDATE public.absence_requests
+      SET
+        type = ${type.trim()},
+        date_range = ${dateRange || null},
+        detail = ${detail || null},
+        replacement = ${replacement || null},
+        reason = ${reason || null},
+        supporting_document = ${parsedDocument.document ? JSON.stringify(parsedDocument.document) : null}::jsonb
+      WHERE id = ${req.params.id}
+        AND user_id = ${user.id}
+        AND status = 'Pending'
+      RETURNING id, status
+    `;
+    if (!updated.length) {
+      return res.status(409).json({ error: 'This request is no longer pending and cannot be edited.' });
+    }
+    res.json({ message: 'Request updated', rawId: updated[0].id, status: updated[0].status });
+  } catch (err) {
+    console.error('Update request error:', err);
+    res.status(500).json({ error: 'Could not update request' });
+  }
+});
+
+// DELETE /api/requests/:id — mark a student's pending request as cancelled.
+router.delete('/requests/:id', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const cancelled = await sql`
+      UPDATE public.absence_requests
+      SET status = 'Cancelled'
+      WHERE id = ${req.params.id}
+        AND user_id = ${user.id}
+        AND status = 'Pending'
+      RETURNING id, status
+    `;
+    if (!cancelled.length) {
+      const ownedRequest = await sql`
+        SELECT status FROM public.absence_requests
+        WHERE id = ${req.params.id} AND user_id = ${user.id}
+        LIMIT 1
+      `;
+      if (!ownedRequest.length) return res.status(404).json({ error: 'Request not found' });
+      return res.status(409).json({ error: 'Only pending requests can be cancelled.' });
+    }
+    res.json({ message: 'Request cancelled', rawId: cancelled[0].id, status: cancelled[0].status });
+  } catch (err) {
+    console.error('Cancel request error:', err);
+    res.status(500).json({ error: 'Could not cancel request' });
+  }
+});
+
 // PATCH /api/requests/:id/status â€” supervisor approves or rejects
+router.get('/requests/:id/document', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1`;
+    if (!caller.length) return res.status(403).json({ error: 'User profile not found' });
+
+    const rows = await sql`
+      SELECT user_id, supporting_document
+      FROM public.absence_requests
+      WHERE id = ${req.params.id}
+      LIMIT 1
+    `;
+    if (!rows.length) return res.status(404).json({ error: 'Request not found' });
+    if (String(rows[0].user_id) !== String(user.id) && caller[0].role !== 'supervisor') {
+      return res.status(403).json({ error: 'You are not allowed to view this supporting document' });
+    }
+    if (!rows[0].supporting_document) {
+      return res.status(404).json({ error: 'No supporting document was attached to this request' });
+    }
+
+    const document = rows[0].supporting_document;
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      fileName: document.fileName,
+      contentType: document.contentType,
+      size: document.size,
+      dataUrl: `data:${document.contentType};base64,${document.data}`,
+    });
+  } catch (err) {
+    console.error('Load request document error:', err);
+    res.status(500).json({ error: 'Could not load the supporting document' });
+  }
+});
+
 router.patch('/requests/:id/status', async (req, res) => {
   try {
     const user = await getUserFromToken(req);

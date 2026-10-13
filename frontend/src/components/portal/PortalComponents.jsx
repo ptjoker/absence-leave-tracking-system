@@ -194,7 +194,7 @@ export function PortalShell({ children, supervisor = false, className = '' }) {
 }
 
 export function StatusBadge({ status }) {
-  const styles = { Approved: 'bg-[#e3f7ec] text-[#19885d]', Pending: 'bg-[#fff0d8] text-[#f2aa00]', Rejected: 'bg-[#fbe4e1] text-[#d05b48]' };
+  const styles = { Approved: 'bg-[#e3f7ec] text-[#19885d]', Pending: 'bg-[#fff0d8] text-[#f2aa00]', Rejected: 'bg-[#fbe4e1] text-[#d05b48]', Cancelled: 'bg-[#eef1f4] text-[#607080]' };
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status] || 'bg-[#eef4fb] text-[#52708b]'}`}>{status}</span>;
 }
 

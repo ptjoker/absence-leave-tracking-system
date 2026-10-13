@@ -19,6 +19,17 @@ const CATEGORIES = [
 ];
 
 const dayWord = (n) => `${n} ${n === 1 ? 'day' : 'days'}`;
+const MAX_SUPPORTING_DOCUMENT_BYTES = 5 * 1024 * 1024;
+const SUPPORTING_DOCUMENT_TYPES = ['image/png', 'image/jpeg'];
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Could not read the supporting document.'));
+    reader.readAsDataURL(file);
+  });
+}
 
 function YearRangePicker({ value, onChange, label, error, helper, blockedDates = [], numDays = 1 }) {
   const [open, setOpen] = useState(false);
@@ -146,7 +157,9 @@ export default function RequestPage() {
   const [dates, setDates] = useState({});
   const [comments, setComments] = useState('');
   const [file, setFile] = useState(null);
+  const [existingDocument, setExistingDocument] = useState(null);
   const [errors, setErrors] = useState({});
+  const requiresSupportingDocument = category === 'sick' || category === 'exam';
   const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
   const swapDates = useMemo(() => {
     const to = [];
@@ -196,6 +209,7 @@ export default function RequestPage() {
     }
     const note = editTarget.reason || editTarget.detail || '';
     setComments(CATEGORIES.some((c) => c.text === note) ? '' : note);
+    setExistingDocument(editTarget.supportingDocument || null);
   }, [editTarget]);
 
   const onCategoryChange = (key) => {
@@ -217,6 +231,9 @@ export default function RequestPage() {
     const next = {};
     if (!dates?.from || !dates?.to) next.dateRange = 'Select your start date.';
     else if (days > maxDays) next.dateRange = `You can request at most ${dayWord(maxDays)} for ${currentCategory?.label}.`;
+    if (requiresSupportingDocument && !file && !existingDocument) {
+      next.supportingDocument = 'A supporting document is required for Sick Leave and Exam Leave.';
+    }
     setErrors(next);
     if (Object.keys(next).length) return;
     try {
@@ -227,6 +244,12 @@ export default function RequestPage() {
         comments: comments.trim(),
         reason: comments.trim() || null,
       };
+      if (file) {
+        entry.supportingDocument = {
+          fileName: file.name,
+          dataUrl: await readFileAsDataUrl(file),
+        };
+      }
       if (editing && updateRequest) {
         await updateRequest(editTarget.id, entry);
         setLocation(returnTo);
@@ -272,7 +295,7 @@ export default function RequestPage() {
           </div>
           <YearRangePicker value={dates} onChange={setDates} label="Date Range" error={errors.dateRange} blockedDates={blockedDates} numDays={days} helper="Choose how many days you need, then pick your start date. Past dates, Sundays, public holidays, approved leave, approved swaps and institutional closures are skipped." />
         </div>
-        <div><FieldLabel icon={<Upload size={16} className="text-black" />}>Attach Supporting Document</FieldLabel><div className="rounded-lg border border-[#d0e0ea] bg-[#f4f8fb] p-5"><label htmlFor="request-file" className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#c6dcec] py-8 text-center"><Upload size={26} className="text-black" /><span className="text-sm font-semibold text-[#243e5b]">{file ? file.name : 'Drop files here'}</span><span className="text-sm text-black">Supported format: PNG, JPG</span><input id="request-file" type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} /></label><div className="mt-4 flex justify-end gap-3">{file && <button type="button" onClick={() => setFile(null)} className="focus-ring flex items-center gap-1.5 rounded-lg border border-[#d05b48] px-3 py-1.5 text-sm font-bold text-[#d05b48]"><Trash2 size={16} />Remove</button>}<label htmlFor="request-file" className="focus-ring cursor-pointer rounded-lg bg-[#1f70d0] px-4 py-1.5 text-sm font-bold text-white">Upload</label></div></div></div>
+        <div><FieldLabel required={requiresSupportingDocument} icon={<Upload size={16} className="text-black" />}>Attach Supporting Document</FieldLabel><div className="rounded-lg border border-[#d0e0ea] bg-[#f4f8fb] p-5"><label htmlFor="request-file" className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[#c6dcec] py-8 text-center"><Upload size={26} className="text-black" /><span className="text-sm font-semibold text-[#243e5b]">{file?.name || existingDocument?.fileName || 'Choose a supporting document'}</span><span className="text-sm text-black">PNG or JPG, up to 5 MB{requiresSupportingDocument ? ' · Required for this request' : ' · Optional'}</span><input id="request-file" type="file" accept="image/png,image/jpeg" className="hidden" onChange={e => { const selected = e.target.files?.[0] || null; e.target.value = ''; if (!selected) return; if (!SUPPORTING_DOCUMENT_TYPES.includes(selected.type)) { setFile(null); setErrors(prev => ({ ...prev, supportingDocument: 'Choose a PNG or JPG image.' })); return; } if (selected.size > MAX_SUPPORTING_DOCUMENT_BYTES) { setFile(null); setErrors(prev => ({ ...prev, supportingDocument: 'The supporting document must be no larger than 5 MB.' })); return; } setFile(selected); setErrors(prev => ({ ...prev, supportingDocument: '' })); }} /></label><div className="mt-3 flex items-center justify-between gap-3">{errors.supportingDocument && <p className="text-sm font-semibold text-[#c54f43]" role="alert">{errors.supportingDocument}</p>}{file && <button type="button" onClick={() => setFile(null)} className="focus-ring flex items-center gap-1.5 rounded-lg border border-[#d05b48] px-3 py-1.5 text-sm font-bold text-[#d05b48]"><Trash2 size={16} />Remove</button>}</div></div></div>
       </div>
       <div className="mt-6"><label htmlFor="request-comments"><FieldLabel>Justification &amp; Comments</FieldLabel><textarea id="request-comments" rows={4} value={comments} onChange={e => setComments(e.target.value)} placeholder="Example: I need leave to attend a scheduled examination / medical appointment. I will complete my assigned hours before or after this period." className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-black outline-none placeholder:text-black focus:border-[#1f70d0]" /></label><SuggestionBox title="Suggested text" suggestions={["Medical appointment and recovery", "Scheduled examination", "Family or personal commitment", "University-related activity"]} /></div>
       {errors.submit && <p className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-3 text-sm font-bold text-[#c54f43]">{errors.submit}</p>}

@@ -15,6 +15,7 @@ const RequestsContext = createContext({
   updateRequest: async () => {},
   cancelRequest: async () => {},
   updateRequestStatus: async () => {},
+  getRequestDocument: async () => {},
   refresh: async () => {},
 });
 
@@ -167,6 +168,18 @@ export function RequestsProvider({ children }) {
     };
   }, [refresh]);
 
+  const getRequestDocument = useCallback(async (id) => {
+    const auth = getAuthHeader();
+    if (!auth) throw new Error('Not authenticated');
+    const res = await fetch(`${API_BASE}/api/requests/${encodeURIComponent(id)}/document`, {
+      headers: auth,
+      cache: 'no-store',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Could not load the supporting document.');
+    return data;
+  }, []);
+
   const addRequest = async (entry) => {
     const auth = getAuthHeader();
     if (!auth) throw new Error('Not authenticated');
@@ -179,6 +192,7 @@ export function RequestsProvider({ children }) {
       detail: entry.detail || entry.comments || null,
       replacement: entry.replacement || null,
       reason: entry.reason || null,
+      supportingDocument: entry.supportingDocument || null,
     };
     const knownIds = new Set(requests.map((r) => r.rawId));
     const res = await fetch(`${API_BASE}/api/requests`, {
@@ -205,7 +219,7 @@ export function RequestsProvider({ children }) {
     if (!auth) throw new Error('Not authenticated');
     const target = requests.find((r) => r.id === id || String(r.rawId) === String(id));
     if (!target?.rawId || target.status !== 'Pending') throw new Error('Only pending requests can be edited.');
-    const res = await fetch(`${API_BASE}/api/requests/${target.rawId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ type: entry.type, dateRange: entry.dateRange || null, detail: entry.detail || entry.comments || null, replacement: entry.replacement || null, reason: entry.reason || null }) });
+    const res = await fetch(`${API_BASE}/api/requests/${target.rawId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ type: entry.type, dateRange: entry.dateRange || null, detail: entry.detail || entry.comments || null, replacement: entry.replacement || null, reason: entry.reason || null, ...(entry.supportingDocument ? { supportingDocument: entry.supportingDocument } : {}) }) });
     if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body.error || 'Could not update request'); }
     await refresh();
   };
@@ -261,7 +275,7 @@ export function RequestsProvider({ children }) {
   };
 
   return (
-    <RequestsContext.Provider value={{ requests, loading, error, addRequest, updateRequest, cancelRequest, updateRequestStatus, refresh }}>
+    <RequestsContext.Provider value={{ requests, loading, error, addRequest, updateRequest, cancelRequest, updateRequestStatus, getRequestDocument, refresh }}>
       {children}
     </RequestsContext.Provider>
   );

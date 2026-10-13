@@ -20,6 +20,7 @@ import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
 import { ModeToggle, PortalShell } from '@/components/portal/PortalComponents';
+import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 const queryClient = new QueryClient();
 
 /* Fixed, page-independent background photo shown behind every route. */
@@ -483,7 +484,11 @@ function PortalTopBar() {
 }
 
 function DashboardPage() {
+  const [, setLocation] = useLocation();
   const { requests, cancelRequest } = useRequests();
+  const [requestDetails, setRequestDetails] = useState(null);
+  const [requestToCancel, setRequestToCancel] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
   const stored = localStorage.getItem('session');
   if (!stored) return null;
   let session = {};
@@ -496,6 +501,26 @@ function DashboardPage() {
   const course = user.course || '—';
   const cellNumber = user.cell_number || '—';
   const role = user.role === 'supervisor' ? 'Supervisor' : 'Student Assistant';
+
+  const handleEditRequest = (req) => {
+    const targetPath = String(req.type || '').toLowerCase().includes('shift swap')
+      ? '/dashboard/shift-swap'
+      : '/dashboard/request';
+    setLocation(`${targetPath}?edit=${encodeURIComponent(req.rawId)}&from=dashboard`);
+  };
+
+  const handleCancelRequest = async () => {
+    if (!requestToCancel || cancelling) return;
+    setCancelling(true);
+    try {
+      await cancelRequest(requestToCancel.id);
+      setRequestToCancel(null);
+    } catch (err) {
+      window.alert(err.message || 'Could not cancel request.');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <PortalShell>
@@ -532,15 +557,61 @@ function DashboardPage() {
         </div>
 
         <div className="mt-5 rounded-xl bg-[#f4f8fb] p-6">
-          <h2 className="text-lg font-bold text-[#10253f]">Recent Leave Requests</h2>
+          <h2 className="text-lg font-bold text-[#10253f]">Recent Requests</h2>
           <div className="overflow-x-auto">
             <table className="mt-5 w-full min-w-[620px] text-left text-sm">
               <thead><tr className="text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="pb-3 font-bold">ID</th><th className="pb-3 font-bold">Type</th><th className="pb-3 font-bold">Status</th><th className="pb-3 font-bold">Actions</th></tr></thead>
-              <tbody>{requests.map((req) => <tr key={req.id} className="border-t border-[#e2eaf1]"><td className="py-3 font-semibold text-[#243e5b]">{req.id}</td><td className="py-3 text-[#52708b]">{req.type}</td><td className="py-3"><StatusBadge status={req.status} /></td><td className="py-3">{req.status === 'Pending' ? <div className="flex flex-wrap gap-3"><Link href={`${String(req.type || '').toLowerCase().includes('shift swap') ? '/dashboard/shift-swap' : '/dashboard/request'}?edit=${encodeURIComponent(req.rawId)}&from=dashboard`} className="text-sm font-bold text-[#1f70d0] hover:underline">Edit</Link><button type="button" onClick={async () => { if (window.confirm(`Cancel ${req.id}? This pending request will be removed.`)) { try { await cancelRequest(req.id); } catch (err) { window.alert(err.message || 'Could not cancel request.'); } } }} className="text-sm font-bold text-[#d05b48] hover:underline">Cancel</button></div> : <span className="text-xs font-semibold text-black">—</span>}</td></tr>)}</tbody>
+              <tbody>{requests.map((req) => <tr key={req.id} className="border-t border-[#e2eaf1]"><td className="py-3 font-semibold text-[#243e5b]"><button type="button" onClick={() => setRequestDetails(req)} className="focus-ring rounded font-semibold text-[#1f70d0] hover:text-[#1555aa] hover:underline">{req.id}</button></td><td className="py-3 text-[#52708b]">{req.type}</td><td className="py-3"><StatusBadge status={req.status} /></td><td className="py-3">{req.status === 'Pending' ? <div className="flex flex-wrap gap-2"><button type="button" onClick={() => handleEditRequest(req)} className="focus-ring min-w-16 rounded-lg bg-[#1f70d0] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1555aa]">Edit</button><button type="button" onClick={() => setRequestToCancel(req)} className="focus-ring min-w-16 rounded-lg bg-[#d05b48] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#b84233]">Cancel</button></div> : <span className="text-xs font-semibold text-black">—</span>}</td></tr>)}</tbody>
             </table>
           </div>
         </div>
       </div>
+      {requestToCancel && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !cancelling) setRequestToCancel(null);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.25)]"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cancel-request-title"
+            aria-describedby="cancel-request-description"
+          >
+            <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#fbe4e1] text-[#d05b48]">
+              <Trash2 size={22} />
+            </div>
+            <h3 id="cancel-request-title" className="serif mt-4 text-center text-2xl text-[#162c4d]">Cancel request?</h3>
+            <p id="cancel-request-description" className="mt-2 text-center text-sm text-[#60768c]">
+              Cancel {requestToCancel.id}? It will remain in your request history with Cancelled status.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setRequestToCancel(null)}
+                disabled={cancelling}
+                className="focus-ring flex-1 rounded-lg border border-[#cfdee9] bg-white px-4 py-2.5 text-sm font-bold text-[#385570] transition-colors hover:bg-[#f4f8fb] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Keep request
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelRequest}
+                disabled={cancelling}
+                className="focus-ring flex-1 rounded-lg bg-[#d05b48] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#b84233] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {requestDetails && (
+        <RequestDetailsDialog request={requestDetails} onClose={() => setRequestDetails(null)} />
+      )}
     </PortalShell>
   );
 }
@@ -557,6 +628,7 @@ function StatusBadge({ status }) {
     Approved: 'bg-[#e3f7ec] text-[#19885d]',
     Pending: 'bg-[#fff0d8] text-[#f2aa00]',
     Rejected: 'bg-[#fbe4e1] text-[#d05b48]',
+    Cancelled: 'bg-[#eef1f4] text-[#607080]',
   };
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status] ?? 'bg-[#eef4fb] text-[#52708b]'}`}>{status}</span>;
 }

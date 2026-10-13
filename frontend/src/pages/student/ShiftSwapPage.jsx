@@ -116,6 +116,7 @@ export default function ShiftSwapPage() {
   const [errors, setErrors] = useState({});
   const search = new URLSearchParams(useSearch());
   const editId = search.get('edit');
+  const returnTo = search.get('from') === 'history' ? '/dashboard/history' : '/dashboard';
   const editTarget = editId ? requests.find((r) => String(r.rawId) === String(editId)) : null;
   const editing = Boolean(editTarget && editTarget.status === 'Pending');
   const studentNumber = (() => {
@@ -181,14 +182,14 @@ export default function ShiftSwapPage() {
       const fromLabel = dateLabel(currentShift.date);
       const entry = { type: `Shift Swap – ${colleague}`, replacement: colleague, dateRange: newDateLabel, detail: `Swap from ${fromLabel} to ${newDateLabel} with ${colleague}. ${reason.trim() || 'Shift swap requested with an eligible colleague.'}`, reason: reason.trim() };
       if (editing) await updateRequest(editTarget.id, entry); else await addRequest(entry);
-      setLocation('/dashboard');
+      setLocation(editing ? returnTo : '/dashboard');
     } catch (err) {
       setErrors({ submit: err.message || 'Could not submit the shift swap request.' });
     }
   };
 
   return <PortalShell><main className="px-5 py-7 md:px-8 md:py-8">
-    <BackButton href="/dashboard/request">Back to Request Leave</BackButton>
+    <BackButton href={editing && returnTo === '/dashboard/history' ? returnTo : '/dashboard/request'}>{editing && returnTo === '/dashboard/history' ? 'Back to History' : 'Back to Request Leave'}</BackButton>
     <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Scheduling Management</p>
     <h1 className="serif text-4xl text-[#10253f]">Shift Swapping Request</h1>
     <p className="mt-2 max-w-xl text-sm text-[#52708b]">Choose an upcoming shift, then choose a new working date. The student assistants available on that date will be listed for you to pick from.</p>
@@ -228,7 +229,7 @@ export default function ShiftSwapPage() {
       <div className="mt-7"><label htmlFor="swap-reason"><FieldLabel icon={<FileText size={16} className="text-black"/>}>Reason for Swap</FieldLabel><textarea id="swap-reason" rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Example: I need to exchange this shift with an available colleague because of a university timetable conflict." className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-black focus:border-[#1f70d0]"/></label><SuggestionBox suggestions={["Medical appointment", "Family commitment", "Academic timetable conflict", "Transport or scheduling issue"]}/></div>
       <div className="mt-6 flex items-start gap-3 rounded-lg border border-[#d0e0ea] bg-[#f4f8fb] p-4"><Info size={20} className="mt-0.5 shrink-0 text-[#1f70d0]"/><div><p className="text-sm font-bold text-[#243e5b]">Swap Policy Notice</p><p className="mt-1 text-sm leading-5 text-black">All swaps are subject to department lead approval. Approved swaps are shown on your schedule and the swapped dates become unavailable for another request.</p></div></div>
       {errors.submit && <p className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-3 text-sm font-bold text-[#c54f43]">{errors.submit}</p>}
-      <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#e2eaf1] pt-6"><div className="flex gap-3"><button type="button" onClick={()=>setLocation(editing ? '/dashboard' : '/dashboard/request')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">Cancel</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Swap Request'}<ChevronRight size={18}/></button></div></div>
+      <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#e2eaf1] pt-6"><div className="flex gap-3"><button type="button" onClick={()=>setLocation(editing ? returnTo : '/dashboard/request')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">Cancel</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Swap Request'}<ChevronRight size={18}/></button></div></div>
     </form>
   </main></PortalShell>;
 }
