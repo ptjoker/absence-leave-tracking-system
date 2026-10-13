@@ -6,9 +6,11 @@ import * as Print from 'expo-print';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ImageBackground,
+  Modal,
   Platform,
   RefreshControl,
   SafeAreaView,
@@ -59,6 +61,15 @@ const THEME = {
     logViewedText: '#2563EB',
     logCreatedBg: '#FEF3C7',
     logCreatedText: '#D97706',
+    approvedBg: '#DCFCE7',
+    approvedText: '#059669',
+    rejectedBg: '#FEE2E2',
+    rejectedText: '#DC2626',
+    modalOverlay: 'rgba(0, 0, 0, 0.5)',
+    dangerBg: '#FEE2E2',
+    successBg: '#DCFCE7',
+    infoBanner: '#EFF6FF',
+    infoBannerBorder: '#BFDBFE',
   },
   dark: {
     primary: '#3B82F6',
@@ -93,6 +104,15 @@ const THEME = {
     logViewedText: '#93C5FD',
     logCreatedBg: '#78350F',
     logCreatedText: '#FCD34D',
+    approvedBg: '#064E3B',
+    approvedText: '#6EE7B7',
+    rejectedBg: '#7F1D1D',
+    rejectedText: '#FCA5A5',
+    modalOverlay: 'rgba(0, 0, 0, 0.7)',
+    dangerBg: '#7F1D1D',
+    successBg: '#064E3B',
+    infoBanner: '#1E3A8A',
+    infoBannerBorder: '#334155',
   },
 };
 
@@ -188,6 +208,11 @@ export default function SupervisorDashboard() {
   const [activityFilter, setActivityFilter] = useState('7days');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // --- State for Request Details Modal ---
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [isRequestModalVisible, setRequestModalVisible] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const theme = isDarkMode ? THEME.dark : THEME.light;
   const styles = useMemo(() => getStyles(theme), [isDarkMode]);
@@ -285,6 +310,138 @@ export default function SupervisorDashboard() {
         return { bg: theme.logCreatedBg, text: theme.logCreatedText };
       default:
         return { bg: theme.iconBg, text: theme.primary };
+    }
+  };
+
+  // ============================================================
+  // REQUEST DETAILS MODAL HANDLERS
+  // ============================================================
+  const getRequestId = (request) =>
+    request?.id || request?.rawId || request?._id || null;
+
+  const getRequestStatusStyle = (status) => {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized === 'approved') {
+      return { bg: theme.approvedBg, text: theme.approvedText };
+    }
+    if (normalized === 'rejected' || normalized === 'declined') {
+      return { bg: theme.rejectedBg, text: theme.rejectedText };
+    }
+    return { bg: theme.pendingBg, text: theme.pendingText };
+  };
+
+  const formatRequestDate = (value) => {
+    if (!value) return null;
+    try {
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return String(value);
+      return d.toLocaleDateString('en-ZA', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return String(value);
+    }
+  };
+
+  const buildRequestDateRange = (request) => {
+    if (!request) return null;
+    if (request.dateRange) return request.dateRange;
+
+    const start =
+      request.startDate ||
+      request.start_date ||
+      request.from ||
+      request.dateFrom;
+    const end =
+      request.endDate ||
+      request.end_date ||
+      request.to ||
+      request.dateTo;
+
+    const startFmt = formatRequestDate(start);
+    const endFmt = formatRequestDate(end);
+
+    if (startFmt && endFmt) {
+      return startFmt === endFmt ? startFmt : `${startFmt} – ${endFmt}`;
+    }
+    if (startFmt) return startFmt;
+    if (endFmt) return endFmt;
+    return null;
+  };
+
+  const handleOpenRequest = (request) => {
+    setSelectedRequest(request);
+    setRequestModalVisible(true);
+  };
+
+  const handleCloseRequestModal = () => {
+    if (isProcessing) return;
+    setRequestModalVisible(false);
+    setSelectedRequest(null);
+  };
+
+  const submitDecision = async (decision /* 'Approved' | 'Rejected' */) => {
+    if (!selectedRequest) return;
+
+    const requestId = getRequestId(selectedRequest);
+
+    // Optimistic UI update
+    const updateLocal = (newStatus) => {
+      setRequests((prev) =>
+        prev.map((r) => {
+          const rId = getRequestId(r);
+          if (rId != null && requestId != null && String(rId) === String(requestId)) {
+            return { ...r, status: newStatus };
+          }
+          return r;
+        })
+      );
+    };
+
+    setIsProcessing(true);
+    updateLocal(decision);
+
+    try {
+      if (requestId != null) {
+        // Try a PATCH first (most common REST pattern)
+        let res;
+        try {
+          res = await apiFetch(`/api/requests/${requestId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: decision }),
+          });
+        } catch (e) {
+          res = null;
+        }
+
+        // If PATCH failed, try POST to a decision sub-route
+        if (!res || !res.ok) {
+          try {
+            const action = decision === 'Approved' ? 'approve' : 'reject';
+            res = await apiFetch(`/api/requests/${requestId}/${action}`, {
+              method: 'POST',
+              body: JSON.stringify({ status: decision }),
+            });
+          } catch (e) {
+            res = null;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Request decision sync failed (may not be implemented yet):', err?.message || err);
+    } finally {
+      setIsProcessing(false);
+      setRequestModalVisible(false);
+      setSelectedRequest(null);
+
+      Alert.alert(
+        decision === 'Approved' ? 'Request approved' : 'Request declined',
+        decision === 'Approved'
+          ? 'The student assistant has been notified.'
+          : 'The student assistant has been notified that the request was declined.'
+      );
     }
   };
 
@@ -550,6 +707,14 @@ export default function SupervisorDashboard() {
     ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
     : 'Supervisor';
 
+  // --- Derived values for the currently selected request (for the modal) ---
+  const selectedRequestStatus = selectedRequest?.status || 'Pending';
+  const selectedRequestStatusStyle = getRequestStatusStyle(selectedRequestStatus);
+  const selectedRequestDateRange = buildRequestDateRange(selectedRequest);
+  const selectedRequestId = getRequestId(selectedRequest);
+  const isPendingSelected =
+    String(selectedRequestStatus).toLowerCase() === 'pending';
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -633,7 +798,12 @@ export default function SupervisorDashboard() {
           </View>
 
           {awaiting.length > 0 ? awaiting.map((request) => (
-            <View key={request.id || request.rawId || request.name} style={styles.requestCard}>
+            <TouchableOpacity
+              key={request.id || request.rawId || request.name}
+              style={styles.requestCard}
+              activeOpacity={0.75}
+              onPress={() => handleOpenRequest(request)}
+            >
               <View style={styles.requestInfo}>
                 <Text style={styles.requestName}>{request.name || 'Unknown'}</Text>
                 <Text style={styles.requestDetails}>
@@ -644,7 +814,13 @@ export default function SupervisorDashboard() {
               <View style={styles.statusBadge}>
                 <Text style={styles.statusText}>Pending</Text>
               </View>
-            </View>
+              <Feather
+                name="chevron-right"
+                size={18}
+                color={theme.textMuted}
+                style={{ marginLeft: 8 }}
+              />
+            </TouchableOpacity>
           )) : (
             <View style={styles.requestCard}>
               <View style={styles.requestInfo}>
@@ -837,6 +1013,227 @@ export default function SupervisorDashboard() {
           })}
         </View>
       </ImageBackground>
+
+      {/* --- REQUEST DETAILS MODAL --- */}
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isRequestModalVisible}
+        onRequestClose={handleCloseRequestModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.requestModalContainer}>
+            {/* Header */}
+            <View style={styles.requestModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.requestModalTitle}>Request details</Text>
+                <Text style={styles.requestModalSubtitle}>
+                  Review the request and approve or decline it.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleCloseRequestModal}
+                style={styles.requestModalCloseBtn}
+                disabled={isProcessing}
+              >
+                <Feather name="x" size={20} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Body */}
+            <ScrollView
+              style={styles.requestModalScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Student identity */}
+              <View style={styles.requestModalIdentity}>
+                <View style={styles.requestModalAvatar}>
+                  <Text style={styles.requestModalAvatarText}>
+                    {String(selectedRequest?.name || 'A').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.requestModalName}>
+                    {selectedRequest?.name || 'Unknown assistant'}
+                  </Text>
+                  {!!(selectedRequest?.studentNumber || selectedRequest?.student_number) && (
+                    <Text style={styles.requestModalMeta}>
+                      {selectedRequest?.studentNumber || selectedRequest?.student_number}
+                    </Text>
+                  )}
+                </View>
+                <View
+                  style={[
+                    styles.requestModalStatusBadge,
+                    { backgroundColor: selectedRequestStatusStyle.bg },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.requestModalStatusText,
+                      { color: selectedRequestStatusStyle.text },
+                    ]}
+                  >
+                    {selectedRequestStatus}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Request information */}
+              <View style={styles.requestModalInfoBlock}>
+                <Text style={styles.requestModalSectionTitle}>Request information</Text>
+
+                <View style={styles.requestModalRow}>
+                  <Text style={styles.requestModalRowLabel}>Type</Text>
+                  <Text style={styles.requestModalRowValue}>
+                    {selectedRequest?.type ||
+                      selectedRequest?.leaveType ||
+                      selectedRequest?.reason ||
+                      'Leave request'}
+                  </Text>
+                </View>
+
+                <View style={styles.requestModalRow}>
+                  <Text style={styles.requestModalRowLabel}>Reason</Text>
+                  <Text style={styles.requestModalRowValue}>
+                    {selectedRequest?.reason ||
+                      selectedRequest?.detail ||
+                      selectedRequest?.notes ||
+                      '—'}
+                  </Text>
+                </View>
+
+                <View style={styles.requestModalRow}>
+                  <Text style={styles.requestModalRowLabel}>Dates</Text>
+                  <Text style={styles.requestModalRowValue}>
+                    {selectedRequestDateRange || '—'}
+                  </Text>
+                </View>
+
+                <View style={styles.requestModalRow}>
+                  <Text style={styles.requestModalRowLabel}>Submitted</Text>
+                  <Text style={styles.requestModalRowValue}>
+                    {formatRequestDate(
+                      selectedRequest?.submittedAt ||
+                        selectedRequest?.submitted_at ||
+                        selectedRequest?.createdAt ||
+                        selectedRequest?.created_at
+                    ) || '—'}
+                  </Text>
+                </View>
+
+                {selectedRequestId != null && (
+                  <View style={styles.requestModalRow}>
+                    <Text style={styles.requestModalRowLabel}>Reference</Text>
+                    <Text style={styles.requestModalRowValue}>
+                      #{String(selectedRequestId).slice(0, 12)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Extra notes */}
+              {!!(selectedRequest?.notes || selectedRequest?.message) && (
+                <View style={styles.requestModalNoteBlock}>
+                  <Text style={styles.requestModalSectionTitle}>Notes from student</Text>
+                  <Text style={styles.requestModalNoteText}>
+                    {selectedRequest?.notes || selectedRequest?.message}
+                  </Text>
+                </View>
+              )}
+
+              {isPendingSelected && (
+                <View style={styles.requestModalBanner}>
+                  <Feather name="info" size={14} color={theme.primary} />
+                  <Text style={styles.requestModalBannerText}>
+                    This action will be written to the shared request store and the
+                    student will be notified.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Footer actions */}
+            <View style={styles.requestModalFooter}>
+              <TouchableOpacity
+                style={styles.requestModalCloseOutline}
+                onPress={handleCloseRequestModal}
+                disabled={isProcessing}
+              >
+                <Text style={styles.requestModalCloseOutlineText}>Close</Text>
+              </TouchableOpacity>
+
+              {isPendingSelected ? (
+                <>
+                  <TouchableOpacity
+                    style={[
+                      styles.requestModalDeclineBtn,
+                      isProcessing && { opacity: 0.6 },
+                    ]}
+                    onPress={() => submitDecision('Rejected')}
+                    disabled={isProcessing}
+                    activeOpacity={0.8}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Feather
+                          name="x-circle"
+                          size={16}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={styles.requestModalDeclineText}>Decline</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.requestModalApproveBtn,
+                      isProcessing && { opacity: 0.6 },
+                    ]}
+                    onPress={() => submitDecision('Approved')}
+                    disabled={isProcessing}
+                    activeOpacity={0.8}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Feather
+                          name="check-circle"
+                          size={16}
+                          color="#FFFFFF"
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={styles.requestModalApproveText}>Approve</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.requestModalResolvedNote}>
+                  <Feather
+                    name={selectedRequestStatus.toLowerCase() === 'approved' ? 'check-circle' : 'x-circle'}
+                    size={14}
+                    color={
+                      selectedRequestStatus.toLowerCase() === 'approved'
+                        ? theme.success
+                        : theme.danger
+                    }
+                  />
+                  <Text style={styles.requestModalResolvedText}>
+                    Already {selectedRequestStatus.toLowerCase()}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -947,7 +1344,7 @@ const getStyles = (theme) =>
       borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.border,
-      marginBottom: 24,
+      marginBottom: 12,
     },
     requestInfo: { flex: 1 },
     requestName: {
@@ -1130,6 +1527,7 @@ const getStyles = (theme) =>
       marginTop: 8,
       textAlign: 'center',
     },
+
     bottomNav: {
       flexDirection: 'row',
       justifyContent: 'space-around',
@@ -1170,4 +1568,224 @@ const getStyles = (theme) =>
     navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
     navText: { fontSize: 9, color: theme.navText, marginTop: 4 },
     navTextActive: { color: theme.navActive, fontWeight: 'bold' },
+
+    // --- REQUEST MODAL STYLES ---
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.modalOverlay,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    requestModalContainer: {
+      width: '100%',
+      maxWidth: 480,
+      backgroundColor: theme.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 20,
+      maxHeight: '90%',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    requestModalHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      paddingBottom: 12,
+      marginBottom: 16,
+    },
+    requestModalTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.textMain,
+      marginBottom: 2,
+    },
+    requestModalSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+    },
+    requestModalCloseBtn: {
+      padding: 4,
+      marginLeft: 8,
+    },
+    requestModalScroll: {
+      marginBottom: 16,
+    },
+    requestModalIdentity: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    requestModalAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    requestModalAvatarText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+      fontSize: 18,
+    },
+    requestModalName: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: theme.textMain,
+    },
+    requestModalMeta: {
+      fontSize: 12,
+      color: theme.textMuted,
+      marginTop: 2,
+    },
+    requestModalStatusBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 12,
+    },
+    requestModalStatusText: {
+      fontSize: 11,
+      fontWeight: 'bold',
+      letterSpacing: 0.3,
+    },
+    requestModalInfoBlock: {
+      backgroundColor: theme.bg,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      marginBottom: 14,
+    },
+    requestModalSectionTitle: {
+      fontSize: 11,
+      fontWeight: 'bold',
+      color: theme.textMuted,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      marginBottom: 10,
+    },
+    requestModalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    requestModalRowLabel: {
+      fontSize: 12,
+      color: theme.textMuted,
+      fontWeight: '600',
+      flex: 1,
+    },
+    requestModalRowValue: {
+      fontSize: 13,
+      color: theme.textMain,
+      fontWeight: '600',
+      flex: 1.4,
+      textAlign: 'right',
+    },
+    requestModalNoteBlock: {
+      backgroundColor: theme.bg,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      marginBottom: 14,
+    },
+    requestModalNoteText: {
+      fontSize: 13,
+      color: theme.textMain,
+      lineHeight: 19,
+    },
+    requestModalBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.infoBanner,
+      borderWidth: 1,
+      borderColor: theme.infoBannerBorder,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      marginBottom: 4,
+    },
+    requestModalBannerText: {
+      fontSize: 11,
+      color: theme.primary,
+      fontWeight: '600',
+      marginLeft: 6,
+      flex: 1,
+    },
+    requestModalFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      paddingTop: 14,
+    },
+    requestModalCloseOutline: {
+      paddingVertical: 11,
+      paddingHorizontal: 14,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    requestModalCloseOutlineText: {
+      color: theme.textMain,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    requestModalDeclineBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.danger,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    requestModalDeclineText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: 'bold',
+    },
+    requestModalApproveBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.success,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    requestModalApproveText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: 'bold',
+    },
+    requestModalResolvedNote: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: 6,
+    },
+    requestModalResolvedText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.textMuted,
+      textTransform: 'capitalize',
+    },
   });

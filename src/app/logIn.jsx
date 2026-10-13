@@ -4,7 +4,9 @@ import { useState } from 'react';
 import {
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -122,235 +124,274 @@ export default function LoginScreen() {
       >
         <View style={styles.overlay} />
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* KeyboardAvoidingView pushes the form up when the keyboard opens.
+            behavior='padding' works best on iOS, 'height' on Android. */}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            bounces={false}
+          >
 
-          {/* --- STANDARD HEADER (Only Logo & Title) --- */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
-              <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>iCenter</Text>
-                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.mainContent}>
-            <View style={styles.welcomeSection}>
-              <View style={styles.tag}>
-                <Text style={styles.tagDot}>●</Text>
-                <Text style={styles.tagText}>SECURE PORTAL</Text>
-              </View>
-              <Text style={styles.welcomeTitle}>
-                {accountType === 'student'
-                  ? 'Welcome back, student.'
-                  : 'Welcome back, supervisor.'}
-              </Text>
-              <Text style={styles.welcomeSubtitle}>
-                Sign in to keep attendance records moving, requests clear, and your next step close at hand.
-              </Text>
-              <View style={styles.securityNote}>
-                <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.securityText}>
-                  Your information is protected by institutional security.
-                </Text>
+            {/* --- STANDARD HEADER (Only Logo & Title) --- */}
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.headerTitle}>iCenter</Text>
+                  <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTag}>PORTAL ACCESS</Text>
-              <Text style={styles.cardTitle}>Sign in to iCenter</Text>
-              <Text style={styles.cardSubtitle}>Choose your account type to continue.</Text>
-
-              <View style={styles.toggleContainer}>
-                <TouchableOpacity
-                  style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
-                  onPress={() => setAccountType('student')}
-                >
-                  <Feather name="user" size={14} color={accountType === 'student' ? COLORS.primary : COLORS.textMuted} />
-                  <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
-                    Student assistant
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
-                  onPress={() => setAccountType('supervisor')}
-                >
-                  <Feather name="users" size={14} color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted} />
-                  <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
-                    Supervisor
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  {accountType === 'student' ? 'University email' : 'Staff email'}{' '}
-                  <Text style={styles.required}>*</Text>
+            <View style={styles.mainContent}>
+              <View style={styles.welcomeSection}>
+                <View style={styles.tag}>
+                  <Text style={styles.tagDot}>●</Text>
+                  <Text style={styles.tagText}>SECURE PORTAL</Text>
+                </View>
+                <Text style={styles.welcomeTitle}>
+                  {accountType === 'student'
+                    ? 'Welcome back, student.'
+                    : 'Welcome back, supervisor.'}
                 </Text>
-                <View style={styles.inputWrapper}>
-                  <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder={accountType === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'}
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={(value) => {
-                      setEmail(value);
-                      if (errorMsg) setErrorMsg('');
-                    }}
-                  />
+                <Text style={styles.welcomeSubtitle}>
+                  Sign in to keep attendance records moving, requests clear, and your next step close at hand.
+                </Text>
+                <View style={styles.securityNote}>
+                  <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.primary} />
+                  <Text style={styles.securityText}>
+                    Your information is protected by institutional security.
+                  </Text>
                 </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>
-                  Password <Text style={styles.required}>*</Text>
-                </Text>
-                <View style={styles.inputWrapper}>
-                  <Feather name="lock" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter your password"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={(value) => {
-                      setPassword(value);
-                      if (errorMsg) setErrorMsg('');
-                    }}
-                  />
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                    <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={COLORS.textMuted} />
+              <View style={styles.card}>
+                <Text style={styles.cardTag}>PORTAL ACCESS</Text>
+                <Text style={styles.cardTitle}>Sign in to iCenter</Text>
+                <Text style={styles.cardSubtitle}>Choose your account type to continue.</Text>
+
+                <View style={styles.toggleContainer}>
+                  <TouchableOpacity
+                    style={[styles.toggleButton, accountType === 'student' && styles.toggleButtonActive]}
+                    onPress={() => setAccountType('student')}
+                  >
+                    <Feather name="user" size={14} color={accountType === 'student' ? COLORS.primary : COLORS.textMuted} />
+                    <Text style={[styles.toggleText, accountType === 'student' && styles.toggleTextActive]}>
+                      Student assistant
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleButton, accountType === 'supervisor' && styles.toggleButtonActive]}
+                    onPress={() => setAccountType('supervisor')}
+                  >
+                    <Feather name="users" size={14} color={accountType === 'supervisor' ? COLORS.primary : COLORS.textMuted} />
+                    <Text style={[styles.toggleText, accountType === 'supervisor' && styles.toggleTextActive]}>
+                      Supervisor
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    {accountType === 'student' ? 'University email' : 'Staff email'}{' '}
+                    <Text style={styles.required}>*</Text>
+                  </Text>
+                  <View style={styles.inputWrapper}>
+                    <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder={accountType === 'student' ? 'studentnumber@tut4life.ac.za' : 'surname.initials@tut.ac.za'}
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      value={email}
+                      onChangeText={(value) => {
+                        setEmail(value);
+                        if (errorMsg) setErrorMsg('');
+                      }}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>
+                    Password <Text style={styles.required}>*</Text>
+                  </Text>
+                  <View style={styles.inputWrapper}>
+                    <Feather name="lock" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your password"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      value={password}
+                      onChangeText={(value) => {
+                        setPassword(value);
+                        if (errorMsg) setErrorMsg('');
+                      }}
+                      onSubmitEditing={handleLogIn}
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                      <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.optionsRow}>
+                  <TouchableOpacity
+                    style={styles.checkboxContainer}
+                    onPress={() => setKeepSignedIn(!keepSignedIn)}
+                  >
+                    <View style={[styles.checkbox, keepSignedIn && styles.checkboxChecked]}>
+                      {keepSignedIn && <Feather name="check" size={12} color="#FFF" />}
+                    </View>
+                    <Text style={styles.checkboxText}>Keep me signed in</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => setIsForgotModalVisible(true)}>
+                    <Text style={styles.forgotPassword}>Forgot password?</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {errorMsg ? (
+                  <View style={styles.errorBanner}>
+                    <Feather name="alert-circle" size={16} color="#DC2626" />
+                    <Text style={styles.errorText}>{errorMsg}</Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[styles.primaryButton, loading && { opacity: 0.6 }]}
+                  onPress={handleLogIn}
+                  disabled={loading}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    {loading
+                      ? 'Signing in…'
+                      : `Sign in as ${accountType === 'student' ? 'student' : 'supervisor'}`}
+                  </Text>
+                  <Feather name="arrow-right" size={16} color="#FFF" />
+                </TouchableOpacity>
+
+                <View style={styles.cardFooter}>
+                  <Text style={styles.cardFooterText}>{"Don't have an account? "}</Text>
+                  <TouchableOpacity onPress={() => router.push('/signStud')}>
+                    <Text style={styles.registerLink}>Register here</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-
-              <View style={styles.optionsRow}>
-                <TouchableOpacity
-                  style={styles.checkboxContainer}
-                  onPress={() => setKeepSignedIn(!keepSignedIn)}
-                >
-                  <View style={[styles.checkbox, keepSignedIn && styles.checkboxChecked]}>
-                    {keepSignedIn && <Feather name="check" size={12} color="#FFF" />}
-                  </View>
-                  <Text style={styles.checkboxText}>Keep me signed in</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => setIsForgotModalVisible(true)}>
-                  <Text style={styles.forgotPassword}>Forgot password?</Text>
-                </TouchableOpacity>
-              </View>
-
-              {errorMsg ? (
-                <View style={styles.errorBanner}>
-                  <Feather name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={styles.errorText}>{errorMsg}</Text>
-                </View>
-              ) : null}
-
-              <TouchableOpacity
-                style={[styles.primaryButton, loading && { opacity: 0.6 }]}
-                onPress={handleLogIn}
-                disabled={loading}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {loading
-                    ? 'Signing in…'
-                    : `Sign in as ${accountType === 'student' ? 'student' : 'supervisor'}`}
-                </Text>
-                <Feather name="arrow-right" size={16} color="#FFF" />
-              </TouchableOpacity>
-
-              <View style={styles.cardFooter}>
-                <Text style={styles.cardFooterText}>{"Don't have an account? "}</Text>
-                <TouchableOpacity onPress={() => router.push('/signStud')}>
-                  <Text style={styles.registerLink}>Register here</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          </View>
 
-          <View style={styles.pageFooter}>
-            <Text style={styles.footerText}>Need help? </Text>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Contact iCenter support</Text>
-            </TouchableOpacity>
-            <Text style={styles.footerText}> • </Text>
-            <TouchableOpacity onPress={() => router.replace('/')}>
-              <Text style={styles.footerLink}>Return home</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.pageFooter}>
+              <Text style={styles.footerText}>Need help? </Text>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Contact iCenter support</Text>
+              </TouchableOpacity>
+              <Text style={styles.footerText}> • </Text>
+              <TouchableOpacity onPress={() => router.replace('/')}>
+                <Text style={styles.footerLink}>Return home</Text>
+              </TouchableOpacity>
+            </View>
 
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </ImageBackground>
 
+      {/* --- FORGOT PASSWORD MODAL (keyboard-aware) --- */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={isForgotModalVisible}
         onRequestClose={() => setIsForgotModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+        >
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Forgot your password?</Text>
-              <TouchableOpacity onPress={() => setIsForgotModalVisible(false)} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={() => setIsForgotModalVisible(false)}
+                style={styles.closeButton}
+              >
                 <Feather name="x" size={20} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalDescription}>
-              {"Enter your Staff/Student No. and registered email address. We'll send you instructions to reset your password."}
-            </Text>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>
-                Staff/Student No. <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.modalInputWrapper}>
-                <Feather name="user" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Staff No. or Student No."
-                  placeholderTextColor="#9CA3AF"
-                  value={staffNo}
-                  onChangeText={setStaffNo}
-                />
-              </View>
-            </View>
-
-            <View style={styles.modalInputGroup}>
-              <Text style={styles.modalLabel}>
-                Email Address <Text style={styles.required}>*</Text>
-              </Text>
-              <View style={styles.modalInputWrapper}>
-                <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="123456789@tut4life.ac.za"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={resetEmail}
-                  onChangeText={setResetEmail}
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalSubmitButton}
-              onPress={() => {
-                setIsForgotModalVisible(false);
-              }}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.modalScrollContent}
             >
-              <Text style={styles.modalSubmitText}>Send Reset Link</Text>
-              <Feather name="arrow-right" size={16} color={COLORS.resetBtnText} />
-            </TouchableOpacity>
+              <Text style={styles.modalDescription}>
+                {"Enter your Staff/Student No. and registered email address. We'll send you instructions to reset your password."}
+              </Text>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalLabel}>
+                  Staff/Student No. <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.modalInputWrapper}>
+                  <Feather name="user" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Staff No. or Student No."
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="next"
+                    value={staffNo}
+                    onChangeText={setStaffNo}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalLabel}>
+                  Email Address <Text style={styles.required}>*</Text>
+                </Text>
+                <View style={styles.modalInputWrapper}>
+                  <Feather name="mail" size={16} color={COLORS.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="123456789@tut4life.ac.za"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    value={resetEmail}
+                    onChangeText={setResetEmail}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.modalSubmitButton}
+                onPress={() => {
+                  setIsForgotModalVisible(false);
+                }}
+              >
+                <Text style={styles.modalSubmitText}>Send Reset Link</Text>
+                <Feather name="arrow-right" size={16} color={COLORS.resetBtnText} />
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </SafeAreaView>
@@ -360,9 +401,9 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  keyboardAvoidingView: { flex: 1 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    // The overlay remains at 65% opacity to give the blue tint
     backgroundColor: 'rgba(219, 234, 254, 0.65)',
   },
   scrollContent: {
@@ -493,6 +534,8 @@ const styles = StyleSheet.create({
   },
   footerText: { fontSize: 11, color: COLORS.textMuted },
   footerLink: { fontSize: 11, color: COLORS.primary, fontWeight: '600' },
+
+  // --- FORGOT PASSWORD MODAL STYLES ---
   modalOverlay: {
     flex: 1,
     backgroundColor: COLORS.modalOverlay,
@@ -506,12 +549,14 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '100%',
     maxWidth: 400,
+    maxHeight: '85%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 8,
   },
+  modalScrollContent: { paddingBottom: 4 },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
