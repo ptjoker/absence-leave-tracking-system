@@ -85,6 +85,19 @@ export function institutionalStrikeNotification(dateKey, reason = '', cancelled 
   };
 }
 
+export function shiftCancelledNotification(shift, closureType = 'Institutional closure') {
+  const recipients = [shift.userId, shift.user_id, shift.studentId, shift.student_id].filter(Boolean);
+  return {
+    id: `shift-cancelled:${shift.id}:${shift.shiftDate}`,
+    recipientRole: 'student',
+    recipients: recipients.length ? recipients : null,
+    type: 'shift_cancelled',
+    title: 'Shift cancelled',
+    message: `Your shift on ${formatLongDate(shift.shiftDate)} (${shift.startTime} – ${shift.endTime}) was cancelled because of a ${closureType.toLowerCase()}.`,
+    link: '/dashboard/schedule',
+  };
+}
+
 /** Supervisor is told a student uploaded (or replaced) their class timetable. */
 export function timetableUploadedNotification({ studentNumber, name, fileName, replaced = false }) {
   const who = name || 'A student assistant';

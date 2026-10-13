@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, ShieldCheck, Pencil, X, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
+import { recordActivity } from '@/lib/activityLog';
 
 const LEVELS = [
   { value: 'first', label: 'First Year' },
@@ -185,6 +186,14 @@ export default function ProfilePage() {
       localStorage.setItem('session', JSON.stringify(updatedSession));
       setSession(updatedSession);
       setEditing(false);
+      if (user.role === 'supervisor') {
+        recordActivity({
+          type: 'profile_updated',
+          title: 'Supervisor profile updated',
+          description: 'Supervisor contact details were updated.',
+          details: 'Personal email and cell number',
+        });
+      }
       setSuccess('Profile updated successfully.');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -196,10 +205,10 @@ export default function ProfilePage() {
   };
 
   return (
-    <PortalShell>
+    <PortalShell supervisor={user.role === 'supervisor'}>
       <main className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="serif text-4xl text-[#10253f]">My Profile</h1>
+          <h1 className="serif text-4xl text-[#10253f]">{user.role === 'supervisor' ? 'Supervisor Profile' : 'My Profile'}</h1>
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e3f7ec] px-3 py-1 text-xs font-bold text-[#19885d]">
               <span className="size-1.5 rounded-full bg-[#19885d]" /> Active

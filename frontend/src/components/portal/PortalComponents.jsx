@@ -38,6 +38,7 @@ const supervisorNav = [
   ['requests', 'Requests', ClipboardList, '/supervisor/requests'],
   ['assistances', 'Student Assistances', UsersRound, '/supervisor/assistances'],
   ['reports', 'Reports', BarChart3, '/supervisor/reports'],
+  ['profile', 'Profile', User, '/supervisor/profile'],
 ];
 
 export function PortalSidebar({ supervisor = false }) {
@@ -145,7 +146,7 @@ export function PortalTopbar({ supervisor = false }) {
           <strong className="block text-sm font-bold text-[#162c4d]">{fullName}</strong>
           <span className="block text-xs text-[#7890a4]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
         </span>
-        <Link href={supervisor ? '/supervisor' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
+        <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
       </div>
     </header>
   );

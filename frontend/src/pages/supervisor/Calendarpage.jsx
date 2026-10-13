@@ -21,7 +21,9 @@ import { PortalShell } from '@/components/portal/PortalComponents';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useRequests } from '@/context/RequestsContext';
 import { declareInstitutionalClosure, removeInstitutionalClosure, useStrikeDays } from '@/lib/strikes';
-import { institutionalStrikeNotification } from '@/lib/notifications';
+import { institutionalStrikeNotification, shiftCancelledNotification } from '@/lib/notifications';
+import { recordActivity } from '@/lib/activityLog';
+import { recordCancelledShift, useCancelledShifts } from '@/lib/cancelledShifts';
 import { isPublicHoliday, isSunday, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 import { useTimetables, formatFileSize } from '@/lib/timetables';
 
@@ -126,6 +128,7 @@ export default function CalendarPage() {
   });
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const strikeDays = useStrikeDays();
+  const cancelledShifts = useCancelledShifts();
   const { push } = useNotifications();
   const [strikeDialog, setStrikeDialog] = useState(false);
   const [strikeReason, setStrikeReason] = useState('');
@@ -220,6 +223,15 @@ export default function CalendarPage() {
 
   const closeForm = () => {
     setShowForm(false);
+    const selectedStudent = students.find((student) => student.id === form.user_id);
+    recordActivity({
+      type: 'shift_assigned',
+      title: 'Shift assigned',
+      description: `${selectedStudent?.name || 'Student assistant'} was assigned a shift on ${form.shift_date}.`,
+      student: selectedStudent?.name || 'Student assistant',
+      date: form.shift_date,
+      details: `${form.shift_time} · ${form.role} · ${form.location}`,
+    });
     setFormError('');
   };
 
@@ -303,17 +315,58 @@ export default function CalendarPage() {
   const selectedIsNonWorking = isSunday(selectedDate) || isPublicHoliday(selectedDate);
   const canDeclareStrike = !selectedIsPast && !selectedIsNonWorking;
 
-  const confirmDeclareStrike = (e) => {
+  const confirmDeclareStrike = async (e) => {
     e.preventDefault();
     declareInstitutionalClosure(selectedKey, closureType, strikeReason);
+    recordActivity({
+      type: 'closure_declared',
+      title: 'Institutional closure declared',
+      description: `${closureType} closure declared for ${selectedKey}${strikeReason.trim() ? `: ${strikeReason.trim()}` : '.'}`,
+      date: selectedKey,
+    });
     push(institutionalStrikeNotification(selectedKey, strikeReason.trim(), false, closureType));
+    await Promise.all(selectedShifts.map((shift) => cancelShift(shift, closureType)));
     setStrikeDialog(false);
     setStrikeReason('');
   };
 
   const cancelStrike = () => {
     removeInstitutionalClosure(selectedKey);
+    recordActivity({
+      type: 'closure_cancelled',
+      title: 'Institutional closure cancelled',
+      description: `The institutional closure for ${selectedKey} was cancelled.`,
+      date: selectedKey,
+    });
     push(institutionalStrikeNotification(selectedKey, '', true));
+  };
+  const cancelShift = async (shift, reason = 'Manual cancellation') => {
+    try {
+      const session = JSON.parse(localStorage.getItem('session') || 'null');
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts/${shift.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not cancel shift');
+      }
+      recordActivity({
+        type: 'shift_cancelled',
+        title: 'Shift cancelled',
+        description: `${shift.studentName || 'Student assistant'}'s shift on ${shift.shiftDate} was cancelled.`,
+        student: shift.studentName || 'Student assistant',
+        date: shift.shiftDate,
+        details: `${shift.startTime} – ${shift.endTime}`,
+      });
+      recordCancelledShift(shift, reason);
+      push(shiftCancelledNotification(shift, reason));
+      await loadShifts();
+      return true;
+    } catch (err) {
+      setError(err.message || 'Could not cancel shift');
+      return false;
+    }
   };
   const monthLabel = monthDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
 
@@ -444,6 +497,7 @@ export default function CalendarPage() {
                 {cells.map((cell, index) => {
                   const key = ymd(cell.date);
                   const dayShifts = shiftsByDate[key] || [];
+                  const dayCancelledShifts = cancelledShifts.filter((shift) => shift.shiftDate === key);
                   const isSelected = key === selectedKey;
                   const isToday = key === todayKey;
                   const isStrike = Boolean(strikeDays[key]);
@@ -497,6 +551,11 @@ export default function CalendarPage() {
                             </span>
                           );
                         })}
+                        {dayCancelledShifts.slice(0, 2).map((s) => (
+                          <span key={`cancelled-${s.id}`} className="mono truncate rounded bg-[#fdecea] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[.02em] text-[#8f3a2d] line-through">
+                            {s.studentName} · Shift cancelled
+                          </span>
+                        ))}
                         {overflowCount > 0 && (
                           <span className="mono text-[9px] font-semibold text-[#8ca0b2]">
                             +{overflowCount} more
@@ -576,12 +635,13 @@ export default function CalendarPage() {
               )}
 
               <div className="mt-4 flex flex-col gap-3">
-                {selectedShifts.length === 0 ? (
+                {selectedShifts.length === 0 && !cancelledShifts.some((shift) => shift.shiftDate === selectedKey) ? (
                   <p className="rounded-lg bg-[#f4f8fb] px-4 py-6 text-center text-xs text-[#8ca0b2]">
                     No shifts scheduled for this date.
                   </p>
                 ) : (
-                  selectedShifts.map((s) => {
+                  <>
+                  {selectedShifts.map((s) => {
                     const color = colorForStudent(s.userId);
                     return (
                       <div key={s.id} className="flex gap-3 rounded-xl border border-[#e2eaf1] bg-white p-4">
@@ -593,6 +653,7 @@ export default function CalendarPage() {
                             >
                               {s.studentName}
                             </span>
+                            <button type="button" onClick={() => cancelShift(s)} className="text-[#d05b48] hover:text-[#bd4c3a]" aria-label={`Cancel shift for ${s.studentName}`}><X size={14} /></button>
                           </div>
                           {s.role && (
                             <p className="mt-2 text-sm font-bold text-[#162c4d]">{s.role}</p>
@@ -610,7 +671,14 @@ export default function CalendarPage() {
                         </div>
                       </div>
                     );
-                  })
+                  })}
+                  {cancelledShifts.filter((shift) => shift.shiftDate === selectedKey).map((s) => (
+                    <div key={`cancelled-${s.id}`} className="rounded-xl border border-[#e9c7c2] bg-[#fdecea] p-4">
+                      <p className="font-bold text-[#8f3a2d] line-through">{s.studentName}</p>
+                      <p className="mt-1 text-xs font-semibold text-[#8f3a2d]">Shift cancelled — students were notified.</p>
+                    </div>
+                  ))}
+                  </>
                 )}
               </div>
             </div>

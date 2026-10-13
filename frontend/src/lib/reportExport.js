@@ -215,3 +215,54 @@ export function exportPerformanceReport(format, rows, title = 'Performance Repor
     downloadBlob(new Blob([bytes], { type: 'application/pdf' }), `studentassist-performance-${safeDate}.pdf`);
   }
 }
+
+export function exportActivityLogPdf(rows, periodLabel, studentShifts = []) {
+  const safeDate = new Date().toISOString().slice(0, 10);
+  const lines = [
+    'StudentAssist Activity Log',
+    `Report period: ${periodLabel}`,
+    `Generated: ${new Date().toLocaleString('en-ZA')}`,
+    '',
+    ...rows.map((row) => `${row.date} | ${row.title} | ${row.description}${row.details ? ` | ${row.details}` : ''}`),
+    '',
+    'Student shift details',
+    ...studentShifts.map((shift) => `${shift.student} | ${shift.action} | ${shift.shiftDate} | ${shift.details}`),
+  ];
+  const pages = [];
+  for (let i = 0; i < lines.length; i += 28) pages.push(lines.slice(i, i + 28));
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Producer (StudentAssist) >>',
+  ];
+  const pageObjectNumbers = [];
+  let nextObject = 5;
+  pages.forEach(() => { pageObjectNumbers.push(nextObject); nextObject += 2; });
+  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((number) => `${number} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+  pages.forEach((pageLines, pageIndex) => {
+    const pageNumber = pageObjectNumbers[pageIndex];
+    const commands = ['BT', '40 760 Td'];
+    pageLines.forEach((line, lineIndex) => {
+      commands.push(lineIndex === 0 ? '/F1 16 Tf' : '/F1 9 Tf', `(${pdfEscape(line)}) Tj`, '0 -22 Td');
+    });
+    commands.push('ET');
+    const stream = commands.join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageNumber + 1} 0 R >>`);
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  });
+  const chunks = ['%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n'];
+  const offsets = [0];
+  let position = chunks[0].length;
+  objects.forEach((object, index) => {
+    offsets[index + 1] = position;
+    const chunk = `${index + 1} 0 obj\n${object}\nendobj\n`;
+    chunks.push(chunk);
+    position += chunk.length;
+  });
+  const xrefOffset = position;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objects.length; i += 1) xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  chunks.push(xref, `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  downloadBlob(new Blob([new TextEncoder().encode(chunks.join(''))], { type: 'application/pdf' }), `studentassist-activity-log-${safeDate}.pdf`);
+}

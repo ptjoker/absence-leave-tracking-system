@@ -5,6 +5,7 @@ import {
   requestDecisionNotification,
   requestSubmittedNotification,
 } from '@/lib/notifications';
+import { recordActivity } from '@/lib/activityLog';
 
 const RequestsContext = createContext({
   requests: [],
@@ -244,6 +245,14 @@ export function RequestsProvider({ children }) {
     }
     if (status === 'Approved' || declined) {
       push(requestDecisionNotification(target, status, cleanReason));
+      recordActivity({
+        type: declined ? 'request_rejected' : 'request_accepted',
+        title: `${target.type?.startsWith('Shift Swap') ? 'Shift swap' : 'Leave request'} ${declined ? 'rejected' : 'accepted'}`,
+        description: `${target.name || 'Student assistant'}'s ${target.type || 'request'} was ${status.toLowerCase()} by the supervisor.`,
+        student: target.name || 'Student assistant',
+        requestType: target.type || 'Request',
+        date: target.dateRange || '',
+      });
     }
     setRequests((current) =>
       current.map((r) => (r.id === id ? { ...r, status, ...(declined && cleanReason ? { declineReason: cleanReason } : {}) } : r))
