@@ -1,4 +1,8 @@
 // src/app/supCal.jsx
+import {
+  loadActivityLogs,
+  logSupervisorActivity
+} from '@/lib/activityLog';
 import { apiFetch, getSession } from '@/lib/api';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
@@ -32,7 +36,6 @@ const formatDate = (date) => {
   return `${month} ${day}, ${year}`;
 };
 
-// --- Theme Colors ---
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
@@ -50,7 +53,6 @@ const COLORS = {
   warn: '#F59E0B',
 };
 
-// --- Week Days ---
 const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const SHIFT_COLORS = ['#F59E0B', '#8B5CF6', '#3B82F6', '#10B981', '#EC4899'];
 
@@ -73,7 +75,7 @@ const textColorForBg = (hex) => {
 };
 
 // ============================================================
-// --- TIME VALIDATION HELPERS ---
+// TIME VALIDATION
 // ============================================================
 const isValidTime = (value) => {
   if (typeof value !== 'string') return false;
@@ -112,22 +114,11 @@ const getShiftWindowForDate = (dateKey) => {
 
 const validateShiftTimeForDate = (timeStr, dateKey) => {
   if (!timeStr) return { valid: false, error: '' };
-
   if (!isValidTime(timeStr)) {
-    return {
-      valid: false,
-      error: 'Use HH:MM (e.g. 08:00). Hours 0-23, minutes 0-59.',
-    };
+    return { valid: false, error: 'Use HH:MM (e.g. 08:00). Hours 0-23, minutes 0-59.' };
   }
-
   const win = getShiftWindowForDate(dateKey);
-  if (!win) {
-    return {
-      valid: false,
-      error: 'Shifts cannot be scheduled on Sundays.',
-    };
-  }
-
+  if (!win) return { valid: false, error: 'Shifts cannot be scheduled on Sundays.' };
   const t = timeToMinutes(timeStr);
   const startMin = timeToMinutes(win.start);
   const endMin = timeToMinutes(win.end);
@@ -141,7 +132,7 @@ const validateShiftTimeForDate = (timeStr, dateKey) => {
 };
 
 // ============================================================
-// --- SHIFT LOG HELPERS ---
+// SHIFT LOG HELPERS
 // ============================================================
 const formatClockTime = (iso) => {
   if (!iso) return '—';
@@ -151,9 +142,7 @@ const formatClockTime = (iso) => {
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `${hh}:${mm}`;
-  } catch {
-    return '—';
-  }
+  } catch { return '—'; }
 };
 
 const formatShortDate = (iso) => {
@@ -163,39 +152,24 @@ const formatShortDate = (iso) => {
     if (Number.isNaN(d.getTime())) return '';
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}`;
-  } catch {
-    return '';
-  }
+  } catch { return ''; }
 };
 
-// ✅ UPDATED: returns 'Pending' when the shift hasn't started yet,
-// 'In progress' when it's running, otherwise the calculated duration.
 const computeShiftDuration = (clockIn, clockOut) => {
   if (!clockIn) return '—';
-
   const start = new Date(clockIn).getTime();
   if (Number.isNaN(start)) return '—';
-
   const now = Date.now();
-
-  // Shift is scheduled in the future
   if (start > now) return 'Pending';
-
-  // Shift has started but not ended
   if (!clockOut) return 'In progress';
-
   const end = new Date(clockOut).getTime();
   if (Number.isNaN(end) || end < start) return '—';
-
   const totalMinutes = Math.round((end - start) / 60000);
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
   return `${hrs}h ${String(mins).padStart(2, '0')}m`;
 };
 
-// ============================================================
-// --- SHIFT LOG FILTER HELPERS ---
-// ============================================================
 const getLogTimestamp = (log) => {
   if (!log) return null;
   const iso = log.clockIn || log.shiftDate;
@@ -207,11 +181,9 @@ const getLogTimestamp = (log) => {
 const filterLogsByRange = (logs, filter) => {
   if (!Array.isArray(logs)) return [];
   if (filter === 'all') return logs;
-
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   let start, end;
-
   if (filter === 'day') {
     start = todayStart;
     end = new Date(todayStart);
@@ -228,10 +200,8 @@ const filterLogsByRange = (logs, filter) => {
   } else {
     return logs;
   }
-
   const startMs = start.getTime();
   const endMs = end.getTime();
-
   return logs.filter((log) => {
     const t = getLogTimestamp(log);
     if (t === null) return false;
@@ -239,12 +209,8 @@ const filterLogsByRange = (logs, filter) => {
   });
 };
 
-// ============================================================
-// --- BUILD SHIFT LOGS FROM CALENDAR SHIFTS ---
-// ============================================================
 const buildShiftLogsFromShifts = (shifts, closuresByDate = {}) => {
   if (!Array.isArray(shifts)) return [];
-
   const toIso = (dateKey, time) => {
     if (!dateKey || !time) return null;
     const parts = String(time).split(':');
@@ -253,25 +219,18 @@ const buildShiftLogsFromShifts = (shifts, closuresByDate = {}) => {
     const m = String(parts[1]).padStart(2, '0');
     return `${dateKey}T${h}:${m}:00`;
   };
-
   return shifts.map((shift) => {
     const dateKey = String(shift.shiftDate || '').slice(0, 10);
     const startTime = shift.startTime || shift.start_time || null;
     const endTime   = shift.endTime   || shift.end_time   || null;
     const closureOnDay = closuresByDate[dateKey];
     const cancelled = !!closureOnDay || !!shift.cancelled;
-
     return {
       id: shift.id || `log-${dateKey}-${shift.userId ?? Math.random()}`,
       userId: shift.userId,
-      studentName:
-        shift.studentName ||
-        shift.name ||
-        shift.assistantName ||
-        shift.userName ||
-        'Assistant',
+      studentName: shift.studentName || shift.name || shift.assistantName || shift.userName || 'Assistant',
       shiftDate: dateKey,
-      clockIn:  toIso(dateKey, startTime),
+      clockIn: toIso(dateKey, startTime),
       clockOut: toIso(dateKey, endTime),
       position: shift.position,
       cancelled,
@@ -288,11 +247,10 @@ const LOG_FILTERS = [
 ];
 
 // ============================================================
-// --- HOLIDAY UTILITIES ---
+// HOLIDAY UTILITIES
 // ============================================================
 const pad = (n) => String(n).padStart(2, '0');
-const dateKeyFromDate = (d) =>
-  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dateKeyFromDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 const getEasterSunday = (year) => {
   const a = year % 19;
@@ -322,7 +280,6 @@ const buildHolidaysForYear = (year) => {
   const easter = getEasterSunday(year);
   const goodFriday = addDays(easter, -2);
   const familyDay = addDays(easter, 1);
-
   const list = [
     { date: new Date(year, 0, 1),   name: "New Year's Day" },
     { date: new Date(year, 2, 21),  name: 'Human Rights Day' },
@@ -337,11 +294,8 @@ const buildHolidaysForYear = (year) => {
     { date: new Date(year, 11, 25), name: 'Christmas Day' },
     { date: new Date(year, 11, 26), name: 'Day of Goodwill' },
   ];
-
   const map = {};
-  list.forEach((h) => {
-    map[dateKeyFromDate(h.date)] = h.name;
-  });
+  list.forEach((h) => { map[dateKeyFromDate(h.date)] = h.name; });
   return map;
 };
 
@@ -416,14 +370,12 @@ export default function MasterSchedule() {
 
   const [calendarTarget, setCalendarTarget] = useState(null);
 
-  // --- Timetable state (now loaded from API) ---
   const [isTimetableListVisible, setTimetableListVisible] = useState(false);
   const [isDocPreviewVisible, setDocPreviewVisible] = useState(false);
   const [selectedTimetable, setSelectedTimetable] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [timetables, setTimetables] = useState([]);
 
-  // --- Shift logs state ---
   const [isShiftLogsModalVisible, setShiftLogsModalVisible] = useState(false);
   const [logsSearchQuery, setLogsSearchQuery] = useState('');
   const [logsFilter, setLogsFilter] = useState('all');
@@ -449,6 +401,26 @@ export default function MasterSchedule() {
     return res.valid;
   }, [shiftStartTime, selectedDateKey]);
 
+  // ============================================================
+  // ACTIVITY LOG WRITER — writes to the SHARED store so the
+  // dashboard and every other page see the same feed.
+  // ============================================================
+  const logActivity = (actionType, action, description, details) => {
+    const supervisorName = user
+      ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor'
+      : 'Supervisor';
+
+    logSupervisorActivity({
+      actionType,
+      action,
+      description,
+      details,
+      supervisor: supervisorName,
+    }).catch((e) => {
+      console.warn('Activity log write failed:', e?.message || e);
+    });
+  };
+
   const loadData = async () => {
     try {
       const [shiftRes, assistantRes] = await Promise.all([
@@ -460,17 +432,11 @@ export default function MasterSchedule() {
         assistantRes.json(),
       ]);
 
-      if (shiftRes.ok && Array.isArray(shiftData)) {
-        setShifts(shiftData);
-      } else if (shiftData?.error) {
-        console.warn('Calendar shifts load error:', shiftData.error);
-      }
+      if (shiftRes.ok && Array.isArray(shiftData)) setShifts(shiftData);
+      else if (shiftData?.error) console.warn('Calendar shifts load error:', shiftData.error);
 
-      if (assistantRes.ok && Array.isArray(assistantData)) {
-        setAssistants(assistantData);
-      } else if (assistantData?.error) {
-        console.warn('Calendar assistants load error:', assistantData.error);
-      }
+      if (assistantRes.ok && Array.isArray(assistantData)) setAssistants(assistantData);
+      else if (assistantData?.error) console.warn('Calendar assistants load error:', assistantData.error);
 
       try {
         const closureRes = await apiFetch('/api/closures');
@@ -478,27 +444,17 @@ export default function MasterSchedule() {
           const closureData = await closureRes.json();
           if (Array.isArray(closureData)) setClosures(closureData);
         }
-      } catch (e) {
-        // ignore — closures may not have an endpoint yet
-      }
+      } catch (e) { /* ignore */ }
 
-      // --- ✅ Load student timetables (no more mocks) ---
       try {
         const ttRes = await apiFetch('/api/timetables');
         if (ttRes.ok) {
           const ttData = await ttRes.json();
-          if (Array.isArray(ttData)) {
-            setTimetables(ttData);
-          } else {
-            setTimetables([]);
-          }
+          setTimetables(Array.isArray(ttData) ? ttData : []);
         } else {
           setTimetables([]);
         }
-      } catch (e) {
-        // ignore — timetables may not have an endpoint yet
-        setTimetables([]);
-      }
+      } catch (e) { setTimetables([]); }
     } catch (err) {
       console.error('Calendar load error:', err);
       Alert.alert('Connection error', 'Could not load schedule data.');
@@ -509,13 +465,13 @@ export default function MasterSchedule() {
 
   useEffect(() => {
     getSession()
-      .then((session) => {
-        if (session?.user) setUser(session.user);
-      })
-      .catch((err) => {
-        console.error('Session load error:', err);
-      });
+      .then((session) => { if (session?.user) setUser(session.user); })
+      .catch((err) => { console.error('Session load error:', err); });
+
     loadData();
+    // Also warm up the shared store so the very first log write has
+    // the latest snapshot on disk.
+    loadActivityLogs().catch(() => {});
   }, []);
 
   const onRefresh = () => {
@@ -544,10 +500,8 @@ export default function MasterSchedule() {
       const shiftColor = colorForUser(shift.userId);
       const startTime = shift.startTime || shift.start_time || null;
       const endTime = shift.endTime || shift.end_time || null;
-
       const closureOnDay = closuresByDate[dateKey];
       const isCancelled = !!closureOnDay || !!shift.cancelled;
-
       byDate[dateKey].push({
         ...shift,
         title: shift.studentName || shift.name || shift.assistantName || shift.userName || 'Assistant',
@@ -572,7 +526,6 @@ export default function MasterSchedule() {
     return byDate;
   }, [shifts, closuresByDate]);
 
-  // ✅ Shift logs are derived from the calendar shifts so the two always match
   const shiftLogs = useMemo(
     () => buildShiftLogsFromShifts(shifts, closuresByDate),
     [shifts, closuresByDate]
@@ -647,24 +600,19 @@ export default function MasterSchedule() {
     const prevMonthDays = getDaysInMonth(
       new Date(displayedMonth.getFullYear(), displayedMonth.getMonth() - 1, 1)
     );
-
     const gridItems = [];
-
     for (let i = firstDay - 1; i >= 0; i--) {
       const dayNum = prevMonthDays - i;
       gridItems.push({ day: String(dayNum), current: false, key: `prev-${dayNum}` });
     }
-
     for (let i = 1; i <= daysInMonth; i++) {
       gridItems.push({ day: String(i), current: true, key: `curr-${i}` });
     }
-
     const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
     const remainingCells = totalCells - (firstDay + daysInMonth);
     for (let i = 1; i <= remainingCells; i++) {
       gridItems.push({ day: String(i), current: false, key: `next-${i}` });
     }
-
     return gridItems;
   };
 
@@ -678,9 +626,7 @@ export default function MasterSchedule() {
       Number(dayItem.day)
     ).getDay();
     const past = isPastDate(displayedMonth.getFullYear(), displayedMonth.getMonth(), Number(dayItem.day));
-
     if (dayOfWeek === 0 || holidayName || past) return;
-
     setSelectedDay(dayItem.day);
     setModalVisible(true);
   };
@@ -726,24 +672,14 @@ export default function MasterSchedule() {
 
   const handleNewShiftFromPopup = () => {
     if (!selectedDay) return;
-
     const dateKey = `${displayedMonth.getFullYear()}-${pad(displayedMonth.getMonth() + 1)}-${pad(selectedDay)}`;
     const closure = getClosureForDate(dateKey);
-
     if (closure) {
-      Alert.alert(
-        'Closure day',
-        `This day is marked as "${closure.type}". You cannot schedule a new shift on a declared closure day.`
-      );
+      Alert.alert('Closure day', `This day is marked as "${closure.type}". You cannot schedule a new shift on a declared closure day.`);
       return;
     }
-
-    const dateString = `${displayedMonth.getFullYear()}/${pad(
-      displayedMonth.getMonth() + 1
-    )}/${pad(selectedDay)}`;
-    setCurrentMonth(
-      new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), 1)
-    );
+    const dateString = `${displayedMonth.getFullYear()}/${pad(displayedMonth.getMonth() + 1)}/${pad(selectedDay)}`;
+    setCurrentMonth(new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), 1));
     setModalVisible(false);
     openNewShiftModal(dateString);
   };
@@ -751,17 +687,12 @@ export default function MasterSchedule() {
   const openClosureModal = () => {
     let base;
     if (selectedDay) {
-      base = new Date(
-        displayedMonth.getFullYear(),
-        displayedMonth.getMonth(),
-        Number(selectedDay)
-      );
+      base = new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), Number(selectedDay));
       base.setHours(0, 0, 0, 0);
     } else {
       base = startOfToday();
     }
     if (base < startOfToday()) base = startOfToday();
-
     const dateStr = `${base.getFullYear()}/${pad(base.getMonth() + 1)}/${pad(base.getDate())}`;
     setClosureDate(dateStr);
     setCurrentMonth(new Date(base.getFullYear(), base.getMonth(), 1));
@@ -774,9 +705,7 @@ export default function MasterSchedule() {
     const source = target === 'closure' ? closureDate : selectedDate;
     if (source) {
       const [y, m] = source.split('/').map(Number);
-      if (y && m) {
-        setCurrentMonth(new Date(y, m - 1, 1));
-      }
+      if (y && m) setCurrentMonth(new Date(y, m - 1, 1));
     } else {
       const t = startOfToday();
       setCurrentMonth(new Date(t.getFullYear(), t.getMonth(), 1));
@@ -788,28 +717,19 @@ export default function MasterSchedule() {
     const daysInMonth = getDaysInMonth(currentMonth);
     const firstDay = getFirstDayOfMonth(currentMonth);
     const days = [];
-
     for (let i = 0; i < firstDay; i++) {
       days.push(<View key={`empty-${i}`} style={styles.calendarDayCell} />);
     }
-
     for (let i = 1; i <= daysInMonth; i++) {
       const dayString = `${currentMonth.getFullYear()}/${String(currentMonth.getMonth() + 1).padStart(2, '0')}/${String(i).padStart(2, '0')}`;
       const activeValue = calendarTarget === 'closure' ? closureDate : selectedDate;
       const isSelected = activeValue === dayString;
-
       const dateKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const isHoliday = !!getHolidayName(dateKey);
       const isSunday = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i).getDay() === 0;
       const past = isPastDate(currentMonth.getFullYear(), currentMonth.getMonth(), i);
       const isClosure = !!getClosureForDate(dateKey);
-
-      const isDisabled =
-        isHoliday ||
-        isSunday ||
-        past ||
-        (calendarTarget === 'newShift' && isClosure);
-
+      const isDisabled = isHoliday || isSunday || past || (calendarTarget === 'newShift' && isClosure);
       days.push(
         <TouchableOpacity
           key={`day-${i}`}
@@ -821,22 +741,17 @@ export default function MasterSchedule() {
           disabled={isDisabled}
           onPress={() => {
             if (isDisabled) return;
-            if (calendarTarget === 'closure') {
-              setClosureDate(dayString);
-            } else {
-              setSelectedDate(dayString);
-            }
+            if (calendarTarget === 'closure') setClosureDate(dayString);
+            else setSelectedDate(dayString);
             setCalendarVisible(false);
             setCalendarTarget(null);
           }}
         >
-          <Text
-            style={[
-              styles.calendarDayText,
-              isSelected && styles.calendarDayTextSelected,
-              isDisabled && styles.calendarDayTextDisabled,
-            ]}
-          >
+          <Text style={[
+            styles.calendarDayText,
+            isSelected && styles.calendarDayTextSelected,
+            isDisabled && styles.calendarDayTextDisabled,
+          ]}>
             {i}
           </Text>
         </TouchableOpacity>
@@ -872,10 +787,8 @@ export default function MasterSchedule() {
       Alert.alert('Missing date', 'Please pick a date for the closure.');
       return;
     }
-
     const dateKey = closureDate.replace(/\//g, '-');
     const affectedCount = getAffectedShiftCount(closureDate);
-
     const newClosure = {
       id: `closure-${dateKey}-${Date.now()}`,
       date: dateKey,
@@ -883,25 +796,30 @@ export default function MasterSchedule() {
       note: closureNote,
       affectedShifts: affectedCount,
     };
-
     setClosures((prev) => {
       const filtered = prev.filter((c) => String(c.date).slice(0, 10) !== dateKey);
       return [...filtered, newClosure];
     });
 
+    // ✅ SHARED LOG: closure declared on the calendar page
+    logActivity(
+      'closure',
+      'Declared',
+      `Declared ${closureType.toLowerCase()} on ${formatDateForDisplay(closureDate)}`,
+      `${affectedCount} shift${affectedCount === 1 ? '' : 's'} affected${
+        closureNote ? ` · ${closureNote}` : ''
+      }`
+    );
+
     try {
-      await apiFetch('/api/closures', {
-        method: 'POST',
-        body: JSON.stringify(newClosure),
-      });
+      await apiFetch('/api/closures', { method: 'POST', body: JSON.stringify(newClosure) });
     } catch (e) {
-      console.warn('Closure POST failed (may not be implemented yet):', e?.message || e);
+      console.warn('Closure POST failed:', e?.message || e);
     }
 
     setClosureModalVisible(false);
     setClosureDropdownOpen(false);
     setClosureNote('');
-
     if (affectedCount > 0) {
       Alert.alert(
         'Closure declared',
@@ -919,33 +837,25 @@ export default function MasterSchedule() {
       Alert.alert('Missing date', 'No date was selected. Please reopen from a calendar day.');
       return;
     }
-
     const validation = validateShiftTimeForDate(shiftStartTime, selectedDateKey);
     if (!validation.valid) {
       setShiftStartTimeError(validation.error);
-      Alert.alert(
-        'Invalid starting time',
-        validation.error || 'Please enter a valid starting time.'
-      );
+      Alert.alert('Invalid starting time', validation.error || 'Please enter a valid starting time.');
       return;
     }
-
     const dateKey = String(selectedDate).replace(/\//g, '-');
     if (getClosureForDate(dateKey)) {
-      Alert.alert(
-        'Closure day',
-        'This day is marked as a closure. Please pick another day.'
-      );
+      Alert.alert('Closure day', 'This day is marked as a closure. Please pick another day.');
       return;
     }
-
+    const assistantName =
+      selectedAssistant.name ||
+      `${selectedAssistant.first_name || ''} ${selectedAssistant.last_name || ''}`.trim() ||
+      'Assistant';
     const newShift = {
       id: `shift-${Date.now()}`,
       userId: selectedAssistant.id,
-      studentName:
-        selectedAssistant.name ||
-        `${selectedAssistant.first_name || ''} ${selectedAssistant.last_name || ''}`.trim() ||
-        'Assistant',
+      studentName: assistantName,
       shiftDate: dateKey,
       startTime: shiftStartTime.trim(),
       endTime: '',
@@ -953,14 +863,20 @@ export default function MasterSchedule() {
       duration: shiftDuration,
       notes: shiftNotes,
     };
-
     setShifts((prev) => [...prev, newShift]);
 
-    apiFetch('/api/shifts', {
-      method: 'POST',
-      body: JSON.stringify(newShift),
-    }).catch((e) => {
-      console.warn('Shift POST failed (may not be implemented yet):', e?.message || e);
+    // ✅ SHARED LOG: shift created from the calendar page
+    logActivity(
+      'created',
+      'Created',
+      `Scheduled a new shift for ${assistantName}`,
+      `${formatDateForDisplay(selectedDate)} · ${shiftStartTime.trim()} · ${selectedPosition}${
+        shiftDuration ? ` · ${shiftDuration}` : ''
+      }`
+    );
+
+    apiFetch('/api/shifts', { method: 'POST', body: JSON.stringify(newShift) }).catch((e) => {
+      console.warn('Shift POST failed:', e?.message || e);
     });
 
     setNewShiftModalVisible(false);
@@ -975,6 +891,40 @@ export default function MasterSchedule() {
   };
 
   const colorForLog = (log) => colorForUser(log.userId || log.studentName || 'unknown');
+
+  // ✅ SHARED LOG: opening full shift logs modal
+  const handleOpenShiftLogs = () => {
+    setShiftLogsModalVisible(true);
+    logActivity(
+      'viewed',
+      'Viewed',
+      'Opened shift logs',
+      `${rangedShiftLogs.length} shift${rangedShiftLogs.length === 1 ? '' : 's'} in current period`
+    );
+  };
+
+  // ✅ SHARED LOG: opening full timetable list
+  const handleOpenTimetableList = () => {
+    setTimetableListVisible(true);
+    logActivity(
+      'viewed',
+      'Viewed',
+      'Opened student timetables list',
+      `${timetables.length} timetable${timetables.length === 1 ? '' : 's'} available`
+    );
+  };
+
+  // ✅ SHARED LOG: opening document preview
+  const handleOpenDocPreview = (item) => {
+    setSelectedTimetable(item);
+    setDocPreviewVisible(true);
+    logActivity(
+      'viewed',
+      'Viewed',
+      `Opened timetable for ${item?.name || 'a student assistant'}`,
+      item?.studentNumber ? `${item.studentNumber} · ${item.fileName || ''}` : ''
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -992,8 +942,7 @@ export default function MasterSchedule() {
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-
-          {/* --- HEADER --- */}
+          {/* HEADER */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -1002,7 +951,6 @@ export default function MasterSchedule() {
                 <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
               </View>
             </View>
-
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
                 <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={theme.primary} />
@@ -1016,7 +964,7 @@ export default function MasterSchedule() {
             </View>
           </View>
 
-          {/* --- TITLE & ACTIONS --- */}
+          {/* TITLE */}
           <View style={styles.titleSection}>
             <View style={styles.titleRow}>
               <Text style={styles.pageTitle}>Master Schedule</Text>
@@ -1031,7 +979,7 @@ export default function MasterSchedule() {
             </Text>
           </View>
 
-          {/* --- STATS ROW --- */}
+          {/* STATS */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <View style={[styles.statIndicator, { backgroundColor: COLORS.primary }]} />
@@ -1056,7 +1004,7 @@ export default function MasterSchedule() {
             </View>
           </View>
 
-          {/* --- CALENDAR CARD --- */}
+          {/* CALENDAR */}
           <View style={styles.calendarCard}>
             <View style={styles.calendarHeader}>
               <View style={styles.calendarTitleRow}>
@@ -1097,27 +1045,15 @@ export default function MasterSchedule() {
                   const isClosure = !!closure;
                   const isSunday =
                     item.current &&
-                    new Date(
-                      displayedMonth.getFullYear(),
-                      displayedMonth.getMonth(),
-                      Number(item.day)
-                    ).getDay() === 0;
+                    new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), Number(item.day)).getDay() === 0;
                   const isPast =
                     item.current &&
-                    isPastDate(
-                      displayedMonth.getFullYear(),
-                      displayedMonth.getMonth(),
-                      Number(item.day)
-                    );
-
-                  const isInteractive =
-                    item.current && !isSunday && !isHoliday && !isPast;
+                    isPastDate(displayedMonth.getFullYear(), displayedMonth.getMonth(), Number(item.day));
+                  const isInteractive = item.current && !isSunday && !isHoliday && !isPast;
                   const isSelected = isInteractive && selectedDay === item.day;
-
                   const visibleEvents = isHoliday || isClosure
                     ? dayEvents.slice(0, 1)
                     : dayEvents.slice(0, MAX_VISIBLE_EVENTS);
-
                   return (
                     <TouchableOpacity
                       key={item.key || index}
@@ -1134,31 +1070,26 @@ export default function MasterSchedule() {
                       disabled={!isInteractive}
                       activeOpacity={isInteractive ? 0.7 : 1}
                     >
-                      <Text
-                        style={[
-                          styles.dayText,
-                          !item.current && styles.dayTextMuted,
-                          isSunday && styles.dayTextSunday,
-                          isHoliday && styles.dayTextHoliday,
-                          isClosure && styles.dayTextClosure,
-                          isPast && styles.dayTextPast,
-                        ]}
-                      >
+                      <Text style={[
+                        styles.dayText,
+                        !item.current && styles.dayTextMuted,
+                        isSunday && styles.dayTextSunday,
+                        isHoliday && styles.dayTextHoliday,
+                        isClosure && styles.dayTextClosure,
+                        isPast && styles.dayTextPast,
+                      ]}>
                         {item.day}
                       </Text>
-
                       {isHoliday && (
                         <Text style={styles.holidayLabel} numberOfLines={1}>
                           {holidayName.toUpperCase()}
                         </Text>
                       )}
-
                       {isClosure && (
                         <Text style={styles.closureLabel} numberOfLines={1}>
                           {String(closure.type || 'Closure').toUpperCase()}
                         </Text>
                       )}
-
                       <View style={styles.eventsStack}>
                         {item.current && visibleEvents.map((event, idx) => {
                           const cancelled = !!event.cancelled;
@@ -1169,10 +1100,7 @@ export default function MasterSchedule() {
                                 styles.eventTag,
                                 cancelled
                                   ? styles.eventTagCancelled
-                                  : {
-                                      backgroundColor: event.color,
-                                      borderColor: event.color,
-                                    },
+                                  : { backgroundColor: event.color, borderColor: event.color },
                                 { opacity: isPast ? 0.55 : 1 },
                               ]}
                             >
@@ -1188,18 +1116,12 @@ export default function MasterSchedule() {
                                 {event.title}
                               </Text>
                               {cancelled ? (
-                                <Text
-                                  style={[styles.eventTimeText, styles.eventCancelledLabel]}
-                                  numberOfLines={1}
-                                >
+                                <Text style={[styles.eventTimeText, styles.eventCancelledLabel]} numberOfLines={1}>
                                   CANCELLED
                                 </Text>
                               ) : (
                                 !!event.time && (
-                                  <Text
-                                    style={[styles.eventTimeText, { color: event.textColor }]}
-                                    numberOfLines={1}
-                                  >
+                                  <Text style={[styles.eventTimeText, { color: event.textColor }]} numberOfLines={1}>
                                     {event.time}
                                   </Text>
                                 )
@@ -1208,7 +1130,6 @@ export default function MasterSchedule() {
                           );
                         })}
                       </View>
-
                       {item.current && dayEvents.length > visibleEvents.length && (
                         <Text style={styles.moreEventsText}>
                           +{dayEvents.length - visibleEvents.length} more
@@ -1245,7 +1166,7 @@ export default function MasterSchedule() {
             </View>
           </View>
 
-          {/* --- SIDEBAR PANELS --- */}
+          {/* SIDEBAR PANELS */}
           <View style={styles.sidePanel}>
 
             {/* SHIFT LOGS PANEL */}
@@ -1254,46 +1175,30 @@ export default function MasterSchedule() {
                 <Feather name="activity" size={16} color={COLORS.primary} />
                 <Text style={styles.panelTitle}>Shift logs</Text>
                 <View style={styles.logsCountBadge}>
-                  <Text style={styles.logsCountBadgeText}>
-                    {rangedShiftLogs.length}
-                  </Text>
+                  <Text style={styles.logsCountBadgeText}>{rangedShiftLogs.length}</Text>
                 </View>
               </View>
               <Text style={styles.panelSubtitle}>
                 Every shift scheduled on the calendar, with the planned start and end times. Duration is calculated automatically.
               </Text>
-
               <View style={styles.filterChipsRow}>
                 {LOG_FILTERS.map((f) => {
                   const isActive = logsFilter === f.key;
                   return (
                     <TouchableOpacity
                       key={f.key}
-                      style={[
-                        styles.filterChip,
-                        isActive && styles.filterChipActive,
-                      ]}
+                      style={[styles.filterChip, isActive && styles.filterChipActive]}
                       onPress={() => setLogsFilter(f.key)}
                       activeOpacity={0.7}
                     >
-                      <Feather
-                        name={f.icon}
-                        size={11}
-                        color={isActive ? '#FFFFFF' : COLORS.textMuted}
-                      />
-                      <Text
-                        style={[
-                          styles.filterChipText,
-                          isActive && styles.filterChipTextActive,
-                        ]}
-                      >
+                      <Feather name={f.icon} size={11} color={isActive ? '#FFFFFF' : COLORS.textMuted} />
+                      <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                         {f.label}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-
               {recentShiftLogs.length === 0 ? (
                 <View style={styles.noShiftsBox}>
                   <Text style={styles.noShiftsText}>
@@ -1309,19 +1214,11 @@ export default function MasterSchedule() {
                     const inProgress = !log.cancelled && duration === 'In progress';
                     return (
                       <View key={log.id} style={styles.logRow}>
-                        <View
-                          style={[
-                            styles.logAvatar,
-                            { backgroundColor: accent },
-                          ]}
-                        >
+                        <View style={[styles.logAvatar, { backgroundColor: accent }]}>
                           <Text style={styles.logAvatarText}>
-                            {(log.studentName || log.name || 'A')
-                              .charAt(0)
-                              .toUpperCase()}
+                            {(log.studentName || log.name || 'A').charAt(0).toUpperCase()}
                           </Text>
                         </View>
-
                         <View style={styles.logBody}>
                           <View style={styles.logNameRow}>
                             <Text style={styles.logName} numberOfLines={1}>
@@ -1331,13 +1228,10 @@ export default function MasterSchedule() {
                               {formatShortDate(log.clockIn || log.shiftDate)}
                             </Text>
                           </View>
-
                           <View style={styles.logMetaRow}>
                             <View style={styles.logClock}>
                               <Feather name="log-in" size={11} color={COLORS.success} />
-                              <Text style={styles.logClockText}>
-                                {formatClockTime(log.clockIn)}
-                              </Text>
+                              <Text style={styles.logClockText}>{formatClockTime(log.clockIn)}</Text>
                             </View>
                             <Feather name="arrow-right" size={11} color={COLORS.textMuted} />
                             <View style={styles.logClock}>
@@ -1348,23 +1242,18 @@ export default function MasterSchedule() {
                             </View>
                           </View>
                         </View>
-
-                        <View
-                          style={[
-                            styles.logDurationPill,
-                            inProgress && styles.logDurationPillInProgress,
-                            isPending && styles.logDurationPillPending,
-                            log.cancelled && styles.logDurationPillCancelled,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.logDurationText,
-                              inProgress && styles.logDurationTextInProgress,
-                              isPending && styles.logDurationTextPending,
-                              log.cancelled && styles.logDurationTextCancelled,
-                            ]}
-                          >
+                        <View style={[
+                          styles.logDurationPill,
+                          inProgress && styles.logDurationPillInProgress,
+                          isPending && styles.logDurationPillPending,
+                          log.cancelled && styles.logDurationPillCancelled,
+                        ]}>
+                          <Text style={[
+                            styles.logDurationText,
+                            inProgress && styles.logDurationTextInProgress,
+                            isPending && styles.logDurationTextPending,
+                            log.cancelled && styles.logDurationTextCancelled,
+                          ]}>
                             {log.cancelled ? 'Cancelled' : duration}
                           </Text>
                         </View>
@@ -1373,15 +1262,12 @@ export default function MasterSchedule() {
                   })}
                 </View>
               )}
-
-              <TouchableOpacity
-                style={styles.viewAllButton}
-                onPress={() => setShiftLogsModalVisible(true)}
-              >
+              <TouchableOpacity style={styles.viewAllButton} onPress={handleOpenShiftLogs}>
                 <Text style={styles.viewAllText}>View all shift logs</Text>
               </TouchableOpacity>
             </View>
 
+            {/* CLOSURE PANEL */}
             <View style={styles.panelCard}>
               <View style={styles.panelHeader}>
                 <Feather name="bell" size={16} color={COLORS.danger} />
@@ -1390,15 +1276,13 @@ export default function MasterSchedule() {
               <Text style={styles.panelSubtitle}>
                 Declare a strike or library closure for any future working day. Any shifts already scheduled on that day will be cancelled automatically.
               </Text>
-              <TouchableOpacity
-                style={styles.closureButton}
-                onPress={openClosureModal}
-              >
+              <TouchableOpacity style={styles.closureButton} onPress={openClosureModal}>
                 <Feather name="bell" size={14} color={COLORS.danger} />
                 <Text style={styles.closureButtonText}>Declare institutional closure</Text>
               </TouchableOpacity>
             </View>
 
+            {/* TIPS PANEL */}
             <View style={[styles.panelCard, styles.tipsCard]}>
               <View style={styles.panelHeader}>
                 <Feather name="shield" size={16} color={COLORS.success} />
@@ -1412,6 +1296,7 @@ export default function MasterSchedule() {
               <Text style={styles.tipText}>• Shifts on a closure day are marked CANCELLED.</Text>
             </View>
 
+            {/* TIMETABLE PANEL */}
             <View style={styles.panelCard}>
               <View style={styles.panelHeader}>
                 <Feather name="clock" size={16} color={COLORS.primary} />
@@ -1429,10 +1314,7 @@ export default function MasterSchedule() {
                   </Text>
                 </View>
               )}
-              <TouchableOpacity
-                style={styles.viewAllButton}
-                onPress={() => setTimetableListVisible(true)}
-              >
+              <TouchableOpacity style={styles.viewAllButton} onPress={handleOpenTimetableList}>
                 <Text style={styles.viewAllText}>View all uploads</Text>
               </TouchableOpacity>
             </View>
@@ -1441,16 +1323,12 @@ export default function MasterSchedule() {
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* --- BOTTOM NAVIGATION BAR --- */}
+        {/* BOTTOM NAV */}
         <View
-          style={[
-            styles.bottomNav,
-            { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 },
-          ]}
+          style={[styles.bottomNav, { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 }]}
         >
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
-
             return (
               <TouchableOpacity
                 key={item.name}
@@ -1479,7 +1357,7 @@ export default function MasterSchedule() {
         </View>
       </ImageBackground>
 
-      {/* --- ACTIVITY POP-UP MODAL --- */}
+      {/* ACTIVITY POP-UP MODAL */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -1582,7 +1460,6 @@ export default function MasterSchedule() {
               >
                 <Text style={styles.modalCloseOutlineText}>Close</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[
                   styles.modalNewShiftButton,
@@ -1607,7 +1484,7 @@ export default function MasterSchedule() {
         </View>
       </Modal>
 
-      {/* --- NEW SHIFT FORM MODAL --- */}
+      {/* NEW SHIFT FORM MODAL */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -1619,9 +1496,7 @@ export default function MasterSchedule() {
             <View style={styles.newShiftHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.newShiftTitle}>Schedule New Shift</Text>
-                <Text style={styles.newShiftSubtitle}>
-                  Assign a shift to a student assistant.
-                </Text>
+                <Text style={styles.newShiftSubtitle}>Assign a shift to a student assistant.</Text>
               </View>
               <TouchableOpacity
                 onPress={() => {
@@ -1652,7 +1527,6 @@ export default function MasterSchedule() {
               nestedScrollEnabled
               keyboardShouldPersistTaps="handled"
             >
-
               <Text style={[styles.formLabel, { marginTop: 8 }]}>
                 Student Assistant <Text style={{ color: COLORS.danger }}>*</Text>
               </Text>
@@ -1673,25 +1547,15 @@ export default function MasterSchedule() {
                       ]}
                     >
                       <Text style={styles.assistantAvatarText}>
-                        {(selectedAssistant.name || selectedAssistant.first_name || 'A')
-                          .charAt(0)
-                          .toUpperCase()}
+                        {(selectedAssistant.name || selectedAssistant.first_name || 'A').charAt(0).toUpperCase()}
                       </Text>
                     </View>
-                    <Text
-                      style={[styles.formDropdownText, { color: COLORS.textMain }]}
-                      numberOfLines={1}
-                    >
-                      {selectedAssistant.name ||
-                        selectedAssistant.first_name ||
-                        'Assistant'}
+                    <Text style={[styles.formDropdownText, { color: COLORS.textMain }]} numberOfLines={1}>
+                      {selectedAssistant.name || selectedAssistant.first_name || 'Assistant'}
                     </Text>
                   </View>
                 ) : (
-                  <Text
-                    style={[styles.formDropdownText, { color: COLORS.textMuted }]}
-                    numberOfLines={1}
-                  >
+                  <Text style={[styles.formDropdownText, { color: COLORS.textMuted }]} numberOfLines={1}>
                     {assistants.length === 0
                       ? 'No student assistants available'
                       : 'Select a student assistant...'}
@@ -1708,9 +1572,7 @@ export default function MasterSchedule() {
                 <View style={styles.assistantDropdownList}>
                   {assistants.length === 0 ? (
                     <View style={styles.dropdownEmptyRow}>
-                      <Text style={styles.dropdownEmptyText}>
-                        No student assistants found.
-                      </Text>
+                      <Text style={styles.dropdownEmptyText}>No student assistants found.</Text>
                     </View>
                   ) : (
                     <>
@@ -1718,11 +1580,8 @@ export default function MasterSchedule() {
                         <Text style={styles.assistantDropdownHeaderText}>
                           {assistants.length} assistant{assistants.length === 1 ? '' : 's'}
                         </Text>
-                        <Text style={styles.assistantDropdownHeaderHint}>
-                          Scroll to see all
-                        </Text>
+                        <Text style={styles.assistantDropdownHeaderHint}>Scroll to see all</Text>
                       </View>
-
                       <ScrollView
                         style={styles.assistantDropdownScroll}
                         contentContainerStyle={styles.assistantDropdownScrollContent}
@@ -1750,12 +1609,7 @@ export default function MasterSchedule() {
                               }}
                               activeOpacity={0.7}
                             >
-                              <View
-                                style={[
-                                  styles.assistantAvatar,
-                                  { backgroundColor: color },
-                                ]}
-                              >
+                              <View style={[styles.assistantAvatar, { backgroundColor: color }]}>
                                 <Text style={styles.assistantAvatarText}>
                                   {label.charAt(0).toUpperCase()}
                                 </Text>
@@ -1892,7 +1746,6 @@ export default function MasterSchedule() {
                 value={shiftNotes}
                 onChangeText={setShiftNotes}
               />
-
             </ScrollView>
 
             <View style={styles.newShiftFooter}>
@@ -1906,12 +1759,8 @@ export default function MasterSchedule() {
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  !isShiftTimeValid && styles.submitBtnDisabled,
-                ]}
+                style={[styles.submitBtn, !isShiftTimeValid && styles.submitBtnDisabled]}
                 onPress={handleCreateShift}
                 disabled={!isShiftTimeValid}
                 activeOpacity={isShiftTimeValid ? 0.7 : 1}
@@ -1920,12 +1769,11 @@ export default function MasterSchedule() {
                 <Text style={styles.submitBtnText}>Create Shift</Text>
               </TouchableOpacity>
             </View>
-
           </View>
         </View>
       </Modal>
 
-      {/* --- DECLARE INSTITUTIONAL CLOSURE MODAL --- */}
+      {/* CLOSURE MODAL */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -1937,17 +1785,13 @@ export default function MasterSchedule() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.closureModalContainer}>
-
             <View style={styles.closureIconContainer}>
               <Feather name="bell" size={24} color={COLORS.danger} />
             </View>
-
             <Text style={styles.closureModalTitle}>Declare institutional closure</Text>
-
             <Text style={styles.closureModalDescription}>
               {formatDateForDisplay(closureDate) || 'Selected date'} will be marked as an institutional closure on the calendar, blocked for leave and swap requests, and all student assistants will be notified.
             </Text>
-
             <View style={styles.formLabelContainer}>
               <Text style={styles.formLabel}>
                 Closure date <Text style={{ color: COLORS.danger }}>*</Text>
@@ -1958,20 +1802,10 @@ export default function MasterSchedule() {
               onPress={() => openCalendarPicker('closure')}
               activeOpacity={0.7}
             >
-              <Text
-                style={[
-                  styles.formInput,
-                  { color: closureDate ? COLORS.textMain : COLORS.textMuted },
-                ]}
-              >
+              <Text style={[styles.formInput, { color: closureDate ? COLORS.textMain : COLORS.textMuted }]}>
                 {formatDateForDisplay(closureDate) || 'Pick a date'}
               </Text>
-              <Feather
-                name="calendar"
-                size={16}
-                color={COLORS.primary}
-                style={styles.formInputIcon}
-              />
+              <Feather name="calendar" size={16} color={COLORS.primary} style={styles.formInputIcon} />
             </TouchableOpacity>
 
             {closureDate && getAffectedShiftCount(closureDate) > 0 && (
@@ -1990,7 +1824,6 @@ export default function MasterSchedule() {
                 Event type <Text style={{ color: COLORS.danger }}>*</Text>
               </Text>
             </View>
-
             <TouchableOpacity
               style={styles.closureDropdown}
               onPress={() => setClosureDropdownOpen(!isClosureDropdownOpen)}
@@ -2075,20 +1908,15 @@ export default function MasterSchedule() {
               >
                 <Text style={styles.cancelClosureText}>Cancel</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.declareClosureBtn}
-                onPress={handleDeclareClosure}
-              >
+              <TouchableOpacity style={styles.declareClosureBtn} onPress={handleDeclareClosure}>
                 <Text style={styles.declareClosureText}>Declare closure</Text>
               </TouchableOpacity>
             </View>
-
           </View>
         </View>
       </Modal>
 
-      {/* --- STUDENT TIMETABLES LIST MODAL --- */}
+      {/* TIMETABLE LIST MODAL */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -2104,7 +1932,6 @@ export default function MasterSchedule() {
                   Class timetables uploaded by student assistants. Use them to avoid clashes when setting shifts.
                 </Text>
               </View>
-
               <TouchableOpacity
                 onPress={() => setTimetableListVisible(false)}
                 style={styles.timetableCloseButton}
@@ -2112,7 +1939,6 @@ export default function MasterSchedule() {
                 <Feather name="x" size={20} color={COLORS.textMain} />
               </TouchableOpacity>
             </View>
-
             <View style={styles.searchBarContainer}>
               <Feather name="search" size={18} color={COLORS.textMuted} style={styles.searchIcon} />
               <TextInput
@@ -2123,7 +1949,6 @@ export default function MasterSchedule() {
                 onChangeText={setSearchQuery}
               />
             </View>
-
             <ScrollView style={styles.timetableList} showsVerticalScrollIndicator={false}>
               {filteredTimetables.length === 0 ? (
                 <View style={styles.noUploadsContainer}>
@@ -2148,10 +1973,7 @@ export default function MasterSchedule() {
                     </View>
                     <TouchableOpacity
                       style={styles.viewButton}
-                      onPress={() => {
-                        setSelectedTimetable(item);
-                        setDocPreviewVisible(true);
-                      }}
+                      onPress={() => handleOpenDocPreview(item)}
                     >
                       <Text style={styles.viewButtonText}>View</Text>
                     </TouchableOpacity>
@@ -2163,7 +1985,7 @@ export default function MasterSchedule() {
         </View>
       </Modal>
 
-      {/* --- DOCUMENT PREVIEW MODAL --- */}
+      {/* DOCUMENT PREVIEW MODAL */}
       <Modal
         animationType="slide"
         transparent={false}
@@ -2172,26 +1994,20 @@ export default function MasterSchedule() {
       >
         <SafeAreaView style={styles.docPreviewContainer}>
           <View style={styles.docPreviewHeader}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => setDocPreviewVisible(false)}
-            >
+            <TouchableOpacity style={styles.backButton} onPress={() => setDocPreviewVisible(false)}>
               <Feather name="chevron-left" size={20} color={COLORS.primary} />
               <Text style={styles.backButtonText}>All students</Text>
             </TouchableOpacity>
-
             <View style={styles.docPreviewTitleContainer}>
               <Text style={styles.docPreviewTitle}>
                 {selectedTimetable?.name} - {selectedTimetable?.studentNumber}
               </Text>
             </View>
-
             <View style={styles.docPreviewRightActions}>
               <TouchableOpacity style={styles.downloadButton}>
                 <Feather name="download" size={16} color={COLORS.textMain} />
                 <Text style={styles.downloadButtonText}>Download</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={styles.docPreviewCloseButton}
                 onPress={() => setDocPreviewVisible(false)}
@@ -2200,7 +2016,6 @@ export default function MasterSchedule() {
               </TouchableOpacity>
             </View>
           </View>
-
           <View style={styles.docViewer}>
             {selectedTimetable && (
               <Image
@@ -2213,7 +2028,7 @@ export default function MasterSchedule() {
         </SafeAreaView>
       </Modal>
 
-      {/* --- SHIFT LOGS FULL LIST MODAL --- */}
+      {/* SHIFT LOGS FULL LIST MODAL */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -2232,7 +2047,6 @@ export default function MasterSchedule() {
                   Every shift scheduled on the calendar, with planned start/end times and total hours. Cancelled shifts (closures) are shown in red. Shifts that haven't started yet are marked Pending.
                 </Text>
               </View>
-
               <TouchableOpacity
                 onPress={() => {
                   setShiftLogsModalVisible(false);
@@ -2243,38 +2057,24 @@ export default function MasterSchedule() {
                 <Feather name="x" size={20} color={COLORS.textMain} />
               </TouchableOpacity>
             </View>
-
             <View style={styles.filterChipsRow}>
               {LOG_FILTERS.map((f) => {
                 const isActive = logsFilter === f.key;
                 return (
                   <TouchableOpacity
                     key={f.key}
-                    style={[
-                      styles.filterChip,
-                      isActive && styles.filterChipActive,
-                    ]}
+                    style={[styles.filterChip, isActive && styles.filterChipActive]}
                     onPress={() => setLogsFilter(f.key)}
                     activeOpacity={0.7}
                   >
-                    <Feather
-                      name={f.icon}
-                      size={12}
-                      color={isActive ? '#FFFFFF' : COLORS.textMuted}
-                    />
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        isActive && styles.filterChipTextActive,
-                      ]}
-                    >
+                    <Feather name={f.icon} size={12} color={isActive ? '#FFFFFF' : COLORS.textMuted} />
+                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                       {f.label}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
-
             <View style={styles.searchBarContainer}>
               <Feather name="search" size={18} color={COLORS.textMuted} style={styles.searchIcon} />
               <TextInput
@@ -2285,14 +2085,11 @@ export default function MasterSchedule() {
                 onChangeText={setLogsSearchQuery}
               />
             </View>
-
             <ScrollView style={styles.logsFullList} showsVerticalScrollIndicator={false}>
               {filteredShiftLogs.length === 0 ? (
                 <View style={styles.noUploadsContainer}>
                   <Feather name="inbox" size={28} color={COLORS.textMuted} />
-                  <Text style={styles.noUploadsText}>
-                    No shift logs found in this period.
-                  </Text>
+                  <Text style={styles.noUploadsText}>No shift logs found in this period.</Text>
                 </View>
               ) : (
                 filteredShiftLogs.map((log) => {
@@ -2302,17 +2099,11 @@ export default function MasterSchedule() {
                   const inProgress = !log.cancelled && duration === 'In progress';
                   return (
                     <View key={log.id} style={styles.logsFullRow}>
-                      <View
-                        style={[
-                          styles.logAvatar,
-                          { backgroundColor: accent },
-                        ]}
-                      >
+                      <View style={[styles.logAvatar, { backgroundColor: accent }]}>
                         <Text style={styles.logAvatarText}>
                           {(log.studentName || log.name || 'A').charAt(0).toUpperCase()}
                         </Text>
                       </View>
-
                       <View style={{ flex: 1 }}>
                         <View style={styles.logNameRow}>
                           <Text style={styles.logName} numberOfLines={1}>
@@ -2322,12 +2113,9 @@ export default function MasterSchedule() {
                             {formatShortDate(log.clockIn || log.shiftDate)}
                           </Text>
                         </View>
-
                         <View style={styles.logMetaRow}>
                           <Feather name="log-in" size={11} color={COLORS.success} />
-                          <Text style={styles.logClockText}>
-                            {formatClockTime(log.clockIn)}
-                          </Text>
+                          <Text style={styles.logClockText}>{formatClockTime(log.clockIn)}</Text>
                           <Feather
                             name="arrow-right"
                             size={11}
@@ -2346,30 +2134,23 @@ export default function MasterSchedule() {
                                 color={COLORS.textMuted}
                                 style={{ marginLeft: 8 }}
                               />
-                              <Text style={styles.logPositionText}>
-                                {log.position}
-                              </Text>
+                              <Text style={styles.logPositionText}>{log.position}</Text>
                             </>
                           )}
                         </View>
                       </View>
-
-                      <View
-                        style={[
-                          styles.logDurationPill,
-                          inProgress && styles.logDurationPillInProgress,
-                          isPending && styles.logDurationPillPending,
-                          log.cancelled && styles.logDurationPillCancelled,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.logDurationText,
-                            inProgress && styles.logDurationTextInProgress,
-                            isPending && styles.logDurationTextPending,
-                            log.cancelled && styles.logDurationTextCancelled,
-                          ]}
-                        >
+                      <View style={[
+                        styles.logDurationPill,
+                        inProgress && styles.logDurationPillInProgress,
+                        isPending && styles.logDurationPillPending,
+                        log.cancelled && styles.logDurationPillCancelled,
+                      ]}>
+                        <Text style={[
+                          styles.logDurationText,
+                          inProgress && styles.logDurationTextInProgress,
+                          isPending && styles.logDurationTextPending,
+                          log.cancelled && styles.logDurationTextCancelled,
+                        ]}>
                           {log.cancelled ? 'Cancelled' : duration}
                         </Text>
                       </View>
@@ -2382,7 +2163,7 @@ export default function MasterSchedule() {
         </View>
       </Modal>
 
-      {/* --- CUSTOM DATE PICKER MODAL (LAST, so it always appears on top) --- */}
+      {/* CUSTOM DATE PICKER */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -2403,21 +2184,15 @@ export default function MasterSchedule() {
                 <Feather name="chevron-right" size={20} color={COLORS.textMain} />
               </TouchableOpacity>
             </View>
-
             <View style={styles.calendarWeekRow}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
                 <Text key={index} style={styles.calendarWeekDay}>{day}</Text>
               ))}
             </View>
-
-            <View style={styles.calendarDaysGrid}>
-              {renderCalendarDays()}
-            </View>
-
+            <View style={styles.calendarDaysGrid}>{renderCalendarDays()}</View>
             <Text style={styles.calendarHint}>
               Past days, Sundays, holidays and closure days cannot be selected.
             </Text>
-
             <TouchableOpacity
               style={styles.calendarCloseButton}
               onPress={() => {
@@ -2430,12 +2205,11 @@ export default function MasterSchedule() {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
+// --- Styles (unchanged from your original) ---
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
@@ -2444,7 +2218,6 @@ const baseStyles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
   scrollContent: { padding: 16 },
-
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#FFFFFF',
@@ -2455,12 +2228,9 @@ const baseStyles = StyleSheet.create({
   logoImage: { width: 40, height: 40, marginRight: 10 },
   headerTextContainer: { justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textMain },
-  headerSubtitle: {
-    fontSize: 9, fontWeight: '600', color: 'red', letterSpacing: 1, marginTop: 2,
-  },
+  headerSubtitle: { fontSize: 9, fontWeight: '600', color: 'red', letterSpacing: 1, marginTop: 2 },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginLeft: 14 },
-
   titleSection: { marginBottom: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   pageTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif' },
@@ -2470,7 +2240,6 @@ const baseStyles = StyleSheet.create({
     padding: 8, borderRadius: 6, marginRight: 8,
   },
   pageSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18 },
-
   statsRow: { flexDirection: 'row', marginBottom: 16, justifyContent: 'space-between' },
   statCard: {
     flex: 1, backgroundColor: COLORS.card, padding: 12, borderRadius: 8,
@@ -2480,7 +2249,6 @@ const baseStyles = StyleSheet.create({
   statIndicator: { width: 4, height: 24, borderRadius: 2, marginRight: 8 },
   statLabel: { fontSize: 8, fontWeight: 'bold', color: COLORS.textMuted, letterSpacing: 0.5 },
   statValue: { fontSize: 16, fontWeight: 'bold', color: COLORS.darkBlue },
-
   calendarCard: {
     backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: COLORS.border, marginBottom: 16,
@@ -2501,7 +2269,6 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 6, borderRadius: 4, marginHorizontal: 4,
   },
   todayBtnText: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain },
-
   gridContainer: { marginBottom: 16 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 8 },
   weekDayText: { fontSize: 9, fontWeight: 'bold', color: COLORS.textMuted, width: '14.28%', textAlign: 'center' },
@@ -2530,52 +2297,14 @@ const baseStyles = StyleSheet.create({
     fontSize: 6, color: '#B91C1C', fontWeight: 'bold',
     marginTop: 1, textAlign: 'center',
   },
-
-  eventsStack: {
-    width: '100%',
-    marginTop: 3,
-    gap: 2,
-  },
-  eventTag: {
-    width: '100%',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 3,
-    borderWidth: 1,
-  },
-  eventTagCancelled: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#B91C1C',
-    borderStyle: 'dashed',
-  },
-  eventText: {
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  eventTextCancelled: {
-    color: '#B91C1C',
-    textDecorationLine: 'line-through',
-  },
-  eventTimeText: {
-    fontSize: 6,
-    fontWeight: '600',
-    opacity: 0.9,
-    marginTop: 1,
-  },
-  eventCancelledLabel: {
-    color: '#B91C1C',
-    fontWeight: 'bold',
-    opacity: 1,
-    letterSpacing: 0.4,
-  },
-  moreEventsText: {
-    fontSize: 6,
-    color: COLORS.textMuted,
-    marginTop: 2,
-    fontWeight: 'bold',
-  },
-
+  eventsStack: { width: '100%', marginTop: 3, gap: 2 },
+  eventTag: { width: '100%', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, borderWidth: 1 },
+  eventTagCancelled: { backgroundColor: '#FFFFFF', borderColor: '#B91C1C', borderStyle: 'dashed' },
+  eventText: { fontSize: 7, fontWeight: '800', letterSpacing: 0.2 },
+  eventTextCancelled: { color: '#B91C1C', textDecorationLine: 'line-through' },
+  eventTimeText: { fontSize: 6, fontWeight: '600', opacity: 0.9, marginTop: 1 },
+  eventCancelledLabel: { color: '#B91C1C', fontWeight: 'bold', opacity: 1, letterSpacing: 0.4 },
+  moreEventsText: { fontSize: 6, color: COLORS.textMuted, marginTop: 2, fontWeight: 'bold' },
   legendContainer: { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
   legendTitle: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 8, letterSpacing: 0.5 },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
@@ -2584,7 +2313,6 @@ const baseStyles = StyleSheet.create({
   legendText: { fontSize: 10, color: COLORS.textMain, fontWeight: '600' },
   legendDescRow: { flexDirection: 'row', flexWrap: 'wrap' },
   legendDesc: { fontSize: 9, color: COLORS.textMuted, marginRight: 8, marginBottom: 4 },
-
   sidePanel: { marginBottom: 16 },
   panelCard: {
     backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
@@ -2619,224 +2347,84 @@ const baseStyles = StyleSheet.create({
   eventListRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   eventIndicator: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   eventListText: { fontSize: 12, color: COLORS.textMain, flex: 1 },
-
-  // SHIFT LOGS STYLES
   logsCountBadge: {
-    marginLeft: 8,
-    minWidth: 22,
-    height: 18,
-    paddingHorizontal: 6,
-    borderRadius: 9,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginLeft: 8, minWidth: 22, height: 18, paddingHorizontal: 6,
+    borderRadius: 9, backgroundColor: COLORS.primary,
+    justifyContent: 'center', alignItems: 'center',
   },
-  logsCountBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-
-  filterChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
+  logsCountBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' },
+  filterChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: '#F8FAFC',
-    gap: 5,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#F8FAFC', gap: 5,
   },
-  filterChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  filterChipText: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    fontWeight: '600',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-
-  logsList: {
-    marginBottom: 8,
-  },
+  filterChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  filterChipText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  filterChipTextActive: { color: '#FFFFFF', fontWeight: 'bold' },
+  logsList: { marginBottom: 8 },
   logRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
   logsFullRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  logsFullList: {
-    maxHeight: 380,
-  },
+  logsFullList: { maxHeight: 380 },
   logAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
+    width: 34, height: 34, borderRadius: 17,
+    justifyContent: 'center', alignItems: 'center', marginRight: 10,
   },
-  logAvatarText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  logBody: {
-    flex: 1,
-  },
+  logAvatarText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 },
+  logBody: { flex: 1 },
   logNameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 3,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 3,
   },
-  logName: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: COLORS.textMain,
-    flex: 1,
-    marginRight: 6,
-  },
-  logDateText: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    fontWeight: '600',
-  },
-  logMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    flexWrap: 'wrap',
-  },
-  logClock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  logClockText: {
-    fontSize: 11,
-    color: COLORS.textMain,
-    fontWeight: '600',
-    marginLeft: 2,
-  },
-  logPositionText: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginLeft: 2,
-    fontWeight: '600',
-  },
+  logName: { fontSize: 13, fontWeight: 'bold', color: COLORS.textMain, flex: 1, marginRight: 6 },
+  logDateText: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600' },
+  logMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  logClock: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  logClockText: { fontSize: 11, color: COLORS.textMain, fontWeight: '600', marginLeft: 2 },
+  logPositionText: { fontSize: 10, color: COLORS.textMuted, marginLeft: 2, fontWeight: '600' },
   logDurationPill: {
-    minWidth: 58,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
+    minWidth: 58, paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 12, backgroundColor: '#EFF6FF',
+    borderWidth: 1, borderColor: '#BFDBFE',
+    alignItems: 'center', justifyContent: 'center', marginLeft: 8,
   },
-  logDurationPillInProgress: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FCD34D',
-  },
-  logDurationPillCancelled: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FCA5A5',
-  },
-  logDurationPillPending: {
-    backgroundColor: '#EDE9FE',
-    borderColor: '#C4B5FD',
-  },
-  logDurationText: {
-    fontSize: 11,
-    color: COLORS.primary,
-    fontWeight: 'bold',
-    letterSpacing: 0.2,
-  },
-  logDurationTextInProgress: {
-    color: '#92400E',
-  },
-  logDurationTextCancelled: {
-    color: '#B91C1C',
-  },
-  logDurationTextPending: {
-    color: '#5B21B6',
-  },
-
+  logDurationPillInProgress: { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' },
+  logDurationPillCancelled: { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' },
+  logDurationPillPending: { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' },
+  logDurationText: { fontSize: 11, color: COLORS.primary, fontWeight: 'bold', letterSpacing: 0.2 },
+  logDurationTextInProgress: { color: '#92400E' },
+  logDurationTextCancelled: { color: '#B91C1C' },
+  logDurationTextPending: { color: '#5B21B6' },
   tipsCard: { backgroundColor: '#F0FDF4', borderColor: '#DCFCE7' },
   panelHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   panelTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain, marginLeft: 8 },
   tipText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 4, lineHeight: 16 },
-
   viewAllButton: {
     backgroundColor: COLORS.primary, paddingVertical: 10,
     borderRadius: 6, alignItems: 'center', marginTop: 12,
   },
   viewAllText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
-
   bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 10,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+    backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border,
+    paddingTop: 10, position: 'absolute', bottom: 0, left: 0, right: 0,
   },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 2,
-    minWidth: 50,
-    flex: 1,
-  },
-  navIconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  navItem: { alignItems: 'center', justifyContent: 'center', padding: 2, minWidth: 50, flex: 1 },
+  navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   navBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: COLORS.danger,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute', top: -4, right: -8, backgroundColor: COLORS.danger,
+    borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3,
+    justifyContent: 'center', alignItems: 'center',
   },
   navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
   navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
   navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
-
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center', alignItems: 'center', padding: 20,
@@ -2860,44 +2448,21 @@ const baseStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC',
     padding: 12, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border,
   },
-  modalEventRowCancelled: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
+  modalEventRowCancelled: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
   modalEventIndicator: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
   modalEventColorDot: { width: 14, height: 14, borderRadius: 7, marginLeft: 8 },
   modalEventDetails: { flex: 1 },
   modalEventTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 2 },
-  modalEventTitleCancelled: {
-    color: '#7F1D1D',
-    textDecorationLine: 'line-through',
-  },
+  modalEventTitleCancelled: { color: '#7F1D1D', textDecorationLine: 'line-through' },
   modalEventType: { fontSize: 12, color: COLORS.textMuted },
   cancelledTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginTop: 6,
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
+    backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5',
+    borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, marginTop: 6,
   },
-  cancelledTagText: {
-    color: '#991B1B',
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginLeft: 4,
-    letterSpacing: 0.3,
-  },
-  modalCloseButton: {
-    backgroundColor: COLORS.primary, paddingVertical: 12,
-    borderRadius: 8, alignItems: 'center',
-  },
+  cancelledTagText: { color: '#991B1B', fontSize: 10, fontWeight: 'bold', marginLeft: 4, letterSpacing: 0.3 },
+  modalCloseButton: { backgroundColor: COLORS.primary, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
   modalCloseText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
-
   modalFooter: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 14,
@@ -2912,18 +2477,14 @@ const baseStyles = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primary, paddingVertical: 12, borderRadius: 8,
   },
-  modalNewShiftButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
+  modalNewShiftButtonDisabled: { backgroundColor: '#9CA3AF' },
   modalNewShiftText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
-
   holidayBanner: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5',
     borderWidth: 1, borderColor: '#A7F3D0', borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12,
   },
   holidayBannerText: { color: '#047857', fontWeight: 'bold', fontSize: 13, marginLeft: 8 },
-
   closureBanner: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2',
     borderWidth: 1, borderColor: '#FECACA', borderRadius: 8,
@@ -2931,7 +2492,6 @@ const baseStyles = StyleSheet.create({
   },
   closureBannerText: { color: '#991B1B', fontWeight: 'bold', fontSize: 13, marginLeft: 8 },
   closureBannerSub: { color: '#7F1D1D', fontSize: 11, marginLeft: 8, marginTop: 2 },
-
   newShiftModalContainer: {
     width: '100%', maxWidth: 480, backgroundColor: '#FFFFFF', borderRadius: 16,
     padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
@@ -2944,7 +2504,6 @@ const baseStyles = StyleSheet.create({
   newShiftTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
   newShiftSubtitle: { fontSize: 14, color: COLORS.textMuted },
   newShiftFormScroll: { marginBottom: 20 },
-
   dateChip: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start',
     backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE',
@@ -2959,7 +2518,6 @@ const baseStyles = StyleSheet.create({
     fontSize: 10, color: COLORS.textMuted, fontWeight: '600',
     marginLeft: 4, textTransform: 'uppercase', letterSpacing: 0.5,
   },
-
   formLabel: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 6 },
   formLabelContainer: { alignSelf: 'flex-start', marginBottom: 6 },
   formInputContainer: {
@@ -2974,30 +2532,10 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
     color: COLORS.textMain, marginBottom: 16, backgroundColor: '#FFFFFF',
   },
-  formInputError: {
-    borderColor: '#B91C1C',
-    backgroundColor: '#FEF2F2',
-  },
-  inputErrorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: -10,
-    marginBottom: 12,
-  },
-  inputErrorText: {
-    fontSize: 11,
-    color: '#B91C1C',
-    fontWeight: '600',
-    marginLeft: 4,
-    flex: 1,
-  },
-  timeWindowHint: {
-    fontSize: 10,
-    color: COLORS.textMuted,
-    marginTop: -10,
-    marginBottom: 12,
-    fontWeight: '600',
-  },
+  formInputError: { borderColor: '#B91C1C', backgroundColor: '#FEF2F2' },
+  inputErrorRow: { flexDirection: 'row', alignItems: 'center', marginTop: -10, marginBottom: 12 },
+  inputErrorText: { fontSize: 11, color: '#B91C1C', fontWeight: '600', marginLeft: 4, flex: 1 },
+  timeWindowHint: { fontSize: 10, color: COLORS.textMuted, marginTop: -10, marginBottom: 12, fontWeight: '600' },
   formTextArea: { height: 90, textAlignVertical: 'top' },
   formDropdown: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -3007,58 +2545,29 @@ const baseStyles = StyleSheet.create({
   formDropdownText: { fontSize: 14, color: COLORS.textMain, flex: 1, marginRight: 8 },
   formRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   formCol: { flex: 1 },
-
-  selectedAssistantRow: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: 8,
-  },
+  selectedAssistantRow: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: 8 },
   assistantAvatarSmall: {
     width: 24, height: 24, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center', marginRight: 8,
   },
-
-  // ✅ UPDATED: dropdown wrapper no longer clips the list; the inner
-  // ScrollView handles vertical overflow so every assistant is reachable.
   assistantDropdownList: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
+    marginBottom: 12, backgroundColor: '#FFFFFF', overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08, shadowRadius: 4, elevation: 3,
   },
   assistantDropdownHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#F8FAFC',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   assistantDropdownHeaderText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
+    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
+    letterSpacing: 0.4, textTransform: 'uppercase',
   },
-  assistantDropdownHeaderHint: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  assistantDropdownScroll: {
-    maxHeight: 260,
-  },
-  assistantDropdownScrollContent: {
-    paddingBottom: 2,
-  },
+  assistantDropdownHeaderHint: { fontSize: 10, fontWeight: '600', color: COLORS.primary },
+  assistantDropdownScroll: { maxHeight: 260 },
+  assistantDropdownScrollContent: { paddingBottom: 2 },
   assistantDropdownItem: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 10, paddingHorizontal: 12,
@@ -3072,12 +2581,9 @@ const baseStyles = StyleSheet.create({
   assistantAvatarText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
   assistantDropdownText: { fontSize: 14, color: COLORS.textMain },
   assistantDropdownMeta: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
-  assistantColorSwatch: {
-    width: 10, height: 10, borderRadius: 5, marginHorizontal: 8,
-  },
+  assistantColorSwatch: { width: 10, height: 10, borderRadius: 5, marginHorizontal: 8 },
   dropdownEmptyRow: { paddingVertical: 16, alignItems: 'center' },
   dropdownEmptyText: { fontSize: 13, color: COLORS.textMuted },
-
   positionDropdownList: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
     marginBottom: 12, backgroundColor: '#FFFFFF', overflow: 'hidden',
@@ -3091,7 +2597,6 @@ const baseStyles = StyleSheet.create({
   },
   dropdownOptionText: { fontSize: 14, color: COLORS.textMain },
   dropdownOptionTextSelected: { color: COLORS.primary, fontWeight: 'bold' },
-
   newShiftFooter: {
     flexDirection: 'row', justifyContent: 'flex-end', gap: 12,
     borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 16,
@@ -3105,11 +2610,8 @@ const baseStyles = StyleSheet.create({
     paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8,
     backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center',
   },
-  submitBtnDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
+  submitBtnDisabled: { backgroundColor: '#9CA3AF' },
   submitBtnText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
-
   calendarModalContainer: {
     width: '100%', maxWidth: 360, backgroundColor: '#FFFFFF', borderRadius: 16,
     padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
@@ -3142,7 +2644,6 @@ const baseStyles = StyleSheet.create({
     borderRadius: 8, backgroundColor: COLORS.grayLight,
   },
   calendarCloseText: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain },
-
   closureModalContainer: {
     width: '100%', maxWidth: 420, backgroundColor: '#FFFFFF', borderRadius: 16,
     padding: 24, alignItems: 'center',
@@ -3164,12 +2665,9 @@ const baseStyles = StyleSheet.create({
   closureDropdown: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 12,
-    backgroundColor: '#FFFFFF', width: '100%',
+    paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#FFFFFF', width: '100%',
   },
-  closureDropdownValue: {
-    flexDirection: 'row', alignItems: 'center', flex: 1,
-  },
+  closureDropdownValue: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   closureDropdownOptions: {
     width: '100%', backgroundColor: '#FFFFFF',
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
@@ -3182,15 +2680,9 @@ const baseStyles = StyleSheet.create({
     paddingVertical: 14, paddingHorizontal: 14,
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  closureDropdownItemLeft: {
-    flexDirection: 'row', alignItems: 'center', flex: 1,
-  },
-  closureDropdownItemText: {
-    fontSize: 14, color: COLORS.textMain,
-  },
-  closureDropdownItemTextSelected: {
-    color: COLORS.primary, fontWeight: 'bold',
-  },
+  closureDropdownItemLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  closureDropdownItemText: { fontSize: 14, color: COLORS.textMain },
+  closureDropdownItemTextSelected: { color: COLORS.primary, fontWeight: 'bold' },
   closureTextArea: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
@@ -3198,28 +2690,12 @@ const baseStyles = StyleSheet.create({
     width: '100%', height: 80, textAlignVertical: 'top',
   },
   cancelWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch',
+    backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 12,
   },
-  cancelWarningText: {
-    fontSize: 12,
-    color: '#92400E',
-    fontWeight: '600',
-    marginLeft: 6,
-    flex: 1,
-  },
-  closureFooter: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    width: '100%', gap: 12,
-  },
+  cancelWarningText: { fontSize: 12, color: '#92400E', fontWeight: '600', marginLeft: 6, flex: 1 },
+  closureFooter: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', gap: 12 },
   cancelClosureBtn: {
     flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1,
     borderColor: COLORS.border, alignItems: 'center', backgroundColor: '#FFFFFF',
@@ -3230,7 +2706,6 @@ const baseStyles = StyleSheet.create({
     backgroundColor: '#E53935', alignItems: 'center',
   },
   declareClosureText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
-
   timetableModalContainer: {
     width: '100%', maxWidth: 600, backgroundColor: '#FFFFFF', borderRadius: 16,
     padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
@@ -3242,9 +2717,7 @@ const baseStyles = StyleSheet.create({
   },
   timetableTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
   timetableSubtitle: { fontSize: 14, color: COLORS.textMain, lineHeight: 20 },
-  timetableCloseButton: {
-    padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6', marginLeft: 10,
-  },
+  timetableCloseButton: { padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6', marginLeft: 10 },
   searchBarContainer: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
@@ -3271,7 +2744,6 @@ const baseStyles = StyleSheet.create({
   viewButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
   noUploadsContainer: { paddingVertical: 30, alignItems: 'center' },
   noUploadsText: { fontSize: 14, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
-
   docPreviewContainer: { flex: 1, backgroundColor: '#2D2D2D' },
   docPreviewHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -3279,9 +2751,7 @@ const baseStyles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   backButton: { flexDirection: 'row', alignItems: 'center' },
-  backButtonText: {
-    fontSize: 16, color: COLORS.primary, fontWeight: '600', marginLeft: 4,
-  },
+  backButtonText: { fontSize: 16, color: COLORS.primary, fontWeight: '600', marginLeft: 4 },
   docPreviewTitleContainer: { flex: 1, alignItems: 'center', paddingHorizontal: 16 },
   docPreviewTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain },
   docPreviewRightActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
@@ -3290,12 +2760,8 @@ const baseStyles = StyleSheet.create({
     borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 12,
     paddingVertical: 6, backgroundColor: '#FFFFFF',
   },
-  downloadButtonText: {
-    fontSize: 14, fontWeight: '600', color: COLORS.textMain, marginLeft: 6,
-  },
-  docPreviewCloseButton: {
-    padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6',
-  },
+  downloadButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.textMain, marginLeft: 6 },
+  docPreviewCloseButton: { padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6' },
   docViewer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   docImage: { width: '100%', height: '100%' },
 });

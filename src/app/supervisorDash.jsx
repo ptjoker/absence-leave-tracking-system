@@ -1,4 +1,12 @@
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import {
+  filterActivityLogsByRange,
+  formatRelativeTime as formatRelativeTimeShared,
+  loadActivityLogs,
+  logSupervisorActivity,
+  subscribeToActivityLogs,
+  toDate,
+} from '@/lib/activityLog';
 import { apiFetch, getSession } from '@/lib/api';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
@@ -23,7 +31,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Adjust the number of ../ based on where your assets folder actually is.
 import LogoImg from '../../assets/images/logo.png';
 
 // --- Theme Definitions ---
@@ -61,6 +68,10 @@ const THEME = {
     logViewedText: '#2563EB',
     logCreatedBg: '#FEF3C7',
     logCreatedText: '#D97706',
+    logClosureBg: '#FEE2E2',
+    logClosureText: '#B91C1C',
+    logUpdatedBg: '#E0E7FF',
+    logUpdatedText: '#4F46E5',
     approvedBg: '#DCFCE7',
     approvedText: '#059669',
     rejectedBg: '#FEE2E2',
@@ -104,6 +115,10 @@ const THEME = {
     logViewedText: '#93C5FD',
     logCreatedBg: '#78350F',
     logCreatedText: '#FCD34D',
+    logClosureBg: '#7F1D1D',
+    logClosureText: '#FCA5A5',
+    logUpdatedBg: '#1E3A8A',
+    logUpdatedText: '#93C5FD',
     approvedBg: '#064E3B',
     approvedText: '#6EE7B7',
     rejectedBg: '#7F1D1D',
@@ -116,7 +131,6 @@ const THEME = {
   },
 };
 
-// --- Bottom Nav Items (Mapped to Pages) ---
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
@@ -126,72 +140,11 @@ const NAV_ITEMS = [
   { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
 ];
 
-// --- Activity Filter Options ---
 const ACTIVITY_FILTERS = [
   { label: 'Today', value: 'today' },
   { label: 'Last 7 Days', value: '7days' },
   { label: 'Last 30 Days', value: '30days' },
   { label: 'All Time', value: 'all' },
-];
-
-// --- Mock Activity Logs Data ---
-const MOCK_ACTIVITY_LOGS = [
-  {
-    id: 1,
-    action: 'Approved',
-    actionType: 'approved',
-    description: 'Approved sick leave request for Peter Thomas',
-    details: 'Oct 5, 2026 – Oct 5, 2026',
-    timestamp: new Date(Date.now() - 1000 * 60 * 30),
-  },
-  {
-    id: 2,
-    action: 'Rejected',
-    actionType: 'rejected',
-    description: 'Rejected day-off request for Nothando Nkosi',
-    details: 'Sep 30, 2026 – Sep 30, 2026',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3),
-  },
-  {
-    id: 3,
-    action: 'Approved',
-    actionType: 'approved',
-    description: 'Approved personal leave for Sarah Nkosi',
-    details: 'Oct 10, 2026 – Oct 12, 2026',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-  },
-  {
-    id: 4,
-    action: 'Viewed',
-    actionType: 'viewed',
-    description: 'Reviewed request history for Peter Thomas',
-    details: '12 total requests reviewed',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
-  },
-  {
-    id: 5,
-    action: 'Created',
-    actionType: 'created',
-    description: 'Scheduled new shift for Sarah Nkosi',
-    details: 'Morning Shift · 4 hours · Main Desk',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
-  },
-  {
-    id: 6,
-    action: 'Approved',
-    actionType: 'approved',
-    description: 'Approved medical leave for John Doe',
-    details: 'Oct 1, 2026 – Oct 3, 2026',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12),
-  },
-  {
-    id: 7,
-    action: 'Rejected',
-    actionType: 'rejected',
-    description: 'Rejected swap request from Peter Thomas',
-    details: 'No matching replacement available',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20),
-  },
 ];
 
 export default function SupervisorDashboard() {
@@ -204,18 +157,39 @@ export default function SupervisorDashboard() {
   const [assistants, setAssistants] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // --- State for Activity Filter ---
   const [activityFilter, setActivityFilter] = useState('7days');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // --- State for Request Details Modal ---
+  // Backed by the SHARED store — populated from every supervisor page.
+  const [activityLogs, setActivityLogs] = useState([]);
+
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isRequestModalVisible, setRequestModalVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const theme = isDarkMode ? THEME.dark : THEME.light;
   const styles = useMemo(() => getStyles(theme), [isDarkMode]);
+
+  // ============================================================
+  // ACTIVITY LOG HELPER — delegates to shared store so any page
+  // writing an entry shows up here in real time.
+  // ============================================================
+  const logActivity = (actionType, action, description, details) => {
+    const supervisorName = user
+      ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor'
+      : 'Supervisor';
+
+    logSupervisorActivity({
+      actionType,
+      action,
+      description,
+      details,
+      supervisor: supervisorName,
+    }).catch((e) => {
+      console.warn('Activity log write failed:', e?.message || e);
+    });
+  };
 
   const loadData = async () => {
     try {
@@ -251,53 +225,46 @@ export default function SupervisorDashboard() {
       .catch((err) => {
         console.error('Session load error:', err);
       });
+
     loadData();
+
+    // Hydrate the feed from the shared store.
+    loadActivityLogs().then((logs) => {
+      if (Array.isArray(logs)) setActivityLogs(logs);
+    });
+
+    // Live refresh: whenever any supervisor page logs something,
+    // this dashboard reflects it immediately.
+    const unsubscribe = subscribeToActivityLogs((logs) => {
+      setActivityLogs(logs);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
-  };
-
-  // --- Filter Activity Logs Based on Selected Period ---
-  const filteredActivityLogs = useMemo(() => {
-    const now = new Date();
-    const msPerDay = 1000 * 60 * 60 * 24;
-
-    return MOCK_ACTIVITY_LOGS.filter((log) => {
-      const diffDays = (now - log.timestamp) / msPerDay;
-      switch (activityFilter) {
-        case 'today':
-          return diffDays < 1;
-        case '7days':
-          return diffDays <= 7;
-        case '30days':
-          return diffDays <= 30;
-        case 'all':
-        default:
-          return true;
-      }
+    // Also re-pull the shared activity log so pull-to-refresh always
+    // reflects entries written from other pages.
+    loadActivityLogs().then((logs) => {
+      if (Array.isArray(logs)) setActivityLogs(logs);
     });
-  }, [activityFilter]);
-
-  // --- Get Label for Current Filter ---
-  const currentFilterLabel = ACTIVITY_FILTERS.find((f) => f.value === activityFilter)?.label || 'Last 7 Days';
-
-  // --- Format Timestamp for Display ---
-  const formatTimestamp = (date) => {
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 30) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
   };
 
-  // --- Get Badge Style Based on Action Type ---
+  // --- Filter Activity Logs (shared filter logic) ---
+  const filteredActivityLogs = useMemo(
+    () => filterActivityLogsByRange(activityLogs, activityFilter),
+    [activityLogs, activityFilter]
+  );
+
+  const currentFilterLabel =
+    ACTIVITY_FILTERS.find((f) => f.value === activityFilter)?.label || 'Last 7 Days';
+
+  const formatTimestamp = (value) => formatRelativeTimeShared(value);
+
   const getActionBadgeStyle = (actionType) => {
     switch (actionType) {
       case 'approved':
@@ -308,6 +275,11 @@ export default function SupervisorDashboard() {
         return { bg: theme.logViewedBg, text: theme.logViewedText };
       case 'created':
         return { bg: theme.logCreatedBg, text: theme.logCreatedText };
+      case 'closure':
+      case 'cancelled':
+        return { bg: theme.logClosureBg, text: theme.logClosureText };
+      case 'updated':
+        return { bg: theme.logUpdatedBg, text: theme.logUpdatedText };
       default:
         return { bg: theme.iconBg, text: theme.primary };
     }
@@ -374,6 +346,18 @@ export default function SupervisorDashboard() {
   const handleOpenRequest = (request) => {
     setSelectedRequest(request);
     setRequestModalVisible(true);
+
+    const studentName = request?.name || 'a student assistant';
+    const requestType =
+      request?.type || request?.leaveType || request?.reason || 'leave request';
+    const range = buildRequestDateRange(request);
+
+    logActivity(
+      'viewed',
+      'Viewed',
+      `Reviewed ${requestType} request from ${studentName}`,
+      range ? `${range}` : 'Request details opened'
+    );
   };
 
   const handleCloseRequestModal = () => {
@@ -382,12 +366,18 @@ export default function SupervisorDashboard() {
     setSelectedRequest(null);
   };
 
-  const submitDecision = async (decision /* 'Approved' | 'Rejected' */) => {
+  const submitDecision = async (decision) => {
     if (!selectedRequest) return;
 
     const requestId = getRequestId(selectedRequest);
+    const studentName = selectedRequest?.name || 'student assistant';
+    const requestType =
+      selectedRequest?.type ||
+      selectedRequest?.leaveType ||
+      selectedRequest?.reason ||
+      'leave';
+    const range = buildRequestDateRange(selectedRequest);
 
-    // Optimistic UI update
     const updateLocal = (newStatus) => {
       setRequests((prev) =>
         prev.map((r) => {
@@ -403,9 +393,15 @@ export default function SupervisorDashboard() {
     setIsProcessing(true);
     updateLocal(decision);
 
+    logActivity(
+      decision === 'Approved' ? 'approved' : 'rejected',
+      decision,
+      `${decision} ${requestType} request for ${studentName}`,
+      range ? `${range}` : ''
+    );
+
     try {
       if (requestId != null) {
-        // Try a PATCH first (most common REST pattern)
         let res;
         try {
           res = await apiFetch(`/api/requests/${requestId}`, {
@@ -416,7 +412,6 @@ export default function SupervisorDashboard() {
           res = null;
         }
 
-        // If PATCH failed, try POST to a decision sub-route
         if (!res || !res.ok) {
           try {
             const action = decision === 'Approved' ? 'approve' : 'reject';
@@ -430,7 +425,10 @@ export default function SupervisorDashboard() {
         }
       }
     } catch (err) {
-      console.warn('Request decision sync failed (may not be implemented yet):', err?.message || err);
+      console.warn(
+        'Request decision sync failed (may not be implemented yet):',
+        err?.message || err
+      );
     } finally {
       setIsProcessing(false);
       setRequestModalVisible(false);
@@ -446,7 +444,7 @@ export default function SupervisorDashboard() {
   };
 
   // =============================================
-  // DOWNLOAD ACTIVITY LOGS AS PDF (DIRECT DOWNLOAD)
+  // DOWNLOAD ACTIVITY LOGS AS PDF
   // =============================================
   const handleDownloadLogs = async () => {
     if (filteredActivityLogs.length === 0) {
@@ -456,17 +454,19 @@ export default function SupervisorDashboard() {
 
     setIsDownloading(true);
 
-    // --- Build the HTML template ---
     const rowsHtml = filteredActivityLogs
       .map((log) => {
         const badge = getActionBadgeStyle(log.actionType);
-        const dateStr = log.timestamp.toLocaleString('en-ZA', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+        const ts = toDate(log.timestamp);
+        const dateStr = ts
+          ? ts.toLocaleString('en-ZA', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : '';
         return `
           <tr>
             <td>
@@ -569,20 +569,14 @@ export default function SupervisorDashboard() {
       </html>
     `;
 
-    // --- File name ---
     const fileName = `supervisor-activity-logs-${activityFilter}-${Date.now()}.pdf`;
 
     try {
-      // ======================================
-      // WEB: Direct PDF download (no print dialog)
-      // ======================================
       if (Platform.OS === 'web') {
         try {
-          // Dynamically import html2pdf.js (only loads on web)
           const html2pdfModule = await import('html2pdf.js');
           const html2pdf = html2pdfModule.default || html2pdfModule;
 
-          // Create an off-screen container with the HTML
           const container = document.createElement('div');
           container.innerHTML = html;
           container.style.position = 'fixed';
@@ -592,7 +586,6 @@ export default function SupervisorDashboard() {
           container.style.background = '#FFFFFF';
           document.body.appendChild(container);
 
-          // Generate and download the PDF
           await html2pdf()
             .set({
               margin: 0,
@@ -604,9 +597,7 @@ export default function SupervisorDashboard() {
             .from(container)
             .save();
 
-          // Clean up
           document.body.removeChild(container);
-
           setIsDownloading(false);
           return;
         } catch (webErr) {
@@ -617,12 +608,8 @@ export default function SupervisorDashboard() {
         }
       }
 
-      // ======================================
-      // NATIVE: Generate PDF and auto-save
-      // ======================================
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
-      // ============ ANDROID ============
       if (Platform.OS === 'android') {
         try {
           const permissions =
@@ -667,7 +654,6 @@ export default function SupervisorDashboard() {
         return;
       }
 
-      // ============ iOS ============
       if (Platform.OS === 'ios') {
         const targetUri = FileSystem.documentDirectory + fileName;
         await FileSystem.copyAsync({ from: uri, to: targetUri });
@@ -707,7 +693,6 @@ export default function SupervisorDashboard() {
     ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
     : 'Supervisor';
 
-  // --- Derived values for the currently selected request (for the modal) ---
   const selectedRequestStatus = selectedRequest?.status || 'Pending';
   const selectedRequestStatusStyle = getRequestStatusStyle(selectedRequestStatus);
   const selectedRequestDateRange = buildRequestDateRange(selectedRequest);
@@ -726,7 +711,7 @@ export default function SupervisorDashboard() {
       >
         <View style={styles.overlay} />
 
-        {/* --- HEADER --- */}
+        {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -759,13 +744,12 @@ export default function SupervisorDashboard() {
           </View>
         </View>
 
-        {/* --- MAIN CONTENT --- */}
+        {/* MAIN CONTENT */}
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {/* Hero Section */}
           <View style={styles.heroSection}>
             <View style={styles.tag}>
               <Text style={styles.tagText}>SUPERVISOR PORTAL</Text>
@@ -776,7 +760,6 @@ export default function SupervisorDashboard() {
             </Text>
           </View>
 
-          {/* Metrics Grid */}
           <View style={styles.metricsGrid}>
             {metrics.map((item) => (
               <View key={item.id} style={styles.metricCard}>
@@ -789,7 +772,6 @@ export default function SupervisorDashboard() {
             ))}
           </View>
 
-          {/* Awaiting Review */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>AWAITING YOUR REVIEW</Text>
             <TouchableOpacity onPress={() => router.push('/supRequest')}>
@@ -830,15 +812,14 @@ export default function SupervisorDashboard() {
             </View>
           )}
 
-          {/* Operational Note */}
           <View style={styles.noteSection}>
             <Text style={styles.noteTitle}>Operational note</Text>
             <Text style={styles.noteDesc}>
-              Approvals and rejections made from Operational Requests are written to the shared request store, so the student dashboard and history reflect the latest decision.
+              Approvals and rejections made from Operational Requests are written to the shared request store, so the student dashboard and history reflect the latest decision. Every action you take on any supervisor page — scheduling shifts, declaring closures, editing assistants, exporting reports — is recorded in the shared activity log below.
             </Text>
           </View>
 
-          {/* SUPERVISOR ACTIVITY LOGS */}
+          {/* SUPERVISOR ACTIVITY LOGS (shared, live) */}
           <View style={styles.activitySection}>
             <View style={styles.activityHeader}>
               <View style={styles.activityHeaderLeft}>
@@ -887,7 +868,6 @@ export default function SupervisorDashboard() {
               </View>
             </View>
 
-            {/* Filter Dropdown */}
             {isFilterOpen && (
               <View style={styles.filterDropdown}>
                 {ACTIVITY_FILTERS.map((option, index) => {
@@ -923,12 +903,11 @@ export default function SupervisorDashboard() {
               </View>
             )}
 
-            {/* Logs List */}
             {filteredActivityLogs.length === 0 ? (
               <View style={styles.emptyLogContainer}>
                 <Feather name="inbox" size={28} color={theme.textMuted} />
                 <Text style={styles.emptyLogText}>
-                  No activity recorded in this period.
+                  No activity recorded in this period. Your actions on any supervisor page will appear here.
                 </Text>
               </View>
             ) : (
@@ -975,7 +954,7 @@ export default function SupervisorDashboard() {
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* --- BOTTOM NAVIGATION BAR --- */}
+        {/* BOTTOM NAV */}
         <View
           style={[
             styles.bottomNav,
@@ -1014,7 +993,7 @@ export default function SupervisorDashboard() {
         </View>
       </ImageBackground>
 
-      {/* --- REQUEST DETAILS MODAL --- */}
+      {/* REQUEST DETAILS MODAL */}
       <Modal
         animationType="fade"
         transparent
@@ -1023,7 +1002,6 @@ export default function SupervisorDashboard() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.requestModalContainer}>
-            {/* Header */}
             <View style={styles.requestModalHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.requestModalTitle}>Request details</Text>
@@ -1040,13 +1018,11 @@ export default function SupervisorDashboard() {
               </TouchableOpacity>
             </View>
 
-            {/* Body */}
             <ScrollView
               style={styles.requestModalScroll}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {/* Student identity */}
               <View style={styles.requestModalIdentity}>
                 <View style={styles.requestModalAvatar}>
                   <Text style={styles.requestModalAvatarText}>
@@ -1080,7 +1056,6 @@ export default function SupervisorDashboard() {
                 </View>
               </View>
 
-              {/* Request information */}
               <View style={styles.requestModalInfoBlock}>
                 <Text style={styles.requestModalSectionTitle}>Request information</Text>
 
@@ -1133,7 +1108,6 @@ export default function SupervisorDashboard() {
                 )}
               </View>
 
-              {/* Extra notes */}
               {!!(selectedRequest?.notes || selectedRequest?.message) && (
                 <View style={styles.requestModalNoteBlock}>
                   <Text style={styles.requestModalSectionTitle}>Notes from student</Text>
@@ -1147,14 +1121,13 @@ export default function SupervisorDashboard() {
                 <View style={styles.requestModalBanner}>
                   <Feather name="info" size={14} color={theme.primary} />
                   <Text style={styles.requestModalBannerText}>
-                    This action will be written to the shared request store and the
-                    student will be notified.
+                    This action will be written to the shared request store, recorded in
+                    your activity log, and the student will be notified.
                   </Text>
                 </View>
               )}
             </ScrollView>
 
-            {/* Footer actions */}
             <View style={styles.requestModalFooter}>
               <TouchableOpacity
                 style={styles.requestModalCloseOutline}
@@ -1526,6 +1499,7 @@ const getStyles = (theme) =>
       color: theme.textMuted,
       marginTop: 8,
       textAlign: 'center',
+      paddingHorizontal: 12,
     },
 
     bottomNav: {
@@ -1569,7 +1543,6 @@ const getStyles = (theme) =>
     navText: { fontSize: 9, color: theme.navText, marginTop: 4 },
     navTextActive: { color: theme.navActive, fontWeight: 'bold' },
 
-    // --- REQUEST MODAL STYLES ---
     modalOverlay: {
       flex: 1,
       backgroundColor: theme.modalOverlay,
