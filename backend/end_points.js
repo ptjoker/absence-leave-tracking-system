@@ -1,9 +1,24 @@
 // end_points.js
 import express from 'express';
+import multer from 'multer';
 import sql from './db.js';
 import supabaseAdmin from './supabaseAdmin.js';
 import { verifyToken } from './jwt.js';
 import rateLimit from 'express-rate-limit';
+
+// Multer — parses multipart/form-data for file uploads.
+// Files are held in memory so we can pass them to Supabase Storage.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+fileFilter: (req, file, cb) => {
+  const allowed = ['image/png', 'image/jpeg', 'application/pdf'];
+  if (!allowed.includes(file.mimetype)) {
+    return cb(new Error('Only PNG, JPG, and PDF files are allowed'));
+  }
+  cb(null, true);
+},
+});
 
 // Verify the JWT sent by the frontend and return the user, or null if invalid.
 async function getUserFromToken(req) {
@@ -2463,6 +2478,130 @@ router.patch('/admin/supervisors/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// Student-owned request actions (edit + cancel)
+// ============================================
 
+// PATCH /api/requests/:id — edit a pending request (owner only)
+// Accepts multipart/form-data (with optional `document` file) OR JSON.
+router.patch('/requests/:id', upload.single('document'), async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { id } = req.params;
+
+    // Fetch the existing request, must belong to this user
+    const existing = await sql`
+      SELECT * FROM public.absence_requests
+      WHERE id = ${id} AND user_id = ${user.id}
+    `;
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Request not found or not yours' });
+    }
+
+    if (existing[0].status !== 'Pending') {
+      return res.status(400).json({ error: 'Only pending requests can be edited' });
+    }
+
+    const { type, dateRange, detail, replacement, reason } = req.body;
+
+    // Handle optional file replacement
+    let documentPath = existing[0].document_path;
+    let documentName = existing[0].document_name;
+
+    if (req.file) {
+      // Delete the old file if there was one (ignore errors)
+      if (existing[0].document_path) {
+        try {
+          await supabaseAdmin.storage
+            .from('request-attachments')
+            .remove([existing[0].document_path]);
+        } catch (delErr) {
+          console.warn('Could not delete old attachment:', delErr.message);
+        }
+      }
+
+      const ext = (req.file.originalname.split('.').pop() || 'png').toLowerCase();
+      const path = `${user.id}/${id}-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from('request-attachments')
+        .upload(path, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        return res.status(500).json({ error: 'Could not upload document' });
+      }
+
+      documentPath = path;
+      documentName = req.file.originalname;
+    }
+
+    const updated = await sql`
+      UPDATE public.absence_requests
+      SET
+        type = ${type || existing[0].type},
+        date_range = ${dateRange || existing[0].date_range},
+        detail = ${detail || existing[0].detail},
+        replacement = ${replacement || null},
+        reason = ${reason || null},
+        document_path = ${documentPath},
+        document_name = ${documentName}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    res.json({
+      message: 'Request updated',
+      request: updated[0],
+    });
+  } catch (err) {
+    console.error('Edit request error:', err);
+    res.status(500).json({ error: 'Could not edit request' });
+  }
+});
+
+// PATCH /api/requests/:id/cancel — soft-cancel (owner only)
+router.patch('/requests/:id/cancel', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { id } = req.params;
+
+    const existing = await sql`
+      SELECT * FROM public.absence_requests
+      WHERE id = ${id} AND user_id = ${user.id}
+    `;
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Request not found or not yours' });
+    }
+
+    if (existing[0].status !== 'Pending') {
+      return res.status(400).json({ error: 'Only pending requests can be cancelled' });
+    }
+
+    const updated = await sql`
+      UPDATE public.absence_requests
+      SET status = 'Cancelled'
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    res.json({
+      message: 'Request cancelled',
+      request: updated[0],
+    });
+  } catch (err) {
+    console.error('Cancel request error:', err);
+    res.status(500).json({ error: 'Could not cancel request' });
+  }
+});
 
 export default router;
