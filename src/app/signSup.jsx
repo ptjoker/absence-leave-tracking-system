@@ -33,7 +33,7 @@ const COLORS = {
   danger: '#EF4444',
 };
 
-const CODE_LENGTH = 8;
+const CODE_LENGTH = 6;
 
 export default function SupervisorSignUpScreen() {
   const router = useRouter();
@@ -95,7 +95,7 @@ export default function SupervisorSignUpScreen() {
   const handleVerifyAndCreate = () => {
     const fullCode = code.join('');
     if (fullCode.length < CODE_LENGTH) {
-      setVerifyError('Please enter the full 8-digit code.');
+      setVerifyError('Please enter the full 6-digit code.');
       return;
     }
 
@@ -422,7 +422,7 @@ export default function SupervisorSignUpScreen() {
 
             <Text style={styles.verifyTitle}>Verify your email</Text>
             <Text style={styles.verifySubtitle}>
-              We've sent an 8-digit verification code to
+              We've sent a 6-digit verification code to
             </Text>
             <Text style={styles.verifyEmail}>{email || 'your email'}</Text>
 

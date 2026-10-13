@@ -47,7 +47,7 @@ const YEAR_OPTIONS = [
 // High zIndex used on the row that owns the dropdown so it renders above later siblings
 const Z_TOP = 1000;
 
-const CODE_LENGTH = 8;
+const CODE_LENGTH = 6;
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -187,7 +187,7 @@ export default function SignUpScreen() {
   const handleResendCode = () => {
     setVerificationCode(Array(CODE_LENGTH).fill(''));
     setTimeout(() => inputRefs.current[0]?.focus(), 200);
-    Alert.alert('Code sent', 'A new 8-digit verification code has been sent to your email.');
+    Alert.alert('Code sent', 'A new 6-digit verification code has been sent to your email.');
   };
 
   return (
@@ -511,7 +511,7 @@ export default function SignUpScreen() {
             {/* Title */}
             <Text style={styles.modalTitle}>Verify your email</Text>
             <Text style={styles.modalSubtitle}>
-              We've sent an 8-digit verification code to{'\n'}
+              We've sent a 6-digit verification code to{'\n'}
               <Text style={styles.modalEmail}>{email || 'your email'}</Text>
             </Text>
 
