@@ -2,7 +2,7 @@ import { apiFetch } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import {
@@ -26,11 +26,37 @@ import {
   drafts,
   formatLong,
   fromKey,
-  isUnavailable
+  isUnavailable,
+  toKey,
+  useRequests,
 } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // TODO(API): confirm real attachment limit
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/* ---------------- helpers for parsing stored dateRange strings --------- */
+const MONTHS_MAP = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+
+function parseDateString(s) {
+  if (!s) return null;
+  const m = String(s).trim().match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/);
+  if (!m) return null;
+  const month = MONTHS_MAP[m[1].slice(0, 3)];
+  if (month === undefined) return null;
+  return new Date(Number(m[3]), month, Number(m[2]));
+}
+
+function splitRange(dateRange) {
+  if (!dateRange) return ['', ''];
+  const parts = String(dateRange).split(/\s*[–—-]\s*/).map((s) => s.trim()).filter(Boolean);
+  return [parts[0] || '', parts[1] || parts[0] || ''];
+}
+
+function swapMeta(request) {
+  const text = `${request?.detail || ''} ${request?.reason || ''}`;
+  const match = text.match(/Swap from (.+?) to (.+?) with (.+?)(?:\.|$)/i);
+  return match ? { from: match[1], to: match[2], with: match[3] } : null;
+}
 
 function goBackOrHome(router) {
   if (router.canGoBack()) router.back();
@@ -62,10 +88,14 @@ function FormFooter({ submitLabel, onCancel, onSubmit, loading }) {
 }
 
 /* ============================ LEAVE FORM ============================ */
-function LeaveForm({ onSwitch }) {
+function LeaveForm({ onSwitch, editTarget, returnTo }) {
   const router = useRouter();
   const { c } = useStudTheme();
-  const saved = drafts.leave || {};
+  const { updateRequest, addRequest } = useRequests();
+  const editing = Boolean(editTarget);
+  const loadedFor = useRef(null);
+
+  const saved = editing ? {} : (drafts.leave || {});
   const [category, setCategory] = useState(saved.category || 'Sick Leave');
   const [days, setDays] = useState(saved.days || 1);
   const [startKey, setStartKey] = useState(saved.startKey || '');
@@ -74,9 +104,43 @@ function LeaveForm({ onSwitch }) {
   const [attached, setAttached] = useState(saved.attached || false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Pre-fill from editTarget once we have it
   useEffect(() => {
+    if (!editTarget || loadedFor.current === editTarget.rawId) return;
+    loadedFor.current = editTarget.rawId;
+
+    const matched = LEAVE_CATEGORIES.find((x) => x.value === editTarget.type);
+    if (matched) {
+      setCategory(matched.value);
+    } else {
+      setCategory(LEAVE_CATEGORIES[0].value);
+    }
+
+    const [firstStr, secondStr] = splitRange(editTarget.dateRange);
+    const startDate = parseDateString(firstStr);
+    const endDate = parseDateString(secondStr);
+    if (startDate) {
+      setStartKey(toKey(startDate));
+      let count = 0;
+      for (let d = new Date(startDate); d <= (endDate || startDate); d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0) count += 1;
+      }
+      setDays(Math.max(1, count));
+    }
+
+    setReason(editTarget.detail || editTarget.reason || '');
+
+    if (editTarget.supportingDocument?.fileName) {
+      setFile({ name: editTarget.supportingDocument.fileName, uri: null, existing: true });
+      setAttached(true);
+    }
+  }, [editTarget]);
+
+  // Persist draft only when NOT editing
+  useEffect(() => {
+    if (editing) return;
     drafts.leave = { category, days, startKey, reason, file, attached };
-  }, [category, days, startKey, reason, file, attached]);
+  }, [editing, category, days, startKey, reason, file, attached]);
 
   const cat = LEAVE_CATEGORIES.find((x) => x.value === category) || LEAVE_CATEGORIES[0];
   const dayOptions = Array.from({ length: cat.maxDays }, (_, i) => ({
@@ -100,14 +164,13 @@ function LeaveForm({ onSwitch }) {
       }
       setFile({ name: f.name, uri: f.uri });
       setAttached(false);
-    } catch (e) {
+    } catch {
       Alert.alert('Could not open files', 'Please try again.');
     }
   };
 
   const upload = () => {
     if (!file) return;
-    // TODO(API): POST /leave-requests/attachments (multipart/form-data) with `file`
     setAttached(true);
     Alert.alert('Document attached', `${file.name} will be submitted with your request.`);
   };
@@ -128,55 +191,68 @@ function LeaveForm({ onSwitch }) {
 
     setSubmitting(true);
     try {
-      // Format the date range human-readably for the DB (matches web app shape).
       const first = formatLong(fromKey(covered[0]));
       const last = formatLong(fromKey(covered[covered.length - 1]));
       const dateRange = covered.length > 1 ? `${first} – ${last}` : first;
 
-      const res = await apiFetch('/api/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (editing) {
+        await updateRequest(editTarget.id, {
           type: category,
           dateRange,
           detail: reason.trim(),
-        }),
-      });
+          reason: reason.trim(),
+        });
+        drafts.leave = null;
+        Alert.alert('Request updated', `${editTarget.id} has been saved.`, [
+          { text: 'OK', onPress: () => router.replace(returnTo) },
+        ]);
+        return;
+      }
 
+      // CREATE — keep your existing apiFetch call
+      const res = await apiFetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: category, dateRange, detail: reason.trim() }),
+      });
       const data = await res.json();
       if (!res.ok) {
         Alert.alert('Submission failed', data.error || 'Please try again.');
         return;
       }
-
       drafts.leave = null;
-      Alert.alert(
-        'Request submitted',
-        `${data.id} (${category}) was submitted and is pending approval.`,
-        [{ text: 'OK', onPress: () => router.replace(ROUTES.history) }]
-      );
+      Alert.alert('Request submitted', `${data.id} (${category}) was submitted and is pending approval.`, [
+        { text: 'OK', onPress: () => router.replace(ROUTES.history) },
+      ]);
     } catch (err) {
       console.error('Submit leave request error:', err);
-      Alert.alert('Connection error', 'Could not reach the server.');
+      Alert.alert('Error', err.message || 'Could not reach the server.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const cancel = () => {
-    drafts.leave = null;
-    goBackOrHome(router);
+    if (!editing) drafts.leave = null;
+    if (editing) router.replace(returnTo);
+    else goBackOrHome(router);
   };
 
   return (
     <Card>
       <View style={styles.cardHead}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.cardTitle, { color: c.text }]}>Request Details</Text>
-          <Text style={{ color: c.text, fontSize: 13 }}>Select the type of request you wish to submit.</Text>
+          <Text style={[styles.cardTitle, { color: c.text }]}>
+            {editing ? `Edit Request ${editTarget.id}` : 'Request Details'}
+          </Text>
+          <Text style={{ color: c.text, fontSize: 13 }}>
+            {editing
+              ? 'Update the details of your pending request.'
+              : 'Select the type of request you wish to submit.'}
+          </Text>
         </View>
       </View>
-      <Toggle mode="leave" onSwitch={onSwitch} />
+      {!editing && <Toggle mode="leave" onSwitch={onSwitch} />}
 
       <SelectField
         upper
@@ -206,7 +282,7 @@ function LeaveForm({ onSwitch }) {
         onChange={setStartKey}
         isDisabled={(d) => isUnavailable(d)}
         placeholder="Select start date"
-        helper="Choose how many days you need, then pick your start date. Past dates, Sundays, public holidays, approved leave, approved swaps and institutional closures are skipped."
+        helper="Choose how many days you need, then pick your start date."
       />
       {covered.length > 0 ? (
         <View style={[styles.preview, { backgroundColor: c.primarySoft }]}>
@@ -238,13 +314,13 @@ function LeaveForm({ onSwitch }) {
       <TextArea
         value={reason}
         onChangeText={setReason}
-        placeholder="Example: I need leave to attend a scheduled examination / medical appointment. I will complete my assigned hours before or after this period."
+        placeholder="Example: I need leave to attend a scheduled examination / medical appointment."
       />
       <View style={{ height: 12 }} />
       <SuggestedText items={LEAVE_SUGGESTIONS} onPick={(t) => setReason(t)} />
 
       <FormFooter
-        submitLabel="Submit Leave Request"
+        submitLabel={editing ? 'Save changes' : 'Submit Leave Request'}
         onCancel={cancel}
         onSubmit={submit}
         loading={submitting}
@@ -254,19 +330,60 @@ function LeaveForm({ onSwitch }) {
 }
 
 /* ============================ SWAP FORM ============================= */
-function SwapForm() {
+function SwapForm({ editTarget, returnTo }) {
   const router = useRouter();
   const { c } = useStudTheme();
-  const saved = drafts.swap || {};
+  const { updateRequest } = useRequests();
+  const editing = Boolean(editTarget);
+  const loadedFor = useRef(null);
+
+  const saved = editing ? {} : (drafts.swap || {});
+  const [currentOptions, setCurrentOptions] = useState(SHIFT_OPTIONS);
+  const [assistants, setAssistants] = useState(AVAILABLE_ASSISTANTS);
   const [currentKey, setCurrentKey] = useState(saved.currentKey || SHIFT_OPTIONS[0].value);
   const [newKey, setNewKey] = useState(saved.newKey || '');
   const [assistant, setAssistant] = useState(saved.assistant || '');
   const [reason, setReason] = useState(saved.reason || '');
   const [submitting, setSubmitting] = useState(false);
 
+  // Pre-fill from editTarget
   useEffect(() => {
+    if (!editTarget || loadedFor.current === editTarget.rawId) return;
+    loadedFor.current = editTarget.rawId;
+
+    const meta = swapMeta(editTarget);
+    const fromDate = meta ? parseDateString(meta.from) : null;
+    const toDate = meta ? parseDateString(meta.to) : parseDateString(editTarget.dateRange);
+
+    if (fromDate) {
+      const key = toKey(fromDate);
+      setCurrentKey(key);
+      if (!SHIFT_OPTIONS.some((o) => o.value === key)) {
+        setCurrentOptions([
+          { value: key, label: `${formatLong(fromDate)} · (original shift)` },
+          ...SHIFT_OPTIONS,
+        ]);
+      }
+    }
+
+    if (toDate) setNewKey(toKey(toDate));
+
+    const who = editTarget.replacement || meta?.with || '';
+    if (who) {
+      setAssistant(who);
+      if (!AVAILABLE_ASSISTANTS.includes(who)) {
+        setAssistants([who, ...AVAILABLE_ASSISTANTS]);
+      }
+    }
+
+    setReason(editTarget.reason || '');
+  }, [editTarget]);
+
+  // Persist draft only when NOT editing
+  useEffect(() => {
+    if (editing) return;
     drafts.swap = { currentKey, newKey, assistant, reason };
-  }, [currentKey, newKey, assistant, reason]);
+  }, [editing, currentKey, newKey, assistant, reason]);
 
   const submit = async () => {
     if (!newKey) {
@@ -284,7 +401,28 @@ function SwapForm() {
 
     setSubmitting(true);
     try {
-      const dateRange = formatLong(fromKey(newKey));
+      const newDateLabel = formatLong(fromKey(newKey));
+      const fromLabel = formatLong(fromKey(currentKey));
+      const detail = `Swap from ${fromLabel} to ${newDateLabel} with ${assistant}. ${
+        reason.trim() || 'Shift swap requested with an eligible colleague.'
+      }`;
+
+      if (editing) {
+        await updateRequest(editTarget.id, {
+          type: `Shift Swap – ${assistant}`,
+          replacement: assistant,
+          dateRange: newDateLabel,
+          detail,
+          reason: reason.trim(),
+        });
+        drafts.swap = null;
+        Alert.alert('Swap updated', `${editTarget.id} has been saved.`, [
+          { text: 'OK', onPress: () => router.replace(returnTo) },
+        ]);
+        return;
+      }
+
+      // CREATE
       const res = await apiFetch('/api/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -292,40 +430,37 @@ function SwapForm() {
           type: `Shift Swap – ${assistant}`,
           replacement: assistant,
           reason: reason.trim(),
-          dateRange,
+          dateRange: newDateLabel,
+          detail,
         }),
       });
-
       const data = await res.json();
       if (!res.ok) {
         Alert.alert('Submission failed', data.error || 'Please try again.');
         return;
       }
-
       drafts.swap = null;
-      Alert.alert(
-        'Swap request submitted',
-        `${data.id} was sent for department lead approval.`,
-        [{ text: 'OK', onPress: () => router.replace(ROUTES.history) }]
-      );
+      Alert.alert('Swap request submitted', `${data.id} was sent for department lead approval.`, [
+        { text: 'OK', onPress: () => router.replace(ROUTES.history) },
+      ]);
     } catch (err) {
       console.error('Submit swap request error:', err);
-      Alert.alert('Connection error', 'Could not reach the server.');
+      Alert.alert('Error', err.message || 'Could not reach the server.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const cancel = () => {
-    drafts.swap = null;
-    goBackOrHome(router);
+    if (!editing) drafts.swap = null;
+    if (editing) router.replace(returnTo);
+    else goBackOrHome(router);
   };
 
   return (
     <>
       <Card>
         <Text style={[styles.cardTitleSm, { color: c.text }]}>Approved shift swaps</Text>
-        {/* TODO(API): GET /swap-requests?status=approved */}
         {SWAPS.map((s) => (
           <View key={s.from} style={[styles.swapRow, { backgroundColor: c.panel }]}>
             <Text style={{ color: c.text, fontSize: 13 }}>
@@ -342,8 +477,12 @@ function SwapForm() {
             <Ionicons name="sync" size={16} color={c.primary} />
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={[styles.cardTitle, { color: c.text }]}>New Swap Request</Text>
-            <Text style={{ color: c.text, fontSize: 12 }}>Fill in the details for your proposed shift exchange.</Text>
+            <Text style={[styles.cardTitle, { color: c.text }]}>
+              {editing ? `Edit Swap Request ${editTarget.id}` : 'New Swap Request'}
+            </Text>
+            <Text style={{ color: c.text, fontSize: 12 }}>
+              Fill in the details for your proposed shift exchange.
+            </Text>
           </View>
         </View>
 
@@ -352,7 +491,7 @@ function SwapForm() {
           label="Current shift"
           icon="time-outline"
           value={currentKey}
-          options={SHIFT_OPTIONS}
+          options={currentOptions}
           onChange={(v) => {
             setCurrentKey(v);
             if (newKey === v) setNewKey('');
@@ -371,7 +510,7 @@ function SwapForm() {
           }}
           isDisabled={(d) => isUnavailable(d, currentKey)}
           placeholder="Select a date"
-          helper="Use the arrows to browse any month of 2026. Past dates, Sundays, holidays, approved leave, approved swaps and your selected current shift are unavailable."
+          helper="Past dates, Sundays, holidays, approved leave, approved swaps and your selected current shift are unavailable."
         />
 
         <Text style={[styles.step, { color: c.text }]}>3. AVAILABLE STUDENT ASSISTANTS</Text>
@@ -384,8 +523,7 @@ function SwapForm() {
           </View>
         ) : (
           <View style={{ marginBottom: 16 }}>
-            {/* TODO(API): GET /shifts/available-assistants?date={newKey} */}
-            {AVAILABLE_ASSISTANTS.map((name) => {
+            {assistants.map((name) => {
               const on = name === assistant;
               return (
                 <Pressable
@@ -424,7 +562,7 @@ function SwapForm() {
         </View>
 
         <FormFooter
-          submitLabel="Submit Swap Request"
+          submitLabel={editing ? 'Save changes' : 'Submit Swap Request'}
           onCancel={cancel}
           onSubmit={submit}
           loading={submitting}
@@ -468,30 +606,75 @@ function Toggle({ mode, onSwitch }) {
 export default function StudRequest() {
   const { c } = useStudTheme();
   const params = useLocalSearchParams();
-  const [mode, setMode] = useState(params.mode === 'swap' ? 'swap' : 'leave');
+  const { requests, loading } = useRequests();
+
+  const editId = params.editId;
+  const fromParam = params.from || 'dashboard';
+  const returnTo = fromParam === 'history' ? ROUTES.history : ROUTES.dashboard;
+
+  const editTarget = editId ? requests.find((r) => String(r.rawId) === String(editId)) : null;
+  const editing = Boolean(editTarget && editTarget.status === 'Pending');
+  const isSwapTarget = editTarget && String(editTarget.type || '').toLowerCase().includes('shift swap');
+
+  const [mode, setMode] = useState(
+    params.mode === 'swap' || isSwapTarget ? 'swap' : 'leave'
+  );
 
   useEffect(() => {
     if (params.mode === 'swap') setMode('swap');
-    if (params.mode === 'leave') setMode('leave');
-  }, [params.mode]);
+    else if (params.mode === 'leave') setMode('leave');
+    else if (editing && isSwapTarget) setMode('swap');
+    else if (editing && !isSwapTarget) setMode('leave');
+  }, [params.mode, editing, isSwapTarget]);
+
+  // Handle the "request not editable" edge case
+  if (editId && !editing && editTarget && editTarget.status !== 'Pending') {
+    return (
+      <ScreenShell active="requests" pill="STUDENT PORTAL" title="Request can't be edited" subtitle="">
+        <Card>
+          <Text style={{ color: c.text, fontSize: 14 }}>
+            This request is {editTarget.status.toLowerCase()} and can no longer be changed.
+          </Text>
+          <View style={{ marginTop: 12 }}>
+            <AppButton label="Back to my requests" onPress={() => require('expo-router').router.replace(returnTo)} />
+          </View>
+        </Card>
+      </ScreenShell>
+    );
+  }
+
+  // If we have an editId but the requests list isn't loaded yet, show a loader
+  if (editId && !editTarget && loading) {
+    return (
+      <ScreenShell active="requests" pill="STUDENT PORTAL" title="Loading request…" subtitle="">
+        <Card>
+          <Text style={{ color: c.text, fontSize: 14 }}>Loading…</Text>
+        </Card>
+      </ScreenShell>
+    );
+  }
 
   if (mode === 'swap') {
     return (
       <ScreenShell
         active="requests"
         pill="SCHEDULING MANAGEMENT"
-        title="Shift Swapping Request"
+        title={editing ? 'Edit Shift Swap' : 'Shift Swapping Request'}
         subtitle="Choose an upcoming shift, then choose a new working date. The student assistants available on that date will be listed for you to pick from."
         back={
-          <Pressable onPress={() => setMode('leave')} style={styles.back} accessibilityRole="button">
+          <Pressable
+            onPress={() => (editing ? require('expo-router').router.replace(returnTo) : setMode('leave'))}
+            style={styles.back}
+            accessibilityRole="button"
+          >
             <Ionicons name="chevron-back" size={14} color={c.title} />
             <Text style={{ color: c.title, fontSize: 11, fontWeight: '800', letterSpacing: 1 }}>
-              BACK TO REQUEST LEAVE
+              {editing ? 'BACK' : 'BACK TO REQUEST LEAVE'}
             </Text>
           </Pressable>
         }
       >
-        <SwapForm />
+        <SwapForm editTarget={editing ? editTarget : null} returnTo={returnTo} />
       </ScreenShell>
     );
   }
@@ -500,10 +683,10 @@ export default function StudRequest() {
     <ScreenShell
       active="requests"
       pill="STUDENT PORTAL"
-      title="Submit a Request"
+      title={editing ? 'Edit Leave Request' : 'Submit a Request'}
       subtitle="Please provide the details for your absence or scheduling change. Approved leave dates become unavailable automatically."
     >
-      <LeaveForm onSwitch={setMode} />
+      <LeaveForm onSwitch={setMode} editTarget={editing ? editTarget : null} returnTo={returnTo} />
     </ScreenShell>
   );
 }

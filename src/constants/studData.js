@@ -1,5 +1,5 @@
-import { apiFetch } from '@/lib/api';
-import { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api'; // Ensure this matches your alias! (The top of your file had '@libapi', but your code uses '@/lib/api')
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 /* ================================================================== */
 /* SAMPLE DATA - everything marked TODO(API) should later come from    */
@@ -180,33 +180,112 @@ export const drafts = { leave: null, swap: null };
 // Fetches the logged-in student's requests from the deployed backend.
 // Returns an array of: { id, rawId, name, initials, email, type, status, ... }
 
-export function useRequests() {
-  const [requests, setRequests] = useState([]);
+const RequestsContext = createContext({
+  requests: [],
+  loading: false,
+  error: null,
+  refresh: async () => {},
+  cancelRequest: async () => {},
+  updateRequest: async () => {},
+  addRequest: async () => {},
+});
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await apiFetch('/api/requests');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (mounted) setRequests(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('useRequests error:', err);
+export function RequestsProvider({ children }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/requests');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Request failed (${res.status})`);
       }
-    })();
-    return () => { mounted = false; };
+      const data = await res.json();
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Load requests error:', err);
+      setError(err.message);
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return requests;
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const cancelRequest = async (id) => {
+    const target = requests.find((r) => r.id === id || String(r.rawId) === String(id));
+    if (!target?.rawId || target.status !== 'Pending') {
+      throw new Error('Only pending requests can be cancelled.');
+    }
+    const res = await apiFetch(`/api/requests/${target.rawId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Could not cancel request');
+    }
+    await refresh();
+  };
+
+  const updateRequest = async (id, entry) => {
+    const target = requests.find((r) => r.id === id || String(r.rawId) === String(id));
+    if (!target?.rawId || target.status !== 'Pending') {
+      throw new Error('Only pending requests can be edited.');
+    }
+    const res = await apiFetch(`/api/requests/${target.rawId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: entry.type,
+        dateRange: entry.dateRange || null,
+        detail: entry.detail || entry.comments || null,
+        replacement: entry.replacement || null,
+        reason: entry.reason || null,
+        ...(entry.supportingDocument ? { supportingDocument: entry.supportingDocument } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Could not update request');
+    }
+    await refresh();
+  };
+
+  // Added this back so "New Request" works!
+  const addRequest = async (entry) => {
+    const res = await apiFetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: entry.type,
+        dateRange: entry.dateRange || entry.date_range || null,
+        detail: entry.detail || entry.comments || null,
+        replacement: entry.replacement || null,
+        reason: entry.reason || null,
+        supportingDocument: entry.supportingDocument || null,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Could not submit request');
+    }
+    await refresh();
+  };
+
+  return (
+    <RequestsContext.Provider value={{ requests, loading, error, refresh, cancelRequest, updateRequest, addRequest }}>
+      {children}
+    </RequestsContext.Provider>
+  );
 }
 
-/**
- * Legacy helper — kept so `studRequest.jsx` doesn't break on import.
- * Submitting from the mobile form goes through its own apiFetch call;
- * this function is a placeholder until we wire that screen.
- */
-export function addRequest(type) {
-  console.warn('addRequest is not wired to the backend yet. Use apiFetch directly.');
-  return null;
+export function useRequests() {
+  return useContext(RequestsContext);
 }
