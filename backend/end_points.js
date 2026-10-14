@@ -864,7 +864,7 @@ router.get('/assistants', async (req, res) => {
 // Shift endpoints
 // ============================================
 
-// POST /api/shifts â€” create a shift (supervisors only)
+// POST /api/shifts — create a shift (supervisors only)
 router.post('/shifts', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -877,10 +877,41 @@ router.post('/shifts', async (req, res) => {
       return res.status(403).json({ error: 'Only supervisors can create shifts' });
     }
 
-    const { user_id, shift_date, start_time, end_time, role, location, notes } = req.body;
+    const body = req.body || {};
 
-    if (!user_id || !shift_date || !start_time || !end_time) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Accept camelCase and snake_case.
+    const user_id    = body.user_id    ?? body.userId;
+    const shift_date = body.shift_date ?? body.shiftDate;
+    const start_time = body.start_time ?? body.startTime;
+    let   end_time   = body.end_time   ?? body.endTime;
+    const role       = body.role       ?? null;
+    const location   = body.location   ?? body.position ?? null;
+    const notes      = body.notes      ?? null;
+    const duration   = body.duration   ?? null;
+
+    if (!user_id || !shift_date || !start_time) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['user_id', 'shift_date', 'start_time'],
+      });
+    }
+
+    // Derive end_time from duration if the client didn't send one.
+    if (!end_time && duration) {
+      const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(String(start_time).trim());
+      const hours = Number(String(duration).replace(/[^0-9.]/g, ''));
+      if (match && !Number.isNaN(hours) && hours > 0) {
+        const total = Number(match[1]) * 60 + Number(match[2]) + Math.round(hours * 60);
+        const hh = String(Math.floor((total % (24 * 60)) / 60)).padStart(2, '0');
+        const mm = String(total % 60).padStart(2, '0');
+        end_time = `${hh}:${mm}`;
+      }
+    }
+
+    if (!end_time) {
+      return res.status(400).json({
+        error: 'end_time is required (or send a duration so it can be derived)',
+      });
     }
 
     const rows = await sql`
@@ -890,17 +921,17 @@ router.post('/shifts', async (req, res) => {
         ${shift_date},
         ${start_time},
         ${end_time},
-        ${role || null},
-        ${location || null},
-        ${notes || null},
+        ${role},
+        ${location},
+        ${notes},
         ${user.id}
       )
-      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at, TO_CHAR(shift_date, 'YYYY-MM-DD') AS shift_date
+      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at,
+                TO_CHAR(shift_date, 'YYYY-MM-DD') AS shift_date
     `;
 
     const shiftRow = rows[0];
 
-    // Join to get the student's name for the response
     const studentRows = await sql`
       SELECT first_name, last_name FROM public.profiles WHERE id = ${shiftRow.user_id}
     `;
