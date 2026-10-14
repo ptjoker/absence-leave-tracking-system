@@ -5,6 +5,7 @@ import supabaseAdmin from './supabaseAdmin.js';
 import { verifyToken } from './jwt.js';
 import rateLimit from 'express-rate-limit';
 
+
 // Verify the JWT sent by the frontend and return the user, or null if invalid.
 async function getUserFromToken(req) {
   const authHeader = req.headers.authorization || '';
@@ -2462,7 +2463,6 @@ router.patch('/admin/supervisors/:id', async (req, res) => {
     });
   }
 });
-
 
 
 export default router;
