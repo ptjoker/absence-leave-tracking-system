@@ -446,7 +446,7 @@ router.post('/requests', async (req, res) => {
           ${detail || null},
           ${replacement || null},
           ${reason || null},
-          ${parsedDocument.document ? JSON.stringify(parsedDocument.document) : null}::jsonb
+          ${parsedDocument.document ? sql.json(parsedDocument.document) : null}
         )
         RETURNING
           id,
@@ -458,7 +458,11 @@ router.post('/requests', async (req, res) => {
           replacement,
           reason,
           created_at,
-          supporting_document - 'data' AS supporting_document
+          CASE
+          WHEN jsonb_typeof(supporting_document) = 'object'
+          THEN supporting_document - 'data'
+          ELSE NULL
+        END AS supporting_document
       )
       SELECT i.*, p.first_name, p.last_name
       FROM inserted i
@@ -511,7 +515,11 @@ router.get('/requests', async (req, res) => {
         r.replacement,
         r.reason,
         r.created_at,
-        r.supporting_document - 'data' AS supporting_document,
+        CASE
+          WHEN jsonb_typeof(r.supporting_document) = 'object'
+          THEN r.supporting_document - 'data'
+          ELSE NULL
+        END AS supporting_document,
         p.first_name,
         p.last_name,
         p.student_email,
@@ -600,7 +608,7 @@ router.patch('/requests/:id', async (req, res) => {
         detail = ${detail || null},
         replacement = ${replacement || null},
         reason = ${reason || null},
-        supporting_document = ${parsedDocument.document ? JSON.stringify(parsedDocument.document) : null}::jsonb
+        supporting_document = ${parsedDocument.document ? sql.json(parsedDocument.document) : null}
       WHERE id = ${req.params.id}
         AND user_id = ${user.id}
         AND status = 'Pending'
@@ -670,6 +678,13 @@ router.get('/requests/:id/document', async (req, res) => {
     }
 
     const document = rows[0].supporting_document;
+        if (
+      typeof document !== 'object' ||
+      typeof document.contentType !== 'string' ||
+      typeof document.data !== 'string'
+    ) {
+      return res.status(422).json({ error: 'The supporting document is missing or malformed.' });
+    }
     res.set('Cache-Control', 'no-store');
     res.json({
       fileName: document.fileName,

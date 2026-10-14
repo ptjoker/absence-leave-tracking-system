@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import apiRoutes from './end_points.js';
+import sql from './db.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,7 +17,19 @@ app.use(express.json({ limit: '8mb' }));
 // Mount your routes at the /api path
 app.use('/api', apiRoutes);
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await sql`
+      ALTER TABLE public.absence_requests
+      ADD COLUMN IF NOT EXISTS supporting_document JSONB
+    `;
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Database schema setup failed:', err);
+    process.exitCode = 1;
+  }
+}
+
+startServer();

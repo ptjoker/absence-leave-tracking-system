@@ -58,6 +58,12 @@ function ymd(date) {
   return `${y}-${m}-${d}`;
 }
 
+function isUnavailableShiftDate(date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today || isSunday(date) || isPublicHoliday(date);
+}
+
 function buildCalendarGrid(monthDate) {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -112,6 +118,8 @@ export default function CalendarPage() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentsError, setStudentsError] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({
@@ -191,33 +199,58 @@ export default function CalendarPage() {
     // Fetch students once so the form has a roster to choose from.
   useEffect(() => {
     const loadStudents = async () => {
+      setStudentsLoading(true);
+      setStudentsError('');
       try {
         const raw = localStorage.getItem('session');
         const session = raw ? JSON.parse(raw) : null;
-        if (!session?.access_token) return;
+        if (!session?.access_token) {
+          setStudentsError('Not authenticated');
+          setStudentsLoading(false);
+          return;
+        }
         const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/assistants`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
-        if (!res.ok) return;
-        const data = await res.json();
-        setStudents(Array.isArray(data) ? data : []);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setStudentsError(data.error || 'Could not load student assistants.');
+          return;
+        }
+        if (!Array.isArray(data)) {
+          setStudentsError('The student assistant roster could not be loaded.');
+          return;
+        }
+        setStudents(data);
       } catch (err) {
         console.error('Load students error:', err);
+        setStudentsError('Could not reach the server. Please try again.');
+      } finally {
+        setStudentsLoading(false);
       }
     };
     loadStudents();
   }, []);
 
   const openForm = (presetDate) => {
+    const requestedDate = presetDate || ymd(selectedDate);
+    const requestedDateValue = new Date(`${requestedDate}T00:00:00`);
+    const unavailable = isUnavailableShiftDate(requestedDateValue);
     setForm({
       user_id: '',
-      shift_date: presetDate || ymd(selectedDate),
+      shift_date: strikeDays[requestedDate] || unavailable ? '' : requestedDate,
       shift_time: 'Morning',
       role: 'iCenter',
       location: 'Main Desk',
       notes: '',
     });
-    setFormError('');
+    setFormError(
+      strikeDays[requestedDate]
+        ? 'Closure on this date'
+        : unavailable
+        ? 'Select a future working day.'
+        : '',
+    );
     setShowForm(true);
   };
 
@@ -247,6 +280,7 @@ export default function CalendarPage() {
     if (selected < today) return setFormError('Shifts cannot be assigned on past dates.');
     if (isSunday(selected)) return setFormError('Shifts cannot be assigned on Sundays.');
     if (isPublicHoliday(selected)) return setFormError('Shifts cannot be assigned on public holidays.');
+    if (strikeDays[form.shift_date]) return setFormError('Closure on this date');
     if ((shiftsByDate[form.shift_date] || []).some((shift) => shift.userId === form.user_id)) return setFormError('This student already has a shift assigned on that date.');
     const [start_time, end_time] = form.shift_time === 'Morning' ? ['08:00', '12:00'] : ['12:00', '16:00'];
 
@@ -512,8 +546,20 @@ export default function CalendarPage() {
                     <button
                       key={`${key}-${index}`}
                       type="button"
+                      disabled={isPastDay || isSundayDay || isHoliday}
                       onClick={() => setSelectedDate(cell.date)}
-                      className={`focus-ring flex min-h-[104px] flex-col gap-1.5 border-b border-r border-[#e2eaf1] p-2 text-left transition-colors last:border-r-0 hover:bg-[#f4f8fb] ${
+                      title={
+                        isPastDay
+                          ? 'Past dates cannot be selected'
+                          : isSundayDay
+                          ? 'Sundays cannot be selected'
+                          : isHoliday
+                          ? 'Public holidays cannot be selected'
+                          : isStrike
+                          ? 'Closure on this date'
+                          : undefined
+                      }
+                      className={`focus-ring flex min-h-[104px] flex-col gap-1.5 border-b border-r border-[#e2eaf1] p-2 text-left transition-colors last:border-r-0 hover:bg-[#f4f8fb] disabled:cursor-not-allowed disabled:hover:bg-transparent ${
                         !cell.inMonth ? 'calendar-outside-month bg-[#fafbfc] text-[#c3cfd9]' : isStrike ? 'bg-[#d05b48] text-white' : isHoliday ? 'bg-[#d9f3e3] text-[#243e5b]' : isSwapFrom ? 'bg-[#dce9ff] text-[#163f8a]' : isSwapTo ? 'bg-[#d9dde2] text-[#243e5b]' : 'bg-white text-[#243e5b]'
                       }`}
                     >
@@ -868,15 +914,24 @@ export default function CalendarPage() {
                   <select
                     value={form.user_id}
                     onChange={(e) => setForm((f) => ({ ...f, user_id: e.target.value }))}
+                    disabled={studentsLoading || Boolean(studentsError)}
                     className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
                   >
-                    <option value="">Select a student assistant…</option>
+                    <option value="">
+                      {studentsLoading ? 'Loading student assistants…' : studentsError ? 'Student assistants unavailable' : students.length === 0 ? 'No student assistants found' : 'Select a student assistant…'}
+                    </option>
                     {students.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name} — {s.course || 'No department'}
                       </option>
                     ))}
                   </select>
+                  {studentsError && (
+                    <p className="mt-1.5 text-[11px] font-semibold text-[#d05b48]">{studentsError}</p>
+                  )}
+                  {!studentsLoading && !studentsError && students.length === 0 && (
+                    <p className="mt-1.5 text-[11px] font-semibold text-[#8ca0b2]">Create or activate a student assistant account before assigning a shift.</p>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -888,9 +943,36 @@ export default function CalendarPage() {
                       type="date"
                       value={form.shift_date}
                       min={ymd(new Date())}
-                      onChange={(e) => setForm((f) => ({ ...f, shift_date: e.target.value }))}
+                      title={strikeDays[form.shift_date] ? 'Closure on this date' : undefined}
+                      aria-describedby={strikeDays[form.shift_date] ? 'shift-date-closure-help' : undefined}
+                      onChange={(e) => {
+                        const nextDate = e.target.value;
+                        const nextDateValue = new Date(`${nextDate}T00:00:00`);
+                        if (isUnavailableShiftDate(nextDateValue)) {
+                          setFormError(
+                            nextDateValue < new Date(new Date().setHours(0, 0, 0, 0))
+                              ? 'Shifts cannot be assigned on past dates.'
+                              : isSunday(nextDateValue)
+                              ? 'Shifts cannot be assigned on Sundays.'
+                              : 'Shifts cannot be assigned on public holidays.',
+                          );
+                          return;
+                        }
+                        if (strikeDays[nextDate]) {
+                          setForm((f) => ({ ...f, shift_date: nextDate }));
+                          setFormError('Closure on this date');
+                          return;
+                        }
+                        setForm((f) => ({ ...f, shift_date: nextDate }));
+                        setFormError('');
+                      }}
                       className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
                     />
+                    {strikeDays[form.shift_date] && (
+                      <p id="shift-date-closure-help" className="mt-1.5 text-[11px] font-semibold text-[#d05b48]">
+                        Closure on this date
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-bold text-[#385570]">Position</label>

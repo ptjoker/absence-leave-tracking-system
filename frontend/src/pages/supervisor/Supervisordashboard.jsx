@@ -140,7 +140,7 @@ export default function SupervisorDashboard() {
   return (
     <PortalShell supervisor>
       <main className="px-5 py-7 md:px-8 md:py-8">
-        <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Supervisor Portal</p>
+        <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
         <h1 className="serif text-4xl text-[#10253f]">Supervisor dashboard</h1>
         <p className="mt-2 max-w-xl text-sm text-[#52708b]">Monitor incoming student assistant requests and keep operational decisions synchronized.</p>
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
