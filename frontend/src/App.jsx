@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ArrowRight, BadgeCheck, BookOpen, Bell, Building2, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Clock3, Eye, EyeOff, FileText, GraduationCap, Info, LayoutDashboard, LockKeyhole, LogOut, Mail, MapPin, Menu, Moon, PanelTop, Phone, Plus, RefreshCw, ShieldCheck, Sun, TrendingUp, Trash2, Upload, User, UsersRound, X, } from 'lucide-react';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { format } from 'date-fns';
 import { RequestsProvider, useRequests } from '@/context/RequestsContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -19,8 +20,10 @@ import SupervisorRequestsPage from '@/pages/supervisor/Requestspage';
 import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage';
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
-import { ModeToggle, PortalShell } from '@/components/portal/PortalComponents';
+import { ModeToggle, PortalShell, STUDENT } from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
+import { generateStudentSchedule } from '@/lib/schedule';
+import { useCancelledShifts } from '@/lib/cancelledShifts';
 const queryClient = new QueryClient();
 
 /* Fixed, page-independent background photo shown behind every route. */
@@ -486,9 +489,41 @@ function PortalTopBar() {
 function DashboardPage() {
   const [, setLocation] = useLocation();
   const { requests, cancelRequest } = useRequests();
+  const [assignedShifts, setAssignedShifts] = useState(null);
   const [requestDetails, setRequestDetails] = useState(null);
   const [requestToCancel, setRequestToCancel] = useState(null);
   const [cancelling, setCancelling] = useState(false);
+  const cancelledShifts = useCancelledShifts();
+  useEffect(() => {
+    let cancelled = false;
+    const loadAssignedShifts = async () => {
+      let activeSession;
+      try {
+        activeSession = JSON.parse(localStorage.getItem('session') || 'null');
+      } catch (error) {
+        console.error('Load dashboard shifts error:', error);
+        return;
+      }
+      if (!activeSession?.access_token) {
+        setAssignedShifts([]);
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE}/api/shifts`, {
+          headers: { Authorization: `Bearer ${activeSession.access_token}` },
+        });
+        if (!response.ok) throw new Error('Could not load assigned shifts.');
+        const data = await response.json();
+        if (!Array.isArray(data)) throw new Error('Unexpected assigned shifts response.');
+        if (!cancelled) setAssignedShifts(data);
+      } catch (error) {
+        console.error('Load dashboard shifts error:', error);
+        if (!cancelled) setAssignedShifts([]);
+      }
+    };
+    loadAssignedShifts();
+    return () => { cancelled = true; };
+  }, []);
   const stored = localStorage.getItem('session');
   if (!stored) return null;
   let session = {};
@@ -501,6 +536,35 @@ function DashboardPage() {
   const course = user.course || '—';
   const cellNumber = user.cell_number || '—';
   const role = user.role === 'supervisor' ? 'Supervisor' : 'Student Assistant';
+  const today = new Date();
+  const todayKey = format(today, 'yyyy-MM-dd');
+  const studentNumber = user.student_number || STUDENT.number;
+  const assignedSchedule = (assignedShifts || []).reduce((result, shift) => {
+    result[shift.shiftDate] = {
+      date: shift.shiftDate,
+      time: `${shift.startTime} – ${shift.endTime}`,
+      shift: String(shift.startTime).startsWith('08:00') ? 'Morning' : 'Afternoon',
+      location: shift.location,
+      role: shift.role,
+    };
+    return result;
+  }, {});
+  const schedule = assignedShifts === null
+    ? {}
+    : assignedShifts.length
+      ? assignedSchedule
+      : {
+        ...generateStudentSchedule(studentNumber, today.getFullYear()),
+        ...generateStudentSchedule(studentNumber, today.getFullYear() + 1),
+      };
+  const cancelledDates = new Set(cancelledShifts
+    .filter((shift) => String(shift.userId) === String(user.id))
+    .map((shift) => shift.shiftDate));
+  const shiftKey = Object.keys(schedule)
+    .filter((date) => date >= todayKey && schedule[date] && !cancelledDates.has(date))
+    .sort()[0];
+  const myShift = shiftKey ? schedule[shiftKey] : null;
+  const isShiftToday = shiftKey === todayKey;
 
   const handleEditRequest = (req) => {
     const targetPath = String(req.type || '').toLowerCase().includes('shift swap')
@@ -547,12 +611,25 @@ function DashboardPage() {
             </div>
           </div>
           <div className="rounded-xl bg-[#f4f8fb] p-6">
-            <p className="flex items-center gap-2 text-base font-bold text-[#10253f]"><TrendingUp size={16} className="text-[#f2aa00]" /> Performance</p>
-            <p className="mt-1 text-xs text-[#7890a4]">Semester attendance & compliance</p>
-            <div className="mt-6">
-              <div className="flex items-center justify-between text-xs font-semibold text-[#52708b]"><span>Attendance Rate</span><span className="text-lg font-bold text-[#1f70d0]">94%</span></div>
-              <div className="mt-2 h-2 w-full rounded-full bg-[#dce8f2]"><div className="h-2 rounded-full bg-[#1f70d0]" style={{ width: '94%' }} /></div>
-            </div>
+            <p className="flex items-center gap-2 text-base font-bold text-[#10253f]"><CalendarDays size={16} className="text-[#f2aa00]" /> My Shift</p>
+            {assignedShifts === null ? (
+              <p className="mt-5 text-sm text-[#7890a4]">Loading your shift...</p>
+            ) : myShift ? (
+              <>
+                <p className="mt-1 text-xs text-[#7890a4]">{isShiftToday ? "Today's shift" : 'Next upcoming shift'}</p>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <p className="text-lg font-bold text-[#1f70d0]">{myShift.shift} Shift</p>
+                  <span className="rounded-full bg-[#e1eef9] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#1f70d0]">{isShiftToday ? 'Today' : 'Next'}</span>
+                </div>
+                <div className="mt-4 space-y-2 text-sm font-semibold text-[#52708b]">
+                  <p className="flex items-center gap-2"><CalendarDays size={15} className="shrink-0 text-[#7890a4]" />{format(new Date(`${myShift.date}T00:00:00`), 'EEEE, MMMM d, yyyy')}</p>
+                  <p className="flex items-center gap-2"><Clock3 size={15} className="shrink-0 text-[#7890a4]" />{myShift.time}</p>
+                  {(myShift.role || myShift.location) && <p className="text-xs text-[#7890a4]">{[myShift.role, myShift.location].filter(Boolean).join(' · ')}</p>}
+                </div>
+              </>
+            ) : (
+              <p className="mt-5 text-sm text-[#7890a4]">No upcoming shifts scheduled.</p>
+            )}
           </div>
         </div>
 

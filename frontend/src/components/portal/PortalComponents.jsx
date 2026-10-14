@@ -264,8 +264,8 @@ export function DatePicker({ value, onChange, range = false, label, error, id, h
     {error && <p className="mt-1.5 text-sm font-medium text-[#c54f43]">{error}</p>}
   </div>;
 }
-export function SuggestionBox({ title, suggestions }) {
-  return <div className="mt-2 rounded-lg border border-[#d8e4ed] bg-[#f4f8fb] px-3.5 py-3"><p className="text-[10px] font-bold uppercase tracking-[.08em] text-[#718196]">Suggested text</p><p className="mt-1 text-xs leading-5 text-[#5f7185]">{suggestions.join(' · ')}</p></div>;
+export function SuggestionBox({ title, suggestions, onSelect }) {
+  return <div className="mt-2 rounded-lg border border-[#d8e4ed] bg-[#f4f8fb] px-3.5 py-3"><p className="text-[10px] font-bold uppercase tracking-[.08em] text-[#718196]">{title || 'Suggested text'}</p><div className="mt-1 flex flex-wrap gap-x-2 text-xs leading-5 text-[#5f7185]">{suggestions.map((suggestion, index) => <span key={suggestion} className="inline-flex items-center gap-2">{onSelect ? <button type="button" onClick={() => onSelect(suggestion)} className="focus-ring rounded text-left hover:text-[#1f70d0] hover:underline">{suggestion}</button> : suggestion}{index < suggestions.length - 1 && <span aria-hidden="true">·</span>}</span>)}</div></div>;
 }
 
 export function BackButton({ href, children = 'Back' }) {

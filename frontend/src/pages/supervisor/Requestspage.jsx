@@ -7,8 +7,12 @@ import { useRequests } from '@/context/RequestsContext';
 const typeOptions = ['All Types', 'Shift Swap', 'Leave'];
 
 function SupervisorStatus({ status }) {
-  const studentStatus = status === 'Pending Review' ? 'Pending' : status;
+  const studentStatus = isPendingStatus(status) ? 'Pending' : status;
   return <StatusBadge status={studentStatus} />;
+}
+
+function isPendingStatus(status) {
+  return ['pending', 'pending review'].includes(String(status || '').trim().toLowerCase());
 }
 
 function RequestRow({ request, onOpen, onViewDocument }) {
@@ -133,7 +137,7 @@ function FilterDropdown({ label, icon, options, value, onChange }) {
 }
 
 export default function RequestsPage() {
-  const { requests, updateRequestStatus, refresh, loading } = useRequests();
+  const { requests, updateRequestStatus, refresh, loading, error } = useRequests();
   const [tab, setTab] = useState('pending');
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
@@ -185,9 +189,9 @@ export default function RequestsPage() {
   })), [requests]);
   const requestDetails = operationalRequests.find((request) => String(request.id) === String(requestDetailsId));
 
-  const pendingCount = operationalRequests.filter((request) => request.status === 'Pending').length;
+  const pendingCount = operationalRequests.filter((request) => isPendingStatus(request.status)).length;
   const filtered = operationalRequests.filter((request) => {
-    if (tab === 'pending' && request.status !== 'Pending') return false;
+    if (tab === 'pending' && !isPendingStatus(request.status)) return false;
     if (type && type !== 'All Types') {
       const requestType = request.type?.startsWith('Shift Swap') ? 'Shift Swap' : 'Leave';
       if (requestType !== type) return false;
@@ -228,6 +232,7 @@ export default function RequestsPage() {
         </div>
 
         {actionError && <div className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-2.5 text-sm font-semibold text-[#d05b48]" role="alert">{actionError}</div>}
+        {error && <div className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-2.5 text-sm font-semibold text-[#d05b48]" role="alert">Could not load requests: {error}</div>}
 
         <div className="mt-6 flex items-center gap-4 rounded-xl bg-[#f4f8fb] px-6 py-4"><span className="grid size-10 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><ShieldCheck size={18}/></span><div><p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">Requests in shared workflow</p><p className="serif mt-0.5 text-2xl text-[#10253f]">{operationalRequests.length}</p></div></div>
 
@@ -236,7 +241,7 @@ export default function RequestsPage() {
           <div className="flex gap-3"><FilterDropdown label="Filter Type" icon={<Filter size={15}/>} options={typeOptions} value={type} onChange={setType}/></div>
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl bg-[#f4f8fb]"><table className="w-full min-w-[920px] text-left"><thead><tr className="mono text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="px-6 pb-3 pt-5">Requester</th><th className="pb-3 pt-5">Type</th><th className="pb-3 pt-5">Request Details</th><th className="pb-3 pt-5">Status</th><th className="pb-3 pt-5">Actions</th></tr></thead><tbody className="[&>tr>td:first-child]:pl-6">{filtered.length ? filtered.map((request) => <RequestRow key={request.id} request={request} onOpen={(selected) => { setFocusDocumentRequestId(null); setRequestDetailsId(selected.id); }} onViewDocument={(selected) => { setFocusDocumentRequestId(selected.id); setRequestDetailsId(selected.id); }}/>) : <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#7890a4]">No requests match your filters.</td></tr>}</tbody></table></div>
+        <div className="mt-5 overflow-x-auto rounded-xl bg-[#f4f8fb]"><table className="w-full min-w-[920px] text-left"><thead><tr className="mono text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="px-6 pb-3 pt-5">Requester</th><th className="pb-3 pt-5">Type</th><th className="pb-3 pt-5">Request Details</th><th className="pb-3 pt-5">Status</th><th className="pb-3 pt-5">Actions</th></tr></thead><tbody className="[&>tr>td:first-child]:pl-6">{filtered.length ? filtered.map((request) => <RequestRow key={request.id} request={request} onOpen={(selected) => { setFocusDocumentRequestId(null); setRequestDetailsId(selected.id); }} onViewDocument={(selected) => { setFocusDocumentRequestId(selected.id); setRequestDetailsId(selected.id); }}/>) : <tr><td colSpan={5} className="px-6 py-10 text-center text-sm text-[#7890a4]">{loading ? 'Loading requests...' : requests.length ? 'No requests match your filters.' : error ? 'Requests could not be loaded.' : 'No requests have been submitted yet.'}</td></tr>}</tbody></table></div>
               </main>
       {declineTarget && <DeclineDialog request={declineTarget} onCancel={() => setDeclineTarget(null)} onConfirm={handleConfirmDecline} />}
       {requestDetails && (
