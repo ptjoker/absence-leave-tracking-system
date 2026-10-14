@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import ScreenShell from '../components/studentDash/ScreenShell';
 import RequestsTableWithActions from '../components/studentDash/RequestsTableWithActions';
+import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card } from '../components/studentDash/ui';
 import { useRequests } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
@@ -112,7 +112,7 @@ export default function StudDash() {
       </Card>
 
       <Card>
-        <Text style={[styles.sectionTitle, { color: c.text }]}>Recent Leave Requests</Text>
+        <Text style={[styles.sectionTitle, { color: c.text }]}>Recent Requests</Text>
         {requestsLoading ? (
           <Text style={{ color: c.text, textAlign: 'center', marginTop: 10 }}>Loading requests...</Text>
         ) : (
