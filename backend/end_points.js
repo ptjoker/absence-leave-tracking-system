@@ -458,7 +458,11 @@ router.post('/requests', async (req, res) => {
           replacement,
           reason,
           created_at,
-          supporting_document - 'data' AS supporting_document
+          CASE
+          WHEN jsonb_typeof(supporting_document) = 'object'
+          THEN supporting_document - 'data'
+          ELSE NULL
+        END AS supporting_document
       )
       SELECT i.*, p.first_name, p.last_name
       FROM inserted i
@@ -511,7 +515,11 @@ router.get('/requests', async (req, res) => {
         r.replacement,
         r.reason,
         r.created_at,
-        r.supporting_document - 'data' AS supporting_document,
+        CASE
+          WHEN jsonb_typeof(r.supporting_document) = 'object'
+          THEN r.supporting_document - 'data'
+          ELSE NULL
+        END AS supporting_document,
         p.first_name,
         p.last_name,
         p.student_email,
