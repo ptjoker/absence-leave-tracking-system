@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import logoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -74,6 +75,10 @@ export default function SupervisorNotifications() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  useSupervisorBadges({
+    markNotificationsRead: true,
+    readNotificationIds: notifications.map((notification) => notification.id),
+  });
 
   const loadNotifications = async () => {
     try {

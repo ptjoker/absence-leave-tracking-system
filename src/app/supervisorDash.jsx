@@ -5,12 +5,10 @@ import {
   loadActivityLogs,
   logSupervisorActivity,
   subscribeToActivityLogs,
-  toDate,
 } from '@/lib/activityLog';
 import { apiFetch, getSession } from '@/lib/api';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import * as Print from 'expo-print';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -18,6 +16,7 @@ import {
   Alert,
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   RefreshControl,
@@ -26,6 +25,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -55,11 +55,9 @@ const THEME = {
     navActive: '#2563EB',
     navInactive: '#A0AEC0',
     navText: '#6B7280',
-    overlay: 'rgba(255, 255, 255, 0.7)',
+    overlay: 'rgba(255, 255, 255, 0.55)',
     workflowBg: '#EFF6FF',
     filterBg: '#F3F4F6',
-    downloadBg: '#DBEAFE',
-    downloadIcon: '#2563EB',
     logApprovedBg: '#DCFCE7',
     logApprovedText: '#059669',
     logRejectedBg: '#FEE2E2',
@@ -102,11 +100,9 @@ const THEME = {
     navActive: '#60A5FA',
     navInactive: '#64748B',
     navText: '#94A3B8',
-    overlay: 'rgba(15, 23, 42, 0.85)',
+    overlay: 'rgba(15, 23, 42, 0.55)',
     workflowBg: '#1E3A8A',
     filterBg: '#334155',
-    downloadBg: '#1E3A8A',
-    downloadIcon: '#93C5FD',
     logApprovedBg: '#064E3B',
     logApprovedText: '#6EE7B7',
     logRejectedBg: '#7F1D1D',
@@ -132,12 +128,12 @@ const THEME = {
 };
 
 const NAV_ITEMS = [
-  { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
-  { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
-  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest' },
-  { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
-  { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
-  { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
+  { name: 'Dashboard', icon: 'grid-outline', path: '/supervisorDash' },
+  { name: 'Calendar', icon: 'calendar-outline', path: '/supCal' },
+  { name: 'Requests', icon: 'document-text-outline', path: '/supRequest' },
+  { name: 'Assistances', icon: 'people-outline', path: '/supAssistants' },
+  { name: 'Reports', icon: 'bar-chart-outline', path: '/supReport' },
+  { name: 'Profile', icon: 'person-outline', path: '/supProfile' },
 ];
 
 const ACTIVITY_FILTERS = [
@@ -146,6 +142,9 @@ const ACTIVITY_FILTERS = [
   { label: 'Last 30 Days', value: '30days' },
   { label: 'All Time', value: 'all' },
 ];
+
+const SUMMARY_LOG_COUNT = 3;
+const ALL_LOGS_PAGE_SIZE = 12;
 
 export default function SupervisorDashboard() {
   const { isDarkMode, toggleTheme } = useSupervisorTheme();
@@ -159,22 +158,28 @@ export default function SupervisorDashboard() {
 
   const [activityFilter, setActivityFilter] = useState('7days');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
 
-  // Backed by the SHARED store — populated from every supervisor page.
   const [activityLogs, setActivityLogs] = useState([]);
+
+  // "View All Activity Logs" modal state
+  const [isAllLogsModalVisible, setAllLogsModalVisible] = useState(false);
+  const [allLogsFilter, setAllLogsFilter] = useState('7days');
+  const [isAllLogsFilterOpen, setAllLogsFilterOpen] = useState(false);
+  const [allLogsSearch, setAllLogsSearch] = useState('');
+  const [allLogsPage, setAllLogsPage] = useState(1);
 
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isRequestModalVisible, setRequestModalVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const {
+    pendingRequestCount,
+    unreadNotificationCount,
+    refreshRequests: refreshBadgeCounts,
+  } = useSupervisorBadges();
 
   const theme = isDarkMode ? THEME.dark : THEME.light;
   const styles = useMemo(() => getStyles(theme), [isDarkMode]);
 
-  // ============================================================
-  // ACTIVITY LOG HELPER — delegates to shared store so any page
-  // writing an entry shows up here in real time.
-  // ============================================================
   const logActivity = (actionType, action, description, details) => {
     const supervisorName = user
       ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor'
@@ -228,13 +233,10 @@ export default function SupervisorDashboard() {
 
     loadData();
 
-    // Hydrate the feed from the shared store.
     loadActivityLogs().then((logs) => {
       if (Array.isArray(logs)) setActivityLogs(logs);
     });
 
-    // Live refresh: whenever any supervisor page logs something,
-    // this dashboard reflects it immediately.
     const unsubscribe = subscribeToActivityLogs((logs) => {
       setActivityLogs(logs);
     });
@@ -247,21 +249,71 @@ export default function SupervisorDashboard() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
-    // Also re-pull the shared activity log so pull-to-refresh always
-    // reflects entries written from other pages.
     loadActivityLogs().then((logs) => {
       if (Array.isArray(logs)) setActivityLogs(logs);
     });
   };
 
-  // --- Filter Activity Logs (shared filter logic) ---
+  // ============================================================
+  // FILTERING + SUMMARISING
+  // ============================================================
   const filteredActivityLogs = useMemo(
     () => filterActivityLogsByRange(activityLogs, activityFilter),
     [activityLogs, activityFilter]
   );
 
+  const summaryActivityLogs = useMemo(
+    () => filteredActivityLogs.slice(0, SUMMARY_LOG_COUNT),
+    [filteredActivityLogs]
+  );
+
   const currentFilterLabel =
     ACTIVITY_FILTERS.find((f) => f.value === activityFilter)?.label || 'Last 7 Days';
+
+  const allLogsFiltered = useMemo(
+    () => filterActivityLogsByRange(activityLogs, allLogsFilter),
+    [activityLogs, allLogsFilter]
+  );
+
+  const allLogsSearched = useMemo(() => {
+    const q = allLogsSearch.trim().toLowerCase();
+    if (!q) return allLogsFiltered;
+    return allLogsFiltered.filter((log) => {
+      const action = String(log.action || '').toLowerCase();
+      const type = String(log.actionType || '').toLowerCase();
+      const desc = String(log.description || '').toLowerCase();
+      const det = String(log.details || '').toLowerCase();
+      const sup = String(log.supervisor || '').toLowerCase();
+      return (
+        action.includes(q) ||
+        type.includes(q) ||
+        desc.includes(q) ||
+        det.includes(q) ||
+        sup.includes(q)
+      );
+    });
+  }, [allLogsFiltered, allLogsSearch]);
+
+  const allLogsTotalPages = Math.max(
+    1,
+    Math.ceil(allLogsSearched.length / ALL_LOGS_PAGE_SIZE)
+  );
+
+  const allLogsPaginated = useMemo(() => {
+    const start = (allLogsPage - 1) * ALL_LOGS_PAGE_SIZE;
+    return allLogsSearched.slice(start, start + ALL_LOGS_PAGE_SIZE);
+  }, [allLogsSearched, allLogsPage]);
+
+  useEffect(() => {
+    setAllLogsPage(1);
+  }, [allLogsFilter, allLogsSearch]);
+
+  useEffect(() => {
+    if (allLogsPage > allLogsTotalPages) setAllLogsPage(allLogsTotalPages);
+  }, [allLogsTotalPages, allLogsPage]);
+
+  const allLogsFilterLabel =
+    ACTIVITY_FILTERS.find((f) => f.value === allLogsFilter)?.label || 'Last 7 Days';
 
   const formatTimestamp = (value) => formatRelativeTimeShared(value);
 
@@ -322,15 +374,9 @@ export default function SupervisorDashboard() {
     if (request.dateRange) return request.dateRange;
 
     const start =
-      request.startDate ||
-      request.start_date ||
-      request.from ||
-      request.dateFrom;
+      request.startDate || request.start_date || request.from || request.dateFrom;
     const end =
-      request.endDate ||
-      request.end_date ||
-      request.to ||
-      request.dateTo;
+      request.endDate || request.end_date || request.to || request.dateTo;
 
     const startFmt = formatRequestDate(start);
     const endFmt = formatRequestDate(end);
@@ -433,6 +479,7 @@ export default function SupervisorDashboard() {
       setIsProcessing(false);
       setRequestModalVisible(false);
       setSelectedRequest(null);
+      refreshBadgeCounts();
 
       Alert.alert(
         decision === 'Approved' ? 'Request approved' : 'Request declined',
@@ -443,238 +490,28 @@ export default function SupervisorDashboard() {
     }
   };
 
-  // =============================================
-  // DOWNLOAD ACTIVITY LOGS AS PDF
-  // =============================================
-  const handleDownloadLogs = async () => {
-    if (filteredActivityLogs.length === 0) {
-      Alert.alert('No data', 'There are no logs to download for this period.');
-      return;
-    }
+  // ============================================================
+  // ALL LOGS MODAL HANDLERS
+  // ============================================================
+  const handleOpenAllLogs = () => {
+    setAllLogsFilter(activityFilter);
+    setAllLogsSearch('');
+    setAllLogsPage(1);
+    setAllLogsFilterOpen(false);
+    setAllLogsModalVisible(true);
+    logActivity(
+      'viewed',
+      'Viewed',
+      'Opened full activity log',
+      `${filteredActivityLogs.length} ${
+        filteredActivityLogs.length === 1 ? 'entry' : 'entries'
+      } in current dashboard period`
+    );
+  };
 
-    setIsDownloading(true);
-
-    const rowsHtml = filteredActivityLogs
-      .map((log) => {
-        const badge = getActionBadgeStyle(log.actionType);
-        const ts = toDate(log.timestamp);
-        const dateStr = ts
-          ? ts.toLocaleString('en-ZA', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-          : '';
-        return `
-          <tr>
-            <td>
-              <span style="
-                display:inline-block;
-                background:${badge.bg};
-                color:${badge.text};
-                padding:3px 8px;
-                border-radius:4px;
-                font-size:9px;
-                font-weight:800;
-                letter-spacing:0.5px;
-              ">${log.action.toUpperCase()}</span>
-            </td>
-            <td>
-              <div style="font-weight:600; color:#111827; font-size:12px;">${log.description}</div>
-              <div style="color:#6B7280; font-size:11px; margin-top:3px;">${log.details}</div>
-            </td>
-            <td style="color:#6B7280; font-size:11px; text-align:right; white-space:nowrap;">${dateStr}</td>
-          </tr>
-        `;
-      })
-      .join('');
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Supervisor Activity Logs</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              padding: 40px 32px;
-              color: #111827;
-              background: #FFFFFF;
-            }
-            .header { margin-bottom: 28px; border-bottom: 3px solid #1E3A8A; padding-bottom: 16px; }
-            .brand { color: #1E3A8A; font-size: 22px; font-weight: 800; margin: 0; }
-            .brand-sub { color: #6B7280; font-size: 10px; letter-spacing: 2px; margin-top: 2px; }
-            .title { color: #1E3A8A; font-size: 18px; font-weight: 700; margin: 20px 0 4px 0; }
-            .meta { color: #6B7280; font-size: 12px; margin-bottom: 24px; }
-            .meta strong { color: #2563EB; }
-            table { width: 100%; border-collapse: collapse; }
-            th {
-              text-align: left;
-              font-size: 10px;
-              letter-spacing: 1px;
-              color: #6B7280;
-              border-bottom: 2px solid #E5E7EB;
-              padding: 10px 8px;
-              text-transform: uppercase;
-            }
-            td {
-              padding: 12px 8px;
-              border-bottom: 1px solid #E5E7EB;
-              vertical-align: top;
-            }
-            .footer {
-              margin-top: 32px;
-              padding-top: 16px;
-              border-top: 1px solid #E5E7EB;
-              color: #9CA3AF;
-              font-size: 10px;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="brand">iCenter</div>
-            <div class="brand-sub">ABSENCE &amp; LEAVE TRACKER</div>
-          </div>
-
-          <div class="title">Supervisor Activity Logs</div>
-          <div class="meta">
-            Period: <strong>${currentFilterLabel}</strong> &nbsp;·&nbsp;
-            ${filteredActivityLogs.length} ${filteredActivityLogs.length === 1 ? 'entry' : 'entries'} &nbsp;·&nbsp;
-            Generated on ${new Date().toLocaleString('en-ZA')}
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th style="width:90px;">Action</th>
-                <th>Description</th>
-                <th style="width:140px; text-align:right;">Date &amp; Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-
-          <div class="footer">
-            iCenter · Absence &amp; Leave Tracker · Confidential
-          </div>
-        </body>
-      </html>
-    `;
-
-    const fileName = `supervisor-activity-logs-${activityFilter}-${Date.now()}.pdf`;
-
-    try {
-      if (Platform.OS === 'web') {
-        try {
-          const html2pdfModule = await import('html2pdf.js');
-          const html2pdf = html2pdfModule.default || html2pdfModule;
-
-          const container = document.createElement('div');
-          container.innerHTML = html;
-          container.style.position = 'fixed';
-          container.style.left = '-9999px';
-          container.style.top = '0';
-          container.style.width = '800px';
-          container.style.background = '#FFFFFF';
-          document.body.appendChild(container);
-
-          await html2pdf()
-            .set({
-              margin: 0,
-              filename: fileName,
-              image: { type: 'jpeg', quality: 0.98 },
-              html2canvas: { scale: 2, useCORS: true, logging: false },
-              jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-            })
-            .from(container)
-            .save();
-
-          document.body.removeChild(container);
-          setIsDownloading(false);
-          return;
-        } catch (webErr) {
-          console.error('Web PDF generation error:', webErr);
-          Alert.alert('Download failed', 'Could not generate PDF. Please try again.');
-          setIsDownloading(false);
-          return;
-        }
-      }
-
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-
-      if (Platform.OS === 'android') {
-        try {
-          const permissions =
-            await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-
-          if (permissions.granted) {
-            const base64 = await FileSystem.readAsStringAsync(uri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-
-            const newUri = await FileSystem.StorageAccessFramework.createFileAsync(
-              permissions.directoryUri,
-              fileName,
-              'application/pdf'
-            );
-
-            await FileSystem.writeAsStringAsync(newUri, base64, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-
-            Alert.alert(
-              'PDF saved',
-              `Your activity log has been saved as:\n\n${fileName}`,
-              [{ text: 'OK' }]
-            );
-          } else {
-            const fallbackUri = FileSystem.documentDirectory + fileName;
-            await FileSystem.copyAsync({ from: uri, to: fallbackUri });
-            Alert.alert(
-              'PDF saved',
-              `Saved to app storage:\n\n${fileName}`,
-              [{ text: 'OK' }]
-            );
-          }
-        } catch (androidErr) {
-          console.error('Android save error:', androidErr);
-          const fallbackUri = FileSystem.documentDirectory + fileName;
-          await FileSystem.copyAsync({ from: uri, to: fallbackUri });
-          Alert.alert('PDF saved', `Saved to app storage:\n\n${fileName}`);
-        }
-        setIsDownloading(false);
-        return;
-      }
-
-      if (Platform.OS === 'ios') {
-        const targetUri = FileSystem.documentDirectory + fileName;
-        await FileSystem.copyAsync({ from: uri, to: targetUri });
-        Alert.alert(
-          'PDF saved',
-          `Your activity log has been saved to the app's Documents folder as:\n\n${fileName}`,
-          [{ text: 'OK' }]
-        );
-        setIsDownloading(false);
-        return;
-      }
-
-      setIsDownloading(false);
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      Alert.alert(
-        'Download failed',
-        'Could not export activity logs as PDF. Please try again.'
-      );
-      setIsDownloading(false);
-    }
+  const handleCloseAllLogs = () => {
+    setAllLogsModalVisible(false);
+    setAllLogsFilterOpen(false);
   };
 
   const pendingCount = requests.filter((request) => request.status === 'Pending').length;
@@ -705,7 +542,9 @@ export default function SupervisorDashboard() {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        source={{
+          uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop',
+        }}
         style={styles.backgroundImage}
         imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
         resizeMode="cover"
@@ -735,6 +574,7 @@ export default function SupervisorDashboard() {
               onPress={() => router.push('/supNotification')}
             >
               <Ionicons name="notifications-outline" size={22} color={theme.headerIcon} />
+              <CountBadge count={unreadNotificationCount} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
@@ -780,31 +620,33 @@ export default function SupervisorDashboard() {
             </TouchableOpacity>
           </View>
 
-          {awaiting.length > 0 ? awaiting.map((request) => (
-            <TouchableOpacity
-              key={request.id || request.rawId || request.name}
-              style={styles.requestCard}
-              activeOpacity={0.75}
-              onPress={() => handleOpenRequest(request)}
-            >
-              <View style={styles.requestInfo}>
-                <Text style={styles.requestName}>{request.name || 'Unknown'}</Text>
-                <Text style={styles.requestDetails}>
-                  {request.reason || request.detail || request.type || 'Leave request'}
-                  {request.dateRange ? ` · ${request.dateRange}` : ''}
-                </Text>
-              </View>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusText}>Pending</Text>
-              </View>
-              <Feather
-                name="chevron-right"
-                size={18}
-                color={theme.textMuted}
-                style={{ marginLeft: 8 }}
-              />
-            </TouchableOpacity>
-          )) : (
+          {awaiting.length > 0 ? (
+            awaiting.map((request) => (
+              <TouchableOpacity
+                key={request.id || request.rawId || request.name}
+                style={styles.requestCard}
+                activeOpacity={0.75}
+                onPress={() => handleOpenRequest(request)}
+              >
+                <View style={styles.requestInfo}>
+                  <Text style={styles.requestName}>{request.name || 'Unknown'}</Text>
+                  <Text style={styles.requestDetails}>
+                    {request.reason || request.detail || request.type || 'Leave request'}
+                    {request.dateRange ? ` · ${request.dateRange}` : ''}
+                  </Text>
+                </View>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusText}>Pending</Text>
+                </View>
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={theme.textMuted}
+                  style={{ marginLeft: 8 }}
+                />
+              </TouchableOpacity>
+            ))
+          ) : (
             <View style={styles.requestCard}>
               <View style={styles.requestInfo}>
                 <Text style={styles.requestName}>No pending requests</Text>
@@ -816,21 +658,23 @@ export default function SupervisorDashboard() {
           <View style={styles.noteSection}>
             <Text style={styles.noteTitle}>Operational note</Text>
             <Text style={styles.noteDesc}>
-              Approvals and rejections made from Operational Requests are written to the shared request store, so the student dashboard and history reflect the latest decision. Every action you take on any supervisor page — scheduling shifts, declaring closures, editing assistants, exporting reports — is recorded in the shared activity log below.
+              Approvals and rejections made from Operational Requests are written to the shared request store, so the student dashboard and history reflect the latest decision. Every action you take on any supervisor page — scheduling shifts, declaring closures, editing assistants — is recorded in the shared activity log below.
             </Text>
           </View>
 
-          {/* SUPERVISOR ACTIVITY LOGS (shared, live) */}
+          {/* ACTIVITY LOGS — SUMMARISED */}
           <View style={styles.activitySection}>
             <View style={styles.activityHeader}>
               <View style={styles.activityHeaderLeft}>
                 <View style={styles.activityIconContainer}>
                   <Feather name="activity" size={16} color={theme.primary} />
                 </View>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.activityTitle}>Activity Logs</Text>
                   <Text style={styles.activitySubtitle}>
-                    {filteredActivityLogs.length} {filteredActivityLogs.length === 1 ? 'entry' : 'entries'} · {currentFilterLabel}
+                    Showing latest {Math.min(SUMMARY_LOG_COUNT, filteredActivityLogs.length)} of{' '}
+                    {filteredActivityLogs.length}{' '}
+                    {filteredActivityLogs.length === 1 ? 'entry' : 'entries'} · {currentFilterLabel}
                   </Text>
                 </View>
               </View>
@@ -847,23 +691,6 @@ export default function SupervisorDashboard() {
                     name={isFilterOpen ? 'chevron-up' : 'chevron-down'}
                     size={12}
                     color={theme.textMain}
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.downloadButton,
-                    isDownloading && { opacity: 0.5 },
-                  ]}
-                  onPress={handleDownloadLogs}
-                  activeOpacity={0.7}
-                  disabled={isDownloading}
-                  accessibilityLabel="Download activity logs as PDF"
-                >
-                  <Feather
-                    name={isDownloading ? 'loader' : 'download'}
-                    size={14}
-                    color={theme.downloadIcon}
                   />
                 </TouchableOpacity>
               </View>
@@ -904,7 +731,7 @@ export default function SupervisorDashboard() {
               </View>
             )}
 
-            {filteredActivityLogs.length === 0 ? (
+            {summaryActivityLogs.length === 0 ? (
               <View style={styles.emptyLogContainer}>
                 <Feather name="inbox" size={28} color={theme.textMuted} />
                 <Text style={styles.emptyLogText}>
@@ -912,9 +739,9 @@ export default function SupervisorDashboard() {
                 </Text>
               </View>
             ) : (
-              filteredActivityLogs.map((log, index) => {
+              summaryActivityLogs.map((log, index) => {
                 const badge = getActionBadgeStyle(log.actionType);
-                const isLast = index === filteredActivityLogs.length - 1;
+                const isLast = index === summaryActivityLogs.length - 1;
 
                 return (
                   <View
@@ -924,18 +751,8 @@ export default function SupervisorDashboard() {
                       isLast && { borderBottomWidth: 0, paddingBottom: 0 },
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.logActionBadge,
-                        { backgroundColor: badge.bg },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.logActionText,
-                          { color: badge.text },
-                        ]}
-                      >
+                    <View style={[styles.logActionBadge, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.logActionText, { color: badge.text }]}>
                         {log.action.toUpperCase()}
                       </Text>
                     </View>
@@ -950,6 +767,18 @@ export default function SupervisorDashboard() {
                 );
               })
             )}
+
+            <TouchableOpacity
+              style={styles.viewAllLogsButton}
+              onPress={handleOpenAllLogs}
+              activeOpacity={0.75}
+            >
+              <Feather name="list" size={14} color="#FFFFFF" />
+              <Text style={styles.viewAllLogsText}>
+                View all activity ({filteredActivityLogs.length})
+              </Text>
+              <Feather name="arrow-right" size={14} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
 
           <View style={{ height: 100 }} />
@@ -964,8 +793,6 @@ export default function SupervisorDashboard() {
         >
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
-            const showBadge = item.name === 'Requests' && pendingCount > 0;
-
             return (
               <TouchableOpacity
                 key={item.name}
@@ -979,11 +806,7 @@ export default function SupervisorDashboard() {
                     size={22}
                     color={isActive ? theme.navActive : theme.navInactive}
                   />
-                  {showBadge && (
-                    <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{pendingCount}</Text>
-                    </View>
-                  )}
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}
@@ -993,6 +816,329 @@ export default function SupervisorDashboard() {
           })}
         </View>
       </ImageBackground>
+
+      {/* ALL ACTIVITY LOGS MODAL */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={isAllLogsModalVisible}
+        onRequestClose={handleCloseAllLogs}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKavContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.allLogsModalContainer}>
+              {/* MODAL HEADER */}
+              <View style={styles.allLogsHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.allLogsTitle}>All Activity Logs</Text>
+                  <Text style={styles.allLogsSubtitle}>
+                    Complete history of supervisor actions. Use the filters and search to
+                    quickly find an entry.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={handleCloseAllLogs}
+                  style={styles.allLogsCloseBtn}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="x" size={20} color={theme.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {/* FILTER ROW */}
+              <View style={styles.allLogsControls}>
+                <TouchableOpacity
+                  style={styles.filterButton}
+                  onPress={() => setAllLogsFilterOpen(!isAllLogsFilterOpen)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="filter" size={12} color={theme.textMain} />
+                  <Text style={styles.filterButtonText}>{allLogsFilterLabel}</Text>
+                  <Feather
+                    name={isAllLogsFilterOpen ? 'chevron-up' : 'chevron-down'}
+                    size={12}
+                    color={theme.textMain}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {isAllLogsFilterOpen && (
+                <View style={styles.filterDropdown}>
+                  {ACTIVITY_FILTERS.map((option, index) => {
+                    const isSelected = allLogsFilter === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        style={[
+                          styles.filterOption,
+                          index === ACTIVITY_FILTERS.length - 1 && { borderBottomWidth: 0 },
+                          isSelected && styles.filterOptionSelected,
+                        ]}
+                        onPress={() => {
+                          setAllLogsFilter(option.value);
+                          setAllLogsFilterOpen(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.filterOptionText,
+                            isSelected && styles.filterOptionTextSelected,
+                          ]}
+                        >
+                          {option.label}
+                        </Text>
+                        {isSelected && (
+                          <Feather name="check" size={14} color={theme.primary} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* SEARCH */}
+              <View style={styles.allLogsSearchBar}>
+                <Feather name="search" size={16} color={theme.textMuted} />
+                <TextInput
+                  style={styles.allLogsSearchInput}
+                  placeholder="Search by action, description, or details"
+                  placeholderTextColor={theme.textMuted}
+                  value={allLogsSearch}
+                  onChangeText={setAllLogsSearch}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                />
+                {!!allLogsSearch && (
+                  <TouchableOpacity
+                    onPress={() => setAllLogsSearch('')}
+                    style={styles.allLogsSearchClear}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="x-circle" size={16} color={theme.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* PAGE META */}
+              {allLogsSearched.length > 0 && (
+                <View style={styles.allLogsMetaBar}>
+                  <Text style={styles.allLogsMetaText}>
+                    {`Showing ${(allLogsPage - 1) * ALL_LOGS_PAGE_SIZE + 1}–${Math.min(
+                      allLogsPage * ALL_LOGS_PAGE_SIZE,
+                      allLogsSearched.length
+                    )} of ${allLogsSearched.length}`}
+                  </Text>
+                  <View style={styles.allLogsPageBadge}>
+                    <Text style={styles.allLogsPageBadgeText}>
+                      {allLogsPage} / {allLogsTotalPages}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* LIST */}
+              <ScrollView
+                style={styles.allLogsList}
+                contentContainerStyle={styles.allLogsListContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                nestedScrollEnabled
+              >
+                {allLogsSearched.length === 0 ? (
+                  <View style={styles.allLogsEmpty}>
+                    <Feather name="inbox" size={32} color={theme.textMuted} />
+                    <Text style={styles.allLogsEmptyText}>
+                      {allLogsSearch.trim()
+                        ? 'No entries match your search.'
+                        : 'No activity recorded in this period.'}
+                    </Text>
+                  </View>
+                ) : (
+                  allLogsPaginated.map((log, index) => {
+                    const badge = getActionBadgeStyle(log.actionType);
+                    const isLast = index === allLogsPaginated.length - 1;
+                    const ts = log.timestamp ? new Date(log.timestamp) : null;
+                    const exactTime =
+                      ts && !Number.isNaN(ts.getTime())
+                        ? ts.toLocaleString('en-ZA', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '';
+
+                    return (
+                      <View
+                        key={log.id}
+                        style={[
+                          styles.allLogsRow,
+                          isLast && { borderBottomWidth: 0 },
+                        ]}
+                      >
+                        <View style={[styles.logActionBadge, { backgroundColor: badge.bg }]}>
+                          <Text style={[styles.logActionText, { color: badge.text }]}>
+                            {log.action.toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.logContent}>
+                          <Text style={styles.logDescription}>{log.description}</Text>
+                          {!!log.details && (
+                            <Text style={styles.logDetails}>{log.details}</Text>
+                          )}
+                          <View style={styles.allLogsMetaRow}>
+                            <Feather name="clock" size={10} color={theme.textMuted} />
+                            <Text style={styles.allLogsMetaRowText}>
+                              {exactTime || formatTimestamp(log.timestamp)}
+                            </Text>
+                            {!!log.supervisor && (
+                              <>
+                                <Feather
+                                  name="user"
+                                  size={10}
+                                  color={theme.textMuted}
+                                  style={{ marginLeft: 10 }}
+                                />
+                                <Text style={styles.allLogsMetaRowText}>
+                                  {log.supervisor}
+                                </Text>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+
+              {/* PAGINATION */}
+              {allLogsSearched.length > 0 && (
+                <View style={styles.allLogsPagination}>
+                  <TouchableOpacity
+                    style={[
+                      styles.allLogsPageIconBtn,
+                      allLogsPage === 1 && styles.allLogsPageBtnDisabled,
+                    ]}
+                    onPress={() => setAllLogsPage(1)}
+                    disabled={allLogsPage === 1}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="chevrons-left"
+                      size={16}
+                      color={allLogsPage === 1 ? theme.textMuted : theme.primary}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.allLogsPageBtn,
+                      allLogsPage === 1 && styles.allLogsPageBtnDisabled,
+                    ]}
+                    onPress={() => setAllLogsPage((p) => Math.max(1, p - 1))}
+                    disabled={allLogsPage === 1}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="chevron-left"
+                      size={16}
+                      color={allLogsPage === 1 ? theme.textMuted : theme.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.allLogsPageBtnText,
+                        allLogsPage === 1 && styles.allLogsPageBtnTextDisabled,
+                      ]}
+                    >
+                      Prev
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.allLogsPageInfo}>
+                    <Text style={styles.allLogsPageInfoText}>
+                      Page {allLogsPage} of {allLogsTotalPages}
+                    </Text>
+                    <Text style={styles.allLogsPageInfoSub}>
+                      {allLogsSearched.length}{' '}
+                      {allLogsSearched.length === 1 ? 'entry' : 'entries'} total
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.allLogsPageBtn,
+                      allLogsPage === allLogsTotalPages && styles.allLogsPageBtnDisabled,
+                    ]}
+                    onPress={() =>
+                      setAllLogsPage((p) => Math.min(allLogsTotalPages, p + 1))
+                    }
+                    disabled={allLogsPage === allLogsTotalPages}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.allLogsPageBtnText,
+                        allLogsPage === allLogsTotalPages &&
+                          styles.allLogsPageBtnTextDisabled,
+                      ]}
+                    >
+                      Next
+                    </Text>
+                    <Feather
+                      name="chevron-right"
+                      size={16}
+                      color={
+                        allLogsPage === allLogsTotalPages
+                          ? theme.textMuted
+                          : theme.primary
+                      }
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.allLogsPageIconBtn,
+                      allLogsPage === allLogsTotalPages && styles.allLogsPageBtnDisabled,
+                    ]}
+                    onPress={() => setAllLogsPage(allLogsTotalPages)}
+                    disabled={allLogsPage === allLogsTotalPages}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="chevrons-right"
+                      size={16}
+                      color={
+                        allLogsPage === allLogsTotalPages
+                          ? theme.textMuted
+                          : theme.primary
+                      }
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* FOOTER */}
+              <View style={styles.allLogsFooter}>
+                <TouchableOpacity
+                  style={styles.allLogsCloseOutline}
+                  onPress={handleCloseAllLogs}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.allLogsCloseOutlineText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* REQUEST DETAILS MODAL */}
       <Modal
@@ -1191,7 +1337,11 @@ export default function SupervisorDashboard() {
               ) : (
                 <View style={styles.requestModalResolvedNote}>
                   <Feather
-                    name={selectedRequestStatus.toLowerCase() === 'approved' ? 'check-circle' : 'x-circle'}
+                    name={
+                      selectedRequestStatus.toLowerCase() === 'approved'
+                        ? 'check-circle'
+                        : 'x-circle'
+                    }
                     size={14}
                     color={
                       selectedRequestStatus.toLowerCase() === 'approved'
@@ -1262,7 +1412,7 @@ const getStyles = (theme) =>
       fontFamily: 'serif',
       marginBottom: 8,
     },
-    heroSubtitle: { fontSize: 14, color: theme.textMuted, lineHeight: 20 },
+    heroSubtitle: { fontSize: 14, color: '#000000', lineHeight: 20 },
     metricsGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
@@ -1403,16 +1553,6 @@ const getStyles = (theme) =>
       color: theme.textMain,
       marginHorizontal: 6,
     },
-    downloadButton: {
-      width: 34,
-      height: 34,
-      borderRadius: 6,
-      backgroundColor: theme.downloadBg,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
     filterDropdown: {
       backgroundColor: theme.card,
       borderWidth: 1,
@@ -1501,6 +1641,232 @@ const getStyles = (theme) =>
       marginTop: 8,
       textAlign: 'center',
       paddingHorizontal: 12,
+    },
+
+    viewAllLogsButton: {
+      marginTop: 14,
+      paddingVertical: 12,
+      borderRadius: 8,
+      backgroundColor: theme.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    viewAllLogsText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: 'bold',
+      marginHorizontal: 4,
+    },
+
+    modalKavContainer: { flex: 1, width: '100%' },
+    allLogsModalContainer: {
+      width: '100%',
+      maxWidth: 620,
+      backgroundColor: theme.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 20,
+      maxHeight: '92%',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      elevation: 10,
+      flexShrink: 1,
+    },
+    allLogsHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      paddingBottom: 12,
+      marginBottom: 14,
+    },
+    allLogsTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: theme.textMain,
+      marginBottom: 4,
+    },
+    allLogsSubtitle: {
+      fontSize: 12,
+      color: theme.textMuted,
+      lineHeight: 17,
+    },
+    allLogsCloseBtn: {
+      padding: 4,
+      marginLeft: 8,
+    },
+    allLogsControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      gap: 10,
+      marginBottom: 10,
+    },
+    allLogsSearchBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      marginBottom: 10,
+    },
+    allLogsSearchInput: {
+      flex: 1,
+      paddingVertical: 10,
+      fontSize: 13,
+      color: theme.textMain,
+      marginLeft: 8,
+    },
+    allLogsSearchClear: { padding: 4 },
+    allLogsMetaBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 4,
+      marginBottom: 8,
+    },
+    allLogsMetaText: {
+      fontSize: 11,
+      color: theme.textMuted,
+      fontWeight: '600',
+    },
+    allLogsPageBadge: {
+      backgroundColor: theme.workflowBg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    allLogsPageBadgeText: {
+      fontSize: 11,
+      color: theme.primary,
+      fontWeight: 'bold',
+    },
+    allLogsList: {
+      flexGrow: 0,
+      maxHeight: 420,
+      minHeight: 120,
+      marginBottom: 12,
+    },
+    allLogsListContent: { paddingBottom: 4 },
+    allLogsRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    allLogsMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginTop: 6,
+      gap: 4,
+    },
+    allLogsMetaRowText: {
+      fontSize: 10,
+      color: theme.textMuted,
+      fontWeight: '600',
+      marginLeft: 3,
+    },
+    allLogsEmpty: {
+      alignItems: 'center',
+      paddingVertical: 40,
+    },
+    allLogsEmptyText: {
+      fontSize: 13,
+      color: theme.textMuted,
+      marginTop: 10,
+      textAlign: 'center',
+      paddingHorizontal: 16,
+    },
+    allLogsPagination: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 6,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      paddingTop: 12,
+    },
+    allLogsPageBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: theme.workflowBg,
+    },
+    allLogsPageIconBtn: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 34,
+      height: 34,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: theme.workflowBg,
+    },
+    allLogsPageBtnDisabled: {
+      borderColor: theme.border,
+      backgroundColor: theme.bg,
+    },
+    allLogsPageBtnText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: theme.primary,
+    },
+    allLogsPageBtnTextDisabled: {
+      color: theme.textMuted,
+    },
+    allLogsPageInfo: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    allLogsPageInfoText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: theme.textMain,
+    },
+    allLogsPageInfoSub: {
+      fontSize: 10,
+      color: theme.textMuted,
+      marginTop: 2,
+    },
+    allLogsFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      paddingTop: 14,
+    },
+    allLogsCloseOutline: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    allLogsCloseOutlineText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.textMain,
     },
 
     bottomNav: {

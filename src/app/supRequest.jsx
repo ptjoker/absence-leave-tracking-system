@@ -20,6 +20,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import logoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -133,6 +134,11 @@ export default function SupervisorRequests() {
 
   const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
   const styles = useSupervisorStyles(baseStyles);
+  const {
+    pendingRequestCount,
+    unreadNotificationCount,
+    refreshRequests: refreshBadgeCounts,
+  } = useSupervisorBadges();
 
   const loadRequests = async () => {
     try {
@@ -193,6 +199,7 @@ export default function SupervisorRequests() {
       setSubmissions((prev) =>
         prev.map((s) => (s.id === item.id ? { ...s, status: newStatus } : s))
       );
+      refreshBadgeCounts();
     } catch (err) {
       console.error('Update error:', err);
       Alert.alert('Connection error', 'Could not reach the server.');
@@ -248,6 +255,7 @@ export default function SupervisorRequests() {
               onPress={() => router.push('/supNotification')}
             >
               <Ionicons name="notifications-outline" size={22} color={theme.primary} />
+              <CountBadge count={unreadNotificationCount} />
             </TouchableOpacity>
 
             {/* Logout */}
@@ -347,11 +355,7 @@ export default function SupervisorRequests() {
                     size={22}
                     color={isActive ? theme.primary : theme.textMuted}
                   />
-                  {item.name === 'Requests' && pendingCount > 0 ? (
-                    <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{pendingCount}</Text>
-                    </View>
-                  ) : null}
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}

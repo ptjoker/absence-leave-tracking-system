@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -80,7 +81,7 @@ const staffData = [
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
-  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
+  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest'     },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
   { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
@@ -93,6 +94,7 @@ export default function PerformanceReports() {
 
   const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
   const styles = useSupervisorStyles(baseStyles);
+  const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -132,6 +134,7 @@ export default function PerformanceReports() {
                 onPress={() => router.push('/supNotification')}
               >
                 <Ionicons name="notifications-outline" size={22} color={theme.primary} />
+                <CountBadge count={unreadNotificationCount} />
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -330,11 +333,7 @@ export default function PerformanceReports() {
                     size={22}
                     color={isActive ? theme.primary : theme.textMuted}
                   />
-                  {item.badge ? (
-                    <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{item.badge}</Text>
-                    </View>
-                  ) : null}
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}

@@ -11,7 +11,9 @@ import {
   Alert,
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -25,6 +27,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 const formatDate = (date) => {
@@ -155,24 +158,60 @@ const formatShortDate = (iso) => {
   } catch { return ''; }
 };
 
-const computeShiftDuration = (clockIn, clockOut) => {
-  if (!clockIn) return '—';
-  const start = new Date(clockIn).getTime();
-  if (Number.isNaN(start)) return '—';
-  const now = Date.now();
-  if (start > now) return 'Pending';
-  if (!clockOut) return 'In progress';
-  const end = new Date(clockOut).getTime();
-  if (Number.isNaN(end) || end < start) return '—';
-  const totalMinutes = Math.round((end - start) / 60000);
+const formatDurationFromMinutes = (totalMinutes) => {
+  if (!Number.isFinite(totalMinutes) || totalMinutes < 0) return '—';
   const hrs = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
   return `${hrs}h ${String(mins).padStart(2, '0')}m`;
 };
 
+const computeShiftDuration = (clockIn, clockOut, nowMs = Date.now()) => {
+  if (!clockIn) return '—';
+  const start = new Date(clockIn).getTime();
+  if (Number.isNaN(start)) return '—';
+  if (start > nowMs) return 'Pending';
+  if (!clockOut) {
+    return `${formatDurationFromMinutes(Math.round((nowMs - start) / 60000))} (live)`;
+  }
+  const end = new Date(clockOut).getTime();
+  if (Number.isNaN(end) || end < start) return '—';
+  return formatDurationFromMinutes(Math.round((end - start) / 60000));
+};
+
+const isLogInProgress = (log) => !!log?.clockIn && !log?.clockOut && !log?.cancelled;
+const isLogPending    = (log) => !log?.cancelled && !log?.clockIn;
+
+const DEFAULT_SHIFT_LENGTH_MINUTES = 240;
+
+const getScheduledWindowMs = (log) => {
+  if (!log?.shiftDate || !log?.scheduledStart) return null;
+  const dateKey = String(log.shiftDate).slice(0, 10);
+  const startStr = String(log.scheduledStart).trim();
+  const startMs = new Date(`${dateKey}T${startStr.length === 5 ? startStr : startStr.padStart(5, '0')}:00`).getTime();
+  if (Number.isNaN(startMs)) return null;
+
+  let endMs = null;
+  const endStr = log.scheduledEnd ? String(log.scheduledEnd).trim() : '';
+  if (endStr) {
+    endMs = new Date(`${dateKey}T${endStr.length === 5 ? endStr : endStr.padStart(5, '0')}:00`).getTime();
+    if (Number.isNaN(endMs) || endMs <= startMs) endMs = null;
+  }
+  if (!endMs) {
+    endMs = startMs + DEFAULT_SHIFT_LENGTH_MINUTES * 60 * 1000;
+  }
+  return { startMs, endMs };
+};
+
+const isLogAbsent = (log, nowMs = Date.now()) => {
+  if (!log || log.cancelled || log.clockIn) return false;
+  const win = getScheduledWindowMs(log);
+  if (!win) return false;
+  return nowMs > win.endMs;
+};
+
 const getLogTimestamp = (log) => {
   if (!log) return null;
-  const iso = log.clockIn || log.shiftDate;
+  const iso = log.clockIn || (log.shiftDate ? `${log.shiftDate}T00:00:00` : null);
   if (!iso) return null;
   const t = new Date(iso).getTime();
   return Number.isNaN(t) ? null : t;
@@ -209,32 +248,51 @@ const filterLogsByRange = (logs, filter) => {
   });
 };
 
-const buildShiftLogsFromShifts = (shifts, closuresByDate = {}) => {
+const buildShiftLogsFromShifts = (shifts, closuresByDate = {}, portalLogs = []) => {
   if (!Array.isArray(shifts)) return [];
-  const toIso = (dateKey, time) => {
-    if (!dateKey || !time) return null;
-    const parts = String(time).split(':');
-    if (parts.length < 2) return null;
-    const h = String(parts[0]).padStart(2, '0');
-    const m = String(parts[1]).padStart(2, '0');
-    return `${dateKey}T${h}:${m}:00`;
-  };
+
+  const logsById = {};
+  const logsByUserDate = {};
+  (Array.isArray(portalLogs) ? portalLogs : []).forEach((entry) => {
+    if (!entry) return;
+    if (entry.id) logsById[String(entry.id)] = entry;
+    if (entry.shiftId) logsById[String(entry.shiftId)] = entry;
+    const uid = entry.userId ?? entry.user_id ?? entry.studentId;
+    const dk = String(entry.shiftDate || entry.date || '').slice(0, 10);
+    if (uid != null && dk) logsByUserDate[`${uid}|${dk}`] = entry;
+  });
+
   return shifts.map((shift) => {
     const dateKey = String(shift.shiftDate || '').slice(0, 10);
     const startTime = shift.startTime || shift.start_time || null;
     const endTime   = shift.endTime   || shift.end_time   || null;
     const closureOnDay = closuresByDate[dateKey];
     const cancelled = !!closureOnDay || !!shift.cancelled;
+
+    const portal =
+      logsById[String(shift.id)] ||
+      logsByUserDate[`${shift.userId}|${dateKey}`] ||
+      null;
+
+    const clockIn  = portal?.clockIn  || portal?.clock_in  || portal?.startedAt  || null;
+    const clockOut = portal?.clockOut || portal?.clock_out || portal?.endedAt    || null;
+
     return {
       id: shift.id || `log-${dateKey}-${shift.userId ?? Math.random()}`,
       userId: shift.userId,
-      studentName: shift.studentName || shift.name || shift.assistantName || shift.userName || 'Assistant',
+      studentName:
+        shift.studentName || shift.name || shift.assistantName || shift.userName ||
+        portal?.studentName || portal?.name || 'Assistant',
+      studentNumber: shift.studentNumber || portal?.studentNumber || '',
       shiftDate: dateKey,
-      clockIn: toIso(dateKey, startTime),
-      clockOut: toIso(dateKey, endTime),
-      position: shift.position,
+      scheduledStart: startTime,
+      scheduledEnd: endTime,
+      clockIn,
+      clockOut,
+      position: shift.position || portal?.position,
       cancelled,
       cancelReason: cancelled ? closureOnDay?.type || 'Closure' : null,
+      source: portal ? 'portal' : 'scheduled',
     };
   });
 };
@@ -245,6 +303,8 @@ const LOG_FILTERS = [
   { key: 'month', label: 'This month', icon: 'calendar' },
   { key: 'all',   label: 'All',        icon: 'list' },
 ];
+
+const LOGS_PAGE_SIZE = 6;
 
 // ============================================================
 // HOLIDAY UTILITIES
@@ -331,7 +391,7 @@ const POSITION_OPTIONS = ['iCenter', 'Circular2'];
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
-  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest', badge: 1 },
+  { name: 'Requests',    icon: 'document-text-outline', path: '/supRequest'     },
   { name: 'Assistances', icon: 'people-outline',        path: '/supAssistants'  },
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
   { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
@@ -380,13 +440,19 @@ export default function MasterSchedule() {
   const [logsSearchQuery, setLogsSearchQuery] = useState('');
   const [logsFilter, setLogsFilter] = useState('all');
 
+  const [logsPage, setLogsPage] = useState(1);
+
   const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
   const styles = useSupervisorStyles(baseStyles);
+  const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
   const [user, setUser] = useState(null);
   const [shifts, setShifts] = useState([]);
   const [assistants, setAssistants] = useState([]);
   const [closures, setClosures] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [portalLogs, setPortalLogs] = useState([]);
+  const [nowTick, setNowTick] = useState(Date.now());
 
   const selectedDateKey = useMemo(
     () => String(selectedDate || '').replace(/\//g, '-'),
@@ -401,10 +467,6 @@ export default function MasterSchedule() {
     return res.valid;
   }, [shiftStartTime, selectedDateKey]);
 
-  // ============================================================
-  // ACTIVITY LOG WRITER — writes to the SHARED store so the
-  // dashboard and every other page see the same feed.
-  // ============================================================
   const logActivity = (actionType, action, description, details) => {
     const supervisorName = user
       ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor'
@@ -439,6 +501,16 @@ export default function MasterSchedule() {
       else if (assistantData?.error) console.warn('Calendar assistants load error:', assistantData.error);
 
       try {
+        const logsRes = await apiFetch('/api/shift-logs');
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          setPortalLogs(Array.isArray(logsData) ? logsData : []);
+        }
+      } catch (e) {
+        console.warn('Portal shift logs load failed:', e?.message || e);
+      }
+
+      try {
         const closureRes = await apiFetch('/api/closures');
         if (closureRes.ok) {
           const closureData = await closureRes.json();
@@ -469,8 +541,6 @@ export default function MasterSchedule() {
       .catch((err) => { console.error('Session load error:', err); });
 
     loadData();
-    // Also warm up the shared store so the very first log write has
-    // the latest snapshot on disk.
     loadActivityLogs().catch(() => {});
   }, []);
 
@@ -527,8 +597,8 @@ export default function MasterSchedule() {
   }, [shifts, closuresByDate]);
 
   const shiftLogs = useMemo(
-    () => buildShiftLogsFromShifts(shifts, closuresByDate),
-    [shifts, closuresByDate]
+    () => buildShiftLogsFromShifts(shifts, closuresByDate, portalLogs),
+    [shifts, closuresByDate, portalLogs]
   );
 
   const sortedShiftLogs = useMemo(() => {
@@ -559,6 +629,12 @@ export default function MasterSchedule() {
     });
   }, [rangedShiftLogs, logsSearchQuery]);
 
+  const totalLogPages = Math.max(1, Math.ceil(filteredShiftLogs.length / LOGS_PAGE_SIZE));
+  const paginatedShiftLogs = useMemo(() => {
+    const start = (logsPage - 1) * LOGS_PAGE_SIZE;
+    return filteredShiftLogs.slice(start, start + LOGS_PAGE_SIZE);
+  }, [filteredShiftLogs, logsPage]);
+
   const totalShifts = shifts.length;
   const activeAssistants = assistants.length;
   const upcomingShifts = shifts.filter((shift) => {
@@ -569,6 +645,41 @@ export default function MasterSchedule() {
   const displayName = user
     ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor'
     : 'Supervisor';
+
+  // ============================================================
+  // LIVE TICKER + PORTAL POLLING
+  // ============================================================
+  useEffect(() => {
+    const hasLiveWork = shiftLogs.some(
+      (l) => isLogInProgress(l) || isLogPending(l)
+    );
+    if (!hasLiveWork) return undefined;
+    const id = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, [shiftLogs]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      apiFetch('/api/shift-logs')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (Array.isArray(d)) setPortalLogs(d); })
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    setLogsPage(1);
+  }, [logsFilter, logsSearchQuery]);
+
+  useEffect(() => {
+    if (logsPage > totalLogPages) setLogsPage(totalLogPages);
+  }, [totalLogPages, logsPage]);
+
+  const handlePrevLogsPage = () => setLogsPage((p) => Math.max(1, p - 1));
+  const handleNextLogsPage = () => setLogsPage((p) => Math.min(totalLogPages, p + 1));
+  const handleFirstLogsPage = () => setLogsPage(1);
+  const handleLastLogsPage = () => setLogsPage(totalLogPages);
 
   const handlePrevMonth = () => {
     setDisplayedMonth(new Date(displayedMonth.getFullYear(), displayedMonth.getMonth() - 1, 1));
@@ -801,7 +912,6 @@ export default function MasterSchedule() {
       return [...filtered, newClosure];
     });
 
-    // ✅ SHARED LOG: closure declared on the calendar page
     logActivity(
       'closure',
       'Declared',
@@ -865,7 +975,6 @@ export default function MasterSchedule() {
     };
     setShifts((prev) => [...prev, newShift]);
 
-    // ✅ SHARED LOG: shift created from the calendar page
     logActivity(
       'created',
       'Created',
@@ -892,8 +1001,8 @@ export default function MasterSchedule() {
 
   const colorForLog = (log) => colorForUser(log.userId || log.studentName || 'unknown');
 
-  // ✅ SHARED LOG: opening full shift logs modal
   const handleOpenShiftLogs = () => {
+    setLogsPage(1);
     setShiftLogsModalVisible(true);
     logActivity(
       'viewed',
@@ -903,7 +1012,6 @@ export default function MasterSchedule() {
     );
   };
 
-  // ✅ SHARED LOG: opening full timetable list
   const handleOpenTimetableList = () => {
     setTimetableListVisible(true);
     logActivity(
@@ -914,7 +1022,6 @@ export default function MasterSchedule() {
     );
   };
 
-  // ✅ SHARED LOG: opening document preview
   const handleOpenDocPreview = (item) => {
     setSelectedTimetable(item);
     setDocPreviewVisible(true);
@@ -925,6 +1032,84 @@ export default function MasterSchedule() {
       item?.studentNumber ? `${item.studentNumber} · ${item.fileName || ''}` : ''
     );
   };
+
+  const getLogStatus = (log) => {
+    if (log.cancelled) return 'cancelled';
+    if (log.clockIn && log.clockOut) return 'completed';
+    if (log.clockIn && !log.clockOut) return 'in_progress';
+    if (isLogAbsent(log, nowTick)) return 'absent';
+    return 'pending';
+  };
+
+  const renderDurationPill = (log) => {
+    const status = getLogStatus(log);
+    const duration = computeShiftDuration(log.clockIn, log.clockOut, nowTick);
+
+    let label = duration;
+    if (status === 'cancelled') label = 'Cancelled';
+    else if (status === 'absent') label = 'Absent';
+    else if (status === 'pending') label = 'Not started';
+    else if (status === 'in_progress') label = duration;
+
+    return (
+      <View
+        style={[
+          styles.logDurationPill,
+          status === 'in_progress' && styles.logDurationPillInProgress,
+          status === 'pending' && styles.logDurationPillPending,
+          status === 'cancelled' && styles.logDurationPillCancelled,
+          status === 'absent' && styles.logDurationPillAbsent,
+        ]}
+      >
+        <Text
+          style={[
+            styles.logDurationText,
+            status === 'in_progress' && styles.logDurationTextInProgress,
+            status === 'pending' && styles.logDurationTextPending,
+            status === 'cancelled' && styles.logDurationTextCancelled,
+            status === 'absent' && styles.logDurationTextAbsent,
+          ]}
+        >
+          {label}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderLogTimes = (log, withPosition = false) => (
+    <View style={styles.logMetaRow}>
+      <View style={styles.logClock}>
+        <Feather name="log-in" size={11} color={COLORS.success} />
+        <Text style={styles.logClockText}>
+          {log.clockIn ? formatClockTime(log.clockIn) : '—'}
+        </Text>
+      </View>
+      <Feather name="arrow-right" size={11} color={COLORS.textMuted} />
+      <View style={styles.logClock}>
+        <Feather name="log-out" size={11} color={COLORS.danger} />
+        <Text style={styles.logClockText}>
+          {log.clockOut ? formatClockTime(log.clockOut) : '—'}
+        </Text>
+      </View>
+      {withPosition && !!log.position && (
+        <>
+          <Feather
+            name="map-pin"
+            size={10}
+            color={COLORS.textMuted}
+            style={{ marginLeft: 8 }}
+          />
+          <Text style={styles.logPositionText}>{log.position}</Text>
+        </>
+      )}
+      {!log.clockIn && !!log.scheduledStart && (
+        <Text style={styles.logPositionText}>
+          · scheduled {log.scheduledStart}
+          {log.scheduledEnd ? ` – ${log.scheduledEnd}` : ''}
+        </Text>
+      )}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -958,6 +1143,7 @@ export default function MasterSchedule() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotification')}>
                 <Ionicons name="notifications-outline" size={22} color={theme.primary} />
+                <CountBadge count={unreadNotificationCount} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
                 <Ionicons name="log-out-outline" size={22} color={theme.primary} />
@@ -1180,7 +1366,9 @@ export default function MasterSchedule() {
                 </View>
               </View>
               <Text style={styles.panelSubtitle}>
-                Every shift scheduled on the calendar, with the planned start and end times. Duration is calculated automatically.
+                Live attendance pulled from the student portal. Duration is measured from
+                the exact minute an assistant taps Start Shift until they tap End Shift.
+                Un-started shifts are auto-marked Absent once their scheduled window has passed.
               </Text>
               <View style={styles.filterChipsRow}>
                 {LOG_FILTERS.map((f) => {
@@ -1210,9 +1398,6 @@ export default function MasterSchedule() {
                 <View style={styles.logsList}>
                   {recentShiftLogs.map((log) => {
                     const accent = colorForLog(log);
-                    const duration = computeShiftDuration(log.clockIn, log.clockOut);
-                    const isPending = !log.cancelled && duration === 'Pending';
-                    const inProgress = !log.cancelled && duration === 'In progress';
                     return (
                       <View key={log.id} style={styles.logRow}>
                         <View style={[styles.logAvatar, { backgroundColor: accent }]}>
@@ -1229,35 +1414,9 @@ export default function MasterSchedule() {
                               {formatShortDate(log.clockIn || log.shiftDate)}
                             </Text>
                           </View>
-                          <View style={styles.logMetaRow}>
-                            <View style={styles.logClock}>
-                              <Feather name="log-in" size={11} color={COLORS.success} />
-                              <Text style={styles.logClockText}>{formatClockTime(log.clockIn)}</Text>
-                            </View>
-                            <Feather name="arrow-right" size={11} color={COLORS.textMuted} />
-                            <View style={styles.logClock}>
-                              <Feather name="log-out" size={11} color={COLORS.danger} />
-                              <Text style={styles.logClockText}>
-                                {log.clockOut ? formatClockTime(log.clockOut) : '—'}
-                              </Text>
-                            </View>
-                          </View>
+                          {renderLogTimes(log, false)}
                         </View>
-                        <View style={[
-                          styles.logDurationPill,
-                          inProgress && styles.logDurationPillInProgress,
-                          isPending && styles.logDurationPillPending,
-                          log.cancelled && styles.logDurationPillCancelled,
-                        ]}>
-                          <Text style={[
-                            styles.logDurationText,
-                            inProgress && styles.logDurationTextInProgress,
-                            isPending && styles.logDurationTextPending,
-                            log.cancelled && styles.logDurationTextCancelled,
-                          ]}>
-                            {log.cancelled ? 'Cancelled' : duration}
-                          </Text>
-                        </View>
+                        {renderDurationPill(log)}
                       </View>
                     );
                   })}
@@ -1295,6 +1454,8 @@ export default function MasterSchedule() {
               <Text style={styles.tipText}>• Shifts Mon–Thu: 08:00–21:00 · Fri: 08:00–16:00 · Sat: 09:00–17:00.</Text>
               <Text style={styles.tipText}>• Closure days (red) block new shifts automatically.</Text>
               <Text style={styles.tipText}>• Shifts on a closure day are marked CANCELLED.</Text>
+              <Text style={styles.tipText}>• Start/End times come from the student portal. If a scheduled window elapses with no clock-in, the shift is marked Absent.</Text>
+              <Text style={styles.tipText}>• In Shift logs, use Prev / Next to page through the full list.</Text>
             </View>
 
             {/* TIMETABLE PANEL */}
@@ -1343,11 +1504,7 @@ export default function MasterSchedule() {
                     size={22}
                     color={isActive ? theme.primary : theme.textMuted}
                   />
-                  {item.badge ? (
-                    <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{item.badge}</Text>
-                    </View>
-                  ) : null}
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}
@@ -2029,7 +2186,7 @@ export default function MasterSchedule() {
         </SafeAreaView>
       </Modal>
 
-      {/* SHIFT LOGS FULL LIST MODAL */}
+      {/* SHIFT LOGS FULL LIST MODAL — PAGINATED + KEYBOARD AWARE */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -2037,131 +2194,246 @@ export default function MasterSchedule() {
         onRequestClose={() => {
           setShiftLogsModalVisible(false);
           setLogsSearchQuery('');
+          setLogsPage(1);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.timetableModalContainer}>
-            <View style={styles.timetableHeader}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.timetableTitle}>Shift logs</Text>
-                <Text style={styles.timetableSubtitle}>
-                  Every shift scheduled on the calendar, with planned start/end times and total hours. Cancelled shifts (closures) are shown in red. Shifts that haven't started yet are marked Pending.
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => {
-                  setShiftLogsModalVisible(false);
-                  setLogsSearchQuery('');
-                }}
-                style={styles.timetableCloseButton}
-              >
-                <Feather name="x" size={20} color={COLORS.textMain} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.filterChipsRow}>
-              {LOG_FILTERS.map((f) => {
-                const isActive = logsFilter === f.key;
-                return (
-                  <TouchableOpacity
-                    key={f.key}
-                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                    onPress={() => setLogsFilter(f.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Feather name={f.icon} size={12} color={isActive ? '#FFFFFF' : COLORS.textMuted} />
-                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                      {f.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={styles.searchBarContainer}>
-              <Feather name="search" size={18} color={COLORS.textMuted} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search by name, student number, or position"
-                placeholderTextColor={COLORS.textMuted}
-                value={logsSearchQuery}
-                onChangeText={setLogsSearchQuery}
-              />
-            </View>
-            <ScrollView style={styles.logsFullList} showsVerticalScrollIndicator={false}>
-              {filteredShiftLogs.length === 0 ? (
-                <View style={styles.noUploadsContainer}>
-                  <Feather name="inbox" size={28} color={COLORS.textMuted} />
-                  <Text style={styles.noUploadsText}>No shift logs found in this period.</Text>
+        <KeyboardAvoidingView
+          style={styles.modalKavContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        >
+          <View style={styles.shiftLogsModalOverlay}>
+            <View style={styles.shiftLogsModalContainer}>
+              {/* HEADER — compact so the list gets the rest of the height */}
+              <View style={styles.shiftLogsHeader}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={styles.shiftLogsTitle}>Shift logs</Text>
+                  <Text style={styles.shiftLogsSubtitle}>
+                    Live attendance from the student portal. Duration is the exact
+                    elapsed time between the assistant's Start Shift and End Shift taps.
+                  </Text>
                 </View>
-              ) : (
-                filteredShiftLogs.map((log) => {
-                  const accent = colorForLog(log);
-                  const duration = computeShiftDuration(log.clockIn, log.clockOut);
-                  const isPending = !log.cancelled && duration === 'Pending';
-                  const inProgress = !log.cancelled && duration === 'In progress';
+                <TouchableOpacity
+                  onPress={() => {
+                    setShiftLogsModalVisible(false);
+                    setLogsSearchQuery('');
+                    setLogsPage(1);
+                  }}
+                  style={styles.timetableCloseButton}
+                >
+                  <Feather name="x" size={20} color={COLORS.textMain} />
+                </TouchableOpacity>
+              </View>
+
+              {/* FILTER CHIPS */}
+              <View style={styles.filterChipsRow}>
+                {LOG_FILTERS.map((f) => {
+                  const isActive = logsFilter === f.key;
                   return (
-                    <View key={log.id} style={styles.logsFullRow}>
-                      <View style={[styles.logAvatar, { backgroundColor: accent }]}>
-                        <Text style={styles.logAvatarText}>
-                          {(log.studentName || log.name || 'A').charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={styles.logNameRow}>
-                          <Text style={styles.logName} numberOfLines={1}>
-                            {log.studentName || log.name || 'Assistant'}
-                          </Text>
-                          <Text style={styles.logDateText}>
-                            {formatShortDate(log.clockIn || log.shiftDate)}
+                    <TouchableOpacity
+                      key={f.key}
+                      style={[styles.filterChip, isActive && styles.filterChipActive]}
+                      onPress={() => setLogsFilter(f.key)}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name={f.icon} size={12} color={isActive ? '#FFFFFF' : COLORS.textMuted} />
+                      <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                        {f.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* SEARCH */}
+              <View style={styles.searchBarContainer}>
+                <Feather name="search" size={18} color={COLORS.textMuted} style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search by name, student number, or position"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={logsSearchQuery}
+                  onChangeText={setLogsSearchQuery}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                />
+                {!!logsSearchQuery && (
+                  <TouchableOpacity
+                    onPress={() => setLogsSearchQuery('')}
+                    activeOpacity={0.7}
+                    style={{ padding: 4 }}
+                  >
+                    <Feather name="x-circle" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* PAGE META BAR */}
+              {filteredShiftLogs.length > 0 && (
+                <View style={styles.logsPageMetaBar}>
+                  <Text style={styles.logsPageMetaText}>
+                    {`Showing ${(logsPage - 1) * LOGS_PAGE_SIZE + 1}–${Math.min(
+                      logsPage * LOGS_PAGE_SIZE,
+                      filteredShiftLogs.length
+                    )} of ${filteredShiftLogs.length}`}
+                  </Text>
+                  <View style={styles.logsPageBadge}>
+                    <Text style={styles.logsPageBadgeText}>
+                      {logsPage} / {totalLogPages}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* LIST — flex:1 so it takes remaining space & scrolls */}
+              <ScrollView
+                style={styles.logsFullList}
+                contentContainerStyle={styles.logsFullListContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                nestedScrollEnabled
+              >
+                {filteredShiftLogs.length === 0 ? (
+                  <View style={styles.noUploadsContainer}>
+                    <Feather name="inbox" size={28} color={COLORS.textMuted} />
+                    <Text style={styles.noUploadsText}>No shift logs found in this period.</Text>
+                  </View>
+                ) : (
+                  paginatedShiftLogs.map((log) => {
+                    const accent = colorForLog(log);
+                    const status = getLogStatus(log);
+                    return (
+                      <View key={log.id} style={styles.logsFullRow}>
+                        <View style={[styles.logAvatar, { backgroundColor: accent }]}>
+                          <Text style={styles.logAvatarText}>
+                            {(log.studentName || log.name || 'A').charAt(0).toUpperCase()}
                           </Text>
                         </View>
-                        <View style={styles.logMetaRow}>
-                          <Feather name="log-in" size={11} color={COLORS.success} />
-                          <Text style={styles.logClockText}>{formatClockTime(log.clockIn)}</Text>
-                          <Feather
-                            name="arrow-right"
-                            size={11}
-                            color={COLORS.textMuted}
-                            style={{ marginHorizontal: 6 }}
-                          />
-                          <Feather name="log-out" size={11} color={COLORS.danger} />
-                          <Text style={styles.logClockText}>
-                            {log.clockOut ? formatClockTime(log.clockOut) : '—'}
-                          </Text>
-                          {!!log.position && (
-                            <>
-                              <Feather
-                                name="map-pin"
-                                size={10}
-                                color={COLORS.textMuted}
-                                style={{ marginLeft: 8 }}
-                              />
-                              <Text style={styles.logPositionText}>{log.position}</Text>
-                            </>
+                        <View style={{ flex: 1 }}>
+                          <View style={styles.logNameRow}>
+                            <Text style={styles.logName} numberOfLines={1}>
+                              {log.studentName || log.name || 'Assistant'}
+                            </Text>
+                            <Text style={styles.logDateText}>
+                              {formatShortDate(log.clockIn || log.shiftDate)}
+                            </Text>
+                          </View>
+                          {renderLogTimes(log, true)}
+                          {status === 'absent' && (
+                            <View style={[styles.cancelledTag, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                              <Feather name="user-x" size={10} color="#991B1B" />
+                              <Text style={[styles.cancelledTagText, { color: '#991B1B' }]}>
+                                NO CLOCK-IN — AUTO MARKED ABSENT
+                              </Text>
+                            </View>
+                          )}
+                          {status === 'pending' && log.source === 'scheduled' && (
+                            <View style={[styles.cancelledTag, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+                              <Feather name="clock" size={10} color="#92400E" />
+                              <Text style={[styles.cancelledTagText, { color: '#92400E' }]}>
+                                AWAITING START ON PORTAL
+                              </Text>
+                            </View>
                           )}
                         </View>
+                        {renderDurationPill(log)}
                       </View>
-                      <View style={[
-                        styles.logDurationPill,
-                        inProgress && styles.logDurationPillInProgress,
-                        isPending && styles.logDurationPillPending,
-                        log.cancelled && styles.logDurationPillCancelled,
-                      ]}>
-                        <Text style={[
-                          styles.logDurationText,
-                          inProgress && styles.logDurationTextInProgress,
-                          isPending && styles.logDurationTextPending,
-                          log.cancelled && styles.logDurationTextCancelled,
-                        ]}>
-                          {log.cancelled ? 'Cancelled' : duration}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })
+                    );
+                  })
+                )}
+              </ScrollView>
+
+              {/* PAGINATION CONTROLS */}
+              {filteredShiftLogs.length > 0 && (
+                <View style={styles.paginationRow}>
+                  <TouchableOpacity
+                    style={[styles.paginationIconBtn, logsPage === 1 && styles.paginationBtnDisabled]}
+                    onPress={handleFirstLogsPage}
+                    disabled={logsPage === 1}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="chevrons-left"
+                      size={16}
+                      color={logsPage === 1 ? '#9CA3AF' : COLORS.primary}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.paginationBtn, logsPage === 1 && styles.paginationBtnDisabled]}
+                    onPress={handlePrevLogsPage}
+                    disabled={logsPage === 1}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="chevron-left"
+                      size={16}
+                      color={logsPage === 1 ? '#9CA3AF' : COLORS.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.paginationBtnText,
+                        logsPage === 1 && styles.paginationBtnTextDisabled,
+                      ]}
+                    >
+                      Prev
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.paginationInfo}>
+                    <Text style={styles.paginationInfoText}>
+                      Page {logsPage} of {totalLogPages}
+                    </Text>
+                    <Text style={styles.paginationInfoSub}>
+                      {filteredShiftLogs.length} shift{filteredShiftLogs.length === 1 ? '' : 's'} total
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.paginationBtn,
+                      logsPage === totalLogPages && styles.paginationBtnDisabled,
+                    ]}
+                    onPress={handleNextLogsPage}
+                    disabled={logsPage === totalLogPages}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.paginationBtnText,
+                        logsPage === totalLogPages && styles.paginationBtnTextDisabled,
+                      ]}
+                    >
+                      Next
+                    </Text>
+                    <Feather
+                      name="chevron-right"
+                      size={16}
+                      color={logsPage === totalLogPages ? '#9CA3AF' : COLORS.primary}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.paginationIconBtn,
+                      logsPage === totalLogPages && styles.paginationBtnDisabled,
+                    ]}
+                    onPress={handleLastLogsPage}
+                    disabled={logsPage === totalLogPages}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name="chevrons-right"
+                      size={16}
+                      color={logsPage === totalLogPages ? '#9CA3AF' : COLORS.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
               )}
-            </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* CUSTOM DATE PICKER */}
@@ -2210,7 +2482,7 @@ export default function MasterSchedule() {
   );
 }
 
-// --- Styles (unchanged from your original) ---
+// --- Styles ---
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
@@ -2219,6 +2491,9 @@ const baseStyles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
   scrollContent: { padding: 16 },
+
+  modalKavContainer: { flex: 1, width: '100%' },
+
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#FFFFFF',
@@ -2372,7 +2647,11 @@ const baseStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  logsFullList: { maxHeight: 380 },
+  logsFullList: {
+    flex: 1,
+    minHeight: 220,
+  },
+  logsFullListContent: { paddingBottom: 4 },
   logAvatar: {
     width: 34, height: 34, borderRadius: 17,
     justifyContent: 'center', alignItems: 'center', marginRight: 10,
@@ -2398,10 +2677,47 @@ const baseStyles = StyleSheet.create({
   logDurationPillInProgress: { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' },
   logDurationPillCancelled: { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' },
   logDurationPillPending: { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' },
+  logDurationPillAbsent: { backgroundColor: '#DC2626', borderColor: '#991B1B' },
   logDurationText: { fontSize: 11, color: COLORS.primary, fontWeight: 'bold', letterSpacing: 0.2 },
   logDurationTextInProgress: { color: '#92400E' },
   logDurationTextCancelled: { color: '#B91C1C' },
   logDurationTextPending: { color: '#5B21B6' },
+  logDurationTextAbsent: { color: '#FFFFFF', fontWeight: 'bold' },
+
+  logsPageMetaBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 4, marginBottom: 8,
+  },
+  logsPageMetaText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  logsPageBadge: {
+    backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE',
+    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  logsPageBadgeText: { fontSize: 11, color: COLORS.primary, fontWeight: 'bold' },
+  paginationRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderTopWidth: 1, borderTopColor: COLORS.border,
+    paddingTop: 12, marginTop: 8, gap: 6,
+  },
+  paginationBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+    borderWidth: 1, borderColor: COLORS.primary, backgroundColor: '#EFF6FF',
+  },
+  paginationIconBtn: {
+    alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: 8,
+    borderWidth: 1, borderColor: COLORS.primary, backgroundColor: '#EFF6FF',
+  },
+  paginationBtnDisabled: {
+    borderColor: COLORS.border, backgroundColor: '#F9FAFB',
+  },
+  paginationBtnText: { fontSize: 13, fontWeight: 'bold', color: COLORS.primary },
+  paginationBtnTextDisabled: { color: '#9CA3AF' },
+  paginationInfo: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  paginationInfoText: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
+  paginationInfoSub: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+
   tipsCard: { backgroundColor: '#F0FDF4', borderColor: '#DCFCE7' },
   panelHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   panelTitle: { fontSize: 14, fontWeight: 'bold', color: COLORS.textMain, marginLeft: 8 },
@@ -2426,10 +2742,21 @@ const baseStyles = StyleSheet.create({
   navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
   navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
   navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
+
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center', alignItems: 'center', padding: 20,
   },
+  shiftLogsModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 40,
+    paddingBottom: 40,
+  },
+
   modalContainer: {
     width: '100%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 16,
     padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
@@ -2710,7 +3037,40 @@ const baseStyles = StyleSheet.create({
   timetableModalContainer: {
     width: '100%', maxWidth: 600, backgroundColor: '#FFFFFF', borderRadius: 16,
     padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, maxHeight: '80%',
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+    maxHeight: '90%',
+    flexShrink: 1,
+  },
+  shiftLogsModalContainer: {
+    width: '100%',
+    maxWidth: 600,
+    minHeight: '78%',
+    maxHeight: '94%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+    flexShrink: 1,
+  },
+  shiftLogsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  shiftLogsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.textMain,
+    marginBottom: 2,
+  },
+  shiftLogsSubtitle: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    lineHeight: 16,
   },
   timetableHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
@@ -2719,7 +3079,7 @@ const baseStyles = StyleSheet.create({
   timetableTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
   timetableSubtitle: { fontSize: 14, color: COLORS.textMain, lineHeight: 20 },
   timetableCloseButton: { padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6', marginLeft: 10 },
-  searchBarContainer: {
+   searchBarContainer: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
     paddingHorizontal: 12, marginBottom: 12,
@@ -2744,7 +3104,12 @@ const baseStyles = StyleSheet.create({
   },
   viewButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
   noUploadsContainer: { paddingVertical: 30, alignItems: 'center' },
-  noUploadsText: { fontSize: 14, color: COLORS.textMuted, marginTop: 8, textAlign: 'center' },
+  noUploadsText: {
+    fontSize: 14,
+    color: COLORS.textMuted,
+    marginTop: 8,
+    textAlign: 'center',
+  },
   docPreviewContainer: { flex: 1, backgroundColor: '#2D2D2D' },
   docPreviewHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -2752,7 +3117,9 @@ const baseStyles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   backButton: { flexDirection: 'row', alignItems: 'center' },
-  backButtonText: { fontSize: 16, color: COLORS.primary, fontWeight: '600', marginLeft: 4 },
+  backButtonText: {
+    fontSize: 16, color: COLORS.primary, fontWeight: '600', marginLeft: 4,
+  },
   docPreviewTitleContainer: { flex: 1, alignItems: 'center', paddingHorizontal: 16 },
   docPreviewTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain },
   docPreviewRightActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
@@ -2761,7 +3128,9 @@ const baseStyles = StyleSheet.create({
     borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 12,
     paddingVertical: 6, backgroundColor: '#FFFFFF',
   },
-  downloadButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.textMain, marginLeft: 6 },
+  downloadButtonText: {
+    fontSize: 14, fontWeight: '600', color: COLORS.textMain, marginLeft: 6,
+  },
   docPreviewCloseButton: { padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6' },
   docViewer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   docImage: { width: '100%', height: '100%' },

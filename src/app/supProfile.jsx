@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LogoImg from '@/assets/images/logo.png';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch, getSession } from '@/lib/api';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 // --- Theme Definitions ---
 const THEME = {
@@ -136,6 +137,7 @@ export default function SupervisorProfileScreen() {
 
   const theme = isDarkMode ? THEME.dark : THEME.light;
   const styles = useMemo(() => getStyles(theme), [isDarkMode]);
+  const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
 
   const loadProfile = async () => {
     try {
@@ -294,6 +296,7 @@ export default function SupervisorProfileScreen() {
                 onPress={() => router.push('/supNotification')}
               >
                 <Ionicons name="notifications-outline" size={22} color={theme.headerIcon} />
+                <CountBadge count={unreadNotificationCount} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconButton}
@@ -556,6 +559,7 @@ export default function SupervisorProfileScreen() {
                     size={22}
                     color={isActive ? theme.primary : '#A0AEC0'}
                   />
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}

@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LogoImg from '@/assets/images/logo.png';
 import { apiFetch } from '@/lib/api';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 const COLORS = {
   primary: '#2563EB',
@@ -82,6 +83,7 @@ export default function StudentAssistances() {
 
   const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
   const styles = useSupervisorStyles(baseStyles);
+  const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
 
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -185,6 +187,7 @@ export default function StudentAssistances() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/supNotification')}>
                 <Ionicons name="notifications-outline" size={22} color={theme.primary} />
+                <CountBadge count={unreadNotificationCount} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
                 <Ionicons name="log-out-outline" size={22} color={theme.primary} />
@@ -341,8 +344,6 @@ export default function StudentAssistances() {
         >
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
-            const showBadge = item.name === 'Requests' && totalPending > 0;
-
             return (
               <TouchableOpacity
                 key={item.name}
@@ -356,11 +357,7 @@ export default function StudentAssistances() {
                     size={22}
                     color={isActive ? theme.primary : theme.textMuted}
                   />
-                  {showBadge && (
-                    <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{totalPending}</Text>
-                    </View>
-                  )}
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}

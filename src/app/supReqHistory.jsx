@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import LogoImg from '@/assets/images/logo.png';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -47,6 +48,7 @@ export default function SupervisorRequestHistory() {
   
   const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
   const styles = useSupervisorStyles(baseStyles);
+  const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
 
   let submissions = [];
 
@@ -97,6 +99,7 @@ export default function SupervisorRequestHistory() {
               onPress={() => router.push('/supNotification')}
             >
               <Ionicons name="notifications-outline" size={22} color={theme.primary} />
+              <CountBadge count={unreadNotificationCount} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
@@ -172,7 +175,7 @@ export default function SupervisorRequestHistory() {
             // ✅ Keep "Requests" tab active on the Request History page
             const isActive =
               pathname === item.path ||
-              (item.name === 'Requests' && pathname === '/supRequestHistory');
+              (item.name === 'Requests' && pathname === '/supReqHistory');
 
             return (
               <TouchableOpacity
@@ -187,6 +190,7 @@ export default function SupervisorRequestHistory() {
                     size={22}
                     color={isActive ? theme.primary : theme.textMuted}
                   />
+                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}
