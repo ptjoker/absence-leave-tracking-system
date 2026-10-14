@@ -275,7 +275,7 @@ export default function RequestPage() {
   }
 
   return <PortalShell><main className="px-5 py-7 md:px-8 md:py-8">
-    <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
+    <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
     <h1 className="serif text-4xl text-[#10253f]">{editing ? `Edit Request ${editTarget.id}` : 'Submit a Request'}</h1>
     <p className="mt-2 max-w-xl text-sm text-black">{editing ? 'Change the type, dates or note, then press Save changes. Your request stays pending until a supervisor decides on it.' : 'Please provide the details for your absence or scheduling change. Approved leave dates become unavailable automatically.'}</p>
     <form onSubmit={submit} className="mt-6 rounded-xl bg-white p-5 shadow-[0_3px_8px_rgba(53,91,121,.08)] md:p-6" noValidate>

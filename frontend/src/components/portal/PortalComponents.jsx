@@ -9,6 +9,7 @@ import { PUBLIC_HOLIDAYS_2026, holidayName, isPublicHoliday, isSunday } from '@/
 import { NotificationBell, UnreadDot } from '@/components/portal/NotificationBell';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useStrikeDays } from '@/lib/strikes';
+import { assetUrl } from '@/lib/assets';
 
 export const STUDENT = { name: 'Nicholas Mathebula', initials: 'NM', number: 'SA-2024-8842' };
 export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
@@ -16,9 +17,9 @@ export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
 export function PortalBrand({ supervisor = false }) {
   return (
     <Link href="/" className="focus-ring flex items-center gap-2 px-2" data-testid="link-portal-brand">
-      <img src="/tut-logo.png" alt="TUT logo" className="size-9 rounded-lg object-contain shadow-sm" />
+      <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-9 rounded-lg object-contain shadow-sm" />
       <span className="leading-none">
-        <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">{supervisor ? 'Supervisor Portal' : 'Student Portal'}</strong>
+        <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">iCenter</strong>
         <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
       </span>
     </Link>

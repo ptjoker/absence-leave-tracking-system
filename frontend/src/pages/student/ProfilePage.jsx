@@ -121,7 +121,7 @@ export default function ProfilePage() {
 
   const user = session?.user || {};
 
-  // Only contact details are editable. Course / Department and Current Year are read-only.
+  // Only contact details are editable. Academic and employment details are read-only.
   const [draft, setDraft] = useState({
     personal_email: user.personal_email || '',
     cell_number: user.cell_number || '',
@@ -129,7 +129,8 @@ export default function ProfilePage() {
 
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
   const initials = `${(user.first_name || 'U')[0]}${(user.last_name || '')[0] || ''}`.toUpperCase();
-  const roleLabel = user.role === 'supervisor' ? 'Supervisor' : 'Student';
+  const isSupervisor = user.role === 'supervisor';
+  const roleLabel = isSupervisor ? 'Supervisor' : 'Student';
   const levelLabel = LEVELS.find((l) => l.value === user.level_of_study)?.label || user.level_of_study || '—';
 
   const startEdit = () => {
@@ -205,7 +206,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <PortalShell supervisor={user.role === 'supervisor'}>
+    <PortalShell supervisor={isSupervisor}>
       <main className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <h1 className="serif text-4xl text-[#10253f]">{user.role === 'supervisor' ? 'Supervisor Profile' : 'My Profile'}</h1>
@@ -266,10 +267,10 @@ export default function ProfilePage() {
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-[#52708b]">
               {user.student_number && (
                 <span className="flex items-center gap-1.5">
-                  <BadgeCheck size={14} /> StudNo: {user.student_number}
+                  <BadgeCheck size={14} /> {isSupervisor ? 'StaffNo' : 'StudNo'}: {user.student_number}
                 </span>
               )}
-              {user.course && (
+              {!isSupervisor && user.course && (
                 <span className="flex items-center gap-1.5">
                   <Building2 size={14} /> {user.course}
                 </span>
@@ -280,7 +281,7 @@ export default function ProfilePage() {
             <div className="mt-8">
               <SectionHeading icon={<Mail size={14} />} title="Contact Information" />
               <div className="grid gap-6 sm:grid-cols-2">
-                <InfoField icon={<Mail size={14} />} label="Student Email" value={user.student_email || user.email} bold />
+                <InfoField icon={<Mail size={14} />} label={isSupervisor ? 'Work Email' : 'Student Email'} value={user.student_email || user.email} bold />
                 {editing ? (
                   <>
                     <EditableField
@@ -318,13 +319,13 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Academic Details (read-only, even while editing) */}
+            {/* Academic and employment details (read-only, even while editing) */}
             <div className="mt-8">
-              <SectionHeading icon={<GraduationCap size={14} />} title="Academic Details" />
+              <SectionHeading icon={isSupervisor ? <BadgeCheck size={14} /> : <GraduationCap size={14} />} title={isSupervisor ? 'Employment Details' : 'Academic Details'} />
               <div className="grid gap-6 sm:grid-cols-2">
-                <InfoField icon={<Building2 size={14} />} label="Course / Department" value={user.course} />
-                <InfoField icon={<GraduationCap size={14} />} label="Current Year" value={levelLabel} />
-                <InfoField icon={<CalendarDays size={14} />} label="Enrolled Since" value={formatDate(user.created_at)} />
+                {!isSupervisor && <InfoField icon={<Building2 size={14} />} label="Course / Department" value={user.course} />}
+                {!isSupervisor && <InfoField icon={<GraduationCap size={14} />} label="Current Year" value={levelLabel} />}
+                <InfoField icon={<CalendarDays size={14} />} label={isSupervisor ? 'Member Since' : 'Enrolled Since'} value={formatDate(user.created_at)} />
                 <InfoField icon={<User size={14} />} label="Account Type" value={roleLabel} />
               </div>
             </div>
@@ -338,7 +339,9 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm font-bold text-[#243e5b]">Data Privacy Notice</p>
                 <p className="mt-1 max-w-xl text-xs leading-5 text-[#60768c]">
-                  Identity and academic fields (name, student number, role, student email, course / department, and current year) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.
+                  {isSupervisor
+                    ? 'Identity and employment fields (name, staff number, role, and work email) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.'
+                    : 'Identity and academic fields (name, student number, role, student email, course / department, and current year) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.'}
                 </p>
               </div>
             </div>

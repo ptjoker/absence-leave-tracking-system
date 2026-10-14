@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "StudentAssist Absence Tracker"
+title = "iCenter"
 description = "A responsive absence and leave tracking portal for student assistants, supervisors, and administrators, with a public landing page and role-aware sign-in and registration flows."
 version = "1.0.0"
 id = "artifacts/studentassist"

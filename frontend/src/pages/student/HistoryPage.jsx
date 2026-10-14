@@ -7,7 +7,7 @@ import { useRequests } from '@/context/RequestsContext';
 
 export default function HistoryPage() {
   const [, setLocation] = useLocation();
-  const { requests, cancelRequest } = useRequests();
+  const { requests, cancelRequest, loading: requestsLoading } = useRequests();
   const [requestDetails, setRequestDetails] = useState(null);
   const [requestToCancel, setRequestToCancel] = useState(null);
   const [cancelling, setCancelling] = useState(false);
@@ -43,7 +43,7 @@ export default function HistoryPage() {
       <main className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
+            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
             <h1 className="serif text-4xl text-[#10253f]">{fullName}&rsquo;s History</h1>
             <p className="mt-2 max-w-lg text-sm text-[#52708b]">View all the requests you made.</p>
           </div>
@@ -53,7 +53,11 @@ export default function HistoryPage() {
         </div>
         <div className="rounded-xl bg-[#f4f8fb] p-6">
           <h2 className="text-lg font-bold text-[#10253f]">All Requests</h2>
-          <div className="overflow-x-auto">
+          {requestsLoading ? (
+            <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">Loading your requests...</p>
+          ) : requests.length === 0 ? (
+            <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">You have not made any leave requests yet.</p>
+          ) : <div className="overflow-x-auto">
             <table className="mt-5 w-full min-w-[760px] text-left text-sm">
               <thead>
                 <tr className="text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]">
@@ -87,7 +91,7 @@ export default function HistoryPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </div>}
         </div>
       </main>
       {requestDetails && <RequestDetailsDialog request={requestDetails} onClose={() => setRequestDetails(null)} />}

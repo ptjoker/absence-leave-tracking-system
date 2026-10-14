@@ -24,6 +24,7 @@ import { ModeToggle, PortalShell, STUDENT } from '@/components/portal/PortalComp
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { generateStudentSchedule } from '@/lib/schedule';
 import { useCancelledShifts } from '@/lib/cancelledShifts';
+import { assetUrl } from '@/lib/assets';
 const queryClient = new QueryClient();
 
 /* Fixed, page-independent background photo shown behind every route. */
@@ -37,7 +38,7 @@ const navItems = [
 ];
 function Brand({ light = false }) {
   return (<Link href="/" className="focus-ring flex items-center gap-3" data-testid="link-brand">
-    <img src="/tut-logo.png" alt="TUT logo" className="size-10 rounded-[5px] object-contain shadow-sm" />
+    <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-10 rounded-[5px] object-contain shadow-sm" />
     <span className="leading-none">
       <strong className={`block text-[15px] font-bold tracking-[-.02em] ${light ? 'text-white' : 'text-[#162c4d]'}`}>iCenter</strong>
       <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
@@ -51,7 +52,7 @@ function Header() {
   return (<header className="homepage-header fixed inset-x-0 top-0 z-50 border-b border-[#d5dfe8] bg-white">
     <div className="mx-auto flex h-[58px] max-w-[1440px] items-center justify-between px-5 sm:px-8">
       <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
-        <img src="/tut-logo.png" alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
+        <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">
           <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">iCenter</strong>
           <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">ABSENCE AND LEAVE TRACKER</span>
@@ -131,7 +132,7 @@ function Home() {
         </div>
         <div className="animate-rise-delay-1 mx-auto w-full max-w-[510px]">
           <div className="overflow-hidden rounded-md border-[10px] border-white bg-white shadow-[0_10px_25px_rgba(48,83,111,.1)]">
-            <img src="/assets/home-student-assistants.jpg" alt="TUT student assistants working in a computer laboratory" className="block aspect-[1.42] h-full w-full object-cover" data-testid="img-hero-campus" />
+            <img src={assetUrl('assets/home-student-assistants.jpg')} alt="TUT student assistants working in a computer laboratory" className="block aspect-[1.42] h-full w-full object-cover" data-testid="img-hero-campus" />
           </div>
         </div>
       </section>
@@ -139,7 +140,7 @@ function Home() {
       <section id="how-it-works" className="mx-auto grid max-w-[1180px] items-center gap-12 px-8 py-20 sm:px-12 lg:grid-cols-[1fr_1fr] lg:gap-20 lg:py-24">
         <div className="order-2 lg:order-1">
           <div className="mx-auto max-w-[475px] overflow-hidden rounded-lg border-[10px] border-[#d8e9f5] bg-[#eef5f9]">
-            <img src="/assets/home-dashboard-hd.png" alt="Student staff hub showing an approved leave calendar" className="block w-full" data-testid="img-dashboard" />
+            <img src={assetUrl('assets/home-dashboard-hd.png')} alt="Student staff hub showing an approved leave calendar" className="block w-full" data-testid="img-dashboard" />
           </div>
         </div>
         <div className="order-1 lg:order-2">
@@ -166,7 +167,7 @@ function Home() {
           </div>
         </div>
         <div className="mx-auto w-full max-w-[390px] overflow-hidden">
-          <img src="/assets/tut-library.jpg" alt="TUT student assistants collaborating in a library" className="block w-full" data-testid="img-phone" />
+          <img src={assetUrl('assets/tut-library.jpg')} alt="TUT student assistants collaborating in a library" className="block w-full" data-testid="img-phone" />
         </div>
       </section>
 
@@ -391,8 +392,8 @@ function Sidebar() {
     <aside className="flex h-[100dvh] w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] bg-white px-4 py-6">
       <div>
         <Link href="/" className="focus-ring mb-8 flex items-center gap-2 px-2" data-testid="link-sidebar-brand">
-          <img src="/tut-logo.png" alt="TUT logo" className="size-9 rounded-lg object-contain" />
-          <span className="text-[15px] font-bold text-[#162c4d]">Student Portal</span>
+          <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-9 rounded-lg object-contain" />
+          <span className="text-[15px] font-bold text-[#162c4d]">iCenter</span>
         </Link>
         <nav className="flex flex-col gap-1">
           {navItems.map((item) => (
@@ -488,7 +489,7 @@ function PortalTopBar() {
 
 function DashboardPage() {
   const [, setLocation] = useLocation();
-  const { requests, cancelRequest } = useRequests();
+  const { requests, cancelRequest, loading: requestsLoading } = useRequests();
   const [assignedShifts, setAssignedShifts] = useState(null);
   const [requestDetails, setRequestDetails] = useState(null);
   const [requestToCancel, setRequestToCancel] = useState(null);
@@ -591,7 +592,7 @@ function DashboardPage() {
       <div className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
+            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
             <h1 className="serif text-4xl text-[#10253f]">Welcome back, {fullName}</h1>
             <p className="mt-2 max-w-lg text-sm text-[#52708b]">Manage your leave requests and track your departmental attendance.</p>
           </div>
@@ -635,12 +636,16 @@ function DashboardPage() {
 
         <div className="mt-5 rounded-xl bg-[#f4f8fb] p-6">
           <h2 className="text-lg font-bold text-[#10253f]">Recent Requests</h2>
-          <div className="overflow-x-auto">
+          {requestsLoading ? (
+            <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">Loading your requests...</p>
+          ) : requests.length === 0 ? (
+            <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">You have not made any leave requests yet.</p>
+          ) : <div className="overflow-x-auto">
             <table className="mt-5 w-full min-w-[620px] text-left text-sm">
               <thead><tr className="text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]"><th className="pb-3 font-bold">ID</th><th className="pb-3 font-bold">Type</th><th className="pb-3 font-bold">Status</th><th className="pb-3 font-bold">Actions</th></tr></thead>
               <tbody>{requests.map((req) => <tr key={req.id} className="border-t border-[#e2eaf1]"><td className="py-3 font-semibold text-[#243e5b]"><button type="button" onClick={() => setRequestDetails(req)} className="focus-ring rounded font-semibold text-[#1f70d0] hover:text-[#1555aa] hover:underline">{req.id}</button></td><td className="py-3 text-[#52708b]">{req.type}</td><td className="py-3"><StatusBadge status={req.status} /></td><td className="py-3">{req.status === 'Pending' ? <div className="flex flex-wrap gap-2"><button type="button" onClick={() => handleEditRequest(req)} className="focus-ring min-w-16 rounded-lg bg-[#1f70d0] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1555aa]">Edit</button><button type="button" onClick={() => setRequestToCancel(req)} className="focus-ring min-w-16 rounded-lg bg-[#d05b48] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#b84233]">Cancel</button></div> : <span className="text-xs font-semibold text-black">—</span>}</td></tr>)}</tbody>
             </table>
-          </div>
+          </div>}
         </div>
       </div>
       {requestToCancel && (
@@ -750,7 +755,7 @@ function RequestPage() {
       <div className="flex-1">
         <PortalTopBar />
         <main className="px-8 py-8">
-          <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Portal</p>
+          <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
           <h1 className="serif text-4xl text-[#10253f]">Submit a Request</h1>
           <p className="mt-2 max-w-xl text-sm text-[#52708b]">Please provide the details for your absence or scheduling change. Requests are typically reviewed by the department head within 24–48 hours.</p>
 
