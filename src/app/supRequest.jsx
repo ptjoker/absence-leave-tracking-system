@@ -217,6 +217,7 @@ export default function SupervisorRequests() {
       <ImageBackground
         source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
         style={styles.backgroundImage}
+        imageStyle={{ opacity: 0.45 }}
         resizeMode="cover"
       >
         <View style={styles.overlay} />
