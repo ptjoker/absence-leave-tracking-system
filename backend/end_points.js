@@ -326,7 +326,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-
     res.status(201).json({
       success: true,
       message: 'Registration successful. A verification code has been sent to your email.',
@@ -375,7 +374,6 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (profile.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
-
 
     if (profile[0].account_status === 'disabled') {
   return res.status(403).json({
@@ -1156,8 +1154,6 @@ router.get('/admin/overview', async (req, res) => {
     });
   }
 });
-
-
 
 // GET /api/admin/assistants
 router.get('/admin/assistants', async (req, res) => {
@@ -2498,11 +2494,20 @@ router.get('/eligible-colleagues', async (req, res) => {
 
     // Get the selected shift date
     const shiftDate = req.query.shift_date;
+    const currentShiftDate = req.query.current_shift_date;
 
-    if (!shiftDate) {
+    if (!shiftDate || !currentShiftDate) {
       return res.status(400).json({
-        error: 'Please provide a shift date.'
+        error: 'Please provide both shift dates.'
       });
+    }
+    const validDate = (value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    };
+    if (!validDate(shiftDate) || !validDate(currentShiftDate)) {
+      return res.status(400).json({ error: 'Shift dates must use YYYY-MM-DD format.' });
     }
 
     // Find active student colleagues with shifts
@@ -2525,6 +2530,12 @@ router.get('/eligible-colleagues', async (req, res) => {
         AND p.account_status = 'active'
         AND p.id <> ${user.id}
         AND s.shift_date = ${shiftDate}::date
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.shifts current_shift
+          WHERE current_shift.user_id = p.id
+            AND current_shift.shift_date = ${currentShiftDate}::date
+        )
       ORDER BY
         s.start_time,
         p.first_name,
@@ -2545,6 +2556,111 @@ router.get('/eligible-colleagues', async (req, res) => {
   }
 });
 
+// GET /api/shift-swap-requests — list offers relevant to the caller.
+router.get('/shift-swap-requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1
+    `;
+    if (!caller.length) return res.status(403).json({ error: 'User profile not found' });
+    const supervisor = caller[0].role === 'supervisor';
+
+    const rows = await sql`
+      SELECT
+        r.id,
+        r.requester_user_id,
+        r.colleague_user_id,
+        r.requester_shift_id,
+        r.colleague_shift_id,
+        r.status,
+        r.reason,
+        r.colleague_reason,
+        r.supervisor_reason,
+        r.created_at,
+        r.colleague_decided_at,
+        r.supervisor_decided_at,
+        requester.first_name AS requester_first_name,
+        requester.last_name AS requester_last_name,
+        colleague.first_name AS colleague_first_name,
+        colleague.last_name AS colleague_last_name,
+        TO_CHAR(requester_shift.shift_date, 'Mon FMDD, YYYY') AS requester_shift_date,
+        TO_CHAR(colleague_shift.shift_date, 'Mon FMDD, YYYY') AS colleague_shift_date,
+        requester_shift.start_time AS requester_start_time,
+        requester_shift.end_time AS requester_end_time,
+        colleague_shift.start_time AS colleague_start_time,
+        colleague_shift.end_time AS colleague_end_time
+      FROM public.shift_swap_requests r
+      JOIN public.profiles requester ON requester.id = r.requester_user_id
+      JOIN public.profiles colleague ON colleague.id = r.colleague_user_id
+      JOIN public.shifts requester_shift ON requester_shift.id = r.requester_shift_id
+      JOIN public.shifts colleague_shift ON colleague_shift.id = r.colleague_shift_id
+      WHERE (
+        ${supervisor}
+        OR r.requester_user_id = ${user.id}
+        OR r.colleague_user_id = ${user.id}
+      )
+      ORDER BY r.created_at DESC
+    `;
+
+    res.json(rows.map((row) => {
+      const isRequester = String(row.requester_user_id) === String(user.id);
+      const isColleague = String(row.colleague_user_id) === String(user.id);
+      const requesterName = `${row.requester_first_name || ''} ${row.requester_last_name || ''}`.trim() || 'Unknown';
+      const colleagueName = `${row.colleague_first_name || ''} ${row.colleague_last_name || ''}`.trim() || 'Unknown';
+      const stage = row.status;
+      let status;
+      if (stage === 'pending_colleague') {
+        status = isColleague ? 'Awaiting your response' : 'Awaiting colleague';
+      } else if (stage === 'pending_supervisor') {
+        status = supervisor ? 'Pending' : 'Colleague approved — Awaiting supervisor';
+      } else if (stage === 'rejected' && row.supervisor_decided_at) {
+        status = supervisor ? 'Rejected' : 'Declined by supervisor';
+      } else if (stage === 'rejected') {
+        status = 'Declined by colleague';
+      } else if (stage === 'approved') {
+        status = 'Approved';
+      } else {
+        status = stage;
+      }
+      const dateRange = `Swap from ${row.requester_shift_date} to ${row.colleague_shift_date}`;
+
+      return {
+        id: `SWAP-${row.id}`,
+        rawId: row.id,
+        workflow: 'shiftSwap',
+        workflowStatus: stage,
+        requesterUserId: row.requester_user_id,
+        colleagueUserId: row.colleague_user_id,
+        requesterShiftId: row.requester_shift_id,
+        colleagueShiftId: row.colleague_shift_id,
+        isRequester,
+        isSwapRecipient: isColleague,
+        name: requesterName,
+        replacement: colleagueName,
+        type: `Shift Swap – ${colleagueName}`,
+        status,
+        dateRange,
+        detail: `${dateRange} with ${colleagueName}.`,
+        reason: row.reason,
+        colleagueReason: row.colleague_reason,
+        supervisorReason: row.supervisor_reason,
+        declineReason: row.supervisor_decided_at ? row.supervisor_reason : row.colleague_reason,
+        requesterShiftTime: `${row.requester_start_time}–${row.requester_end_time}`,
+        colleagueShiftTime: `${row.colleague_start_time}–${row.colleague_end_time}`,
+        filed: 'Filed recently',
+        createdAt: row.created_at,
+        colleagueDecidedAt: row.colleague_decided_at,
+        supervisorDecidedAt: row.supervisor_decided_at,
+      };
+    }));
+  } catch (error) {
+    console.error('List shift swap requests error:', error);
+    res.status(500).json({ error: 'Could not load shift swap requests.' });
+  }
+});
 
 /* ============================================
    Shift Swap Requests
@@ -2563,7 +2679,8 @@ router.post('/shift-swap-requests', async (req, res) => {
     const {
       requester_shift_id,
       colleague_user_id,
-      colleague_shift_id
+      colleague_shift_id,
+      reason
     } = req.body;
 
     if (
@@ -2574,6 +2691,9 @@ router.post('/shift-swap-requests', async (req, res) => {
       return res.status(400).json({
         error: 'Your shift, colleague and colleague shift are required.'
       });
+    }
+    if (reason !== undefined && (typeof reason !== 'string' || reason.length > 100)) {
+      return res.status(400).json({ error: 'Justification and comments must be 100 characters or fewer.' });
     }
 
     if (
@@ -2587,7 +2707,7 @@ router.post('/shift-swap-requests', async (req, res) => {
 
     // Confirm both shifts belong to the expected students.
     const shifts = await sql`
-      SELECT id, user_id
+      SELECT id, user_id, shift_date
       FROM public.shifts
       WHERE id IN (
         ${requester_shift_id},
@@ -2616,6 +2736,22 @@ router.post('/shift-swap-requests', async (req, res) => {
       return res.status(400).json({
         error: 'The selected shift does not belong to the colleague.'
       });
+    }
+    const ownDate = new Date(ownShift.shift_date).toISOString().slice(0, 10);
+    const colleagueDate = new Date(colleagueShift.shift_date).toISOString().slice(0, 10);
+    if (ownDate === colleagueDate) {
+      return res.status(400).json({ error: 'The replacement shift must be on a different date.' });
+    }
+    const colleagueConflict = await sql`
+      SELECT id
+      FROM public.shifts
+      WHERE user_id = ${colleague_user_id}
+        AND shift_date = ${ownDate}::date
+        AND id <> ${colleague_shift_id}
+      LIMIT 1
+    `;
+    if (colleagueConflict.length) {
+      return res.status(409).json({ error: 'The selected colleague is not free on your current shift date.' });
     }
 
     // Prevent either shift from being involved in another
@@ -2649,14 +2785,16 @@ router.post('/shift-swap-requests', async (req, res) => {
         colleague_user_id,
         requester_shift_id,
         colleague_shift_id,
-        status
+        status,
+        reason
       )
       VALUES (
         ${user.id},
         ${colleague_user_id},
         ${requester_shift_id},
         ${colleague_shift_id},
-        'pending_colleague'
+        'pending_colleague',
+        ${typeof reason === 'string' ? reason.trim().slice(0, 100) || null : null}
       )
       RETURNING *
     `;

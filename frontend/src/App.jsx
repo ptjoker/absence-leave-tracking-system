@@ -20,6 +20,8 @@ import SupervisorRequestsPage from '@/pages/supervisor/Requestspage';
 import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage';
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
+import AdminLoginPage from '@/pages/admin/AdminLoginPage';
+import AdminDashboard from '@/pages/admin/AdminDashboard';
 import { ModeToggle, PortalShell, STUDENT } from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { generateStudentSchedule } from '@/lib/schedule';
@@ -107,7 +109,7 @@ function Footer() {
     <div className="border-t border-[#91bfdc]">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-8 py-5 text-[10px] text-[#52708b] sm:flex-row sm:items-center sm:justify-between sm:px-12">
         <span>© 2026 Student Assistance Absence Tracker. All rights reserved.</span>
-        <span className="flex gap-5"><a href="#accessibility" className="hover:text-[#286ee5]" data-testid="link-footer-accessibility">Accessibility</a><a href="#support" className="hover:text-[#286ee5]">Contact Support</a></span>
+        <span className="flex gap-5"><Link href="/admin/login" className="hover:text-[#286ee5]" data-testid="link-footer-administrator">Administrator</Link><a href="mailto:general@tut.ac.za" className="hover:text-[#286ee5]">Contact Support</a></span>
       </div>
     </div>
   </footer>);
@@ -957,7 +959,7 @@ function ShiftSwapPage() {
 
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={SupervisorReportsPage} /><Route path="/supervisor/profile" component={StudentProfilePage} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/admin/login" component={AdminLoginPage} /><Route path="/admin" component={AdminDashboard} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={SupervisorReportsPage} /><Route path="/supervisor/profile" component={StudentProfilePage} /><Route component={NotFound} /></Switch>;
 }
 function RoutedErrorBoundary({ children }) {
   const [location] = useLocation();

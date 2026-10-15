@@ -128,6 +128,12 @@ export default function RequestDetailsDialog({
           </div>
           <Detail icon={CalendarDays} label="Dates">{request.dateRange}</Detail>
           <Detail icon={Clock3} label="Submitted">{submitted}</Detail>
+          {request.workflow === 'shiftSwap' && (
+            <>
+              <Detail icon={Clock3} label="Requester shift hours">{request.requesterShiftTime}</Detail>
+              <Detail icon={Clock3} label="Offered shift hours">{request.colleagueShiftTime}</Detail>
+            </>
+          )}
           {supervisor && (
             <div ref={documentSectionRef} className="rounded-lg bg-[#f4f8fb] p-4 sm:col-span-2" data-testid="request-document-section">
               <dt className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.08em] text-[#7890a4]">
@@ -181,10 +187,34 @@ export default function RequestDetailsDialog({
             <dt className="text-xs font-bold uppercase tracking-[.08em] text-[#7890a4]">Reason</dt>
             <dd className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#243e5b]">{reason || 'No reason provided.'}</dd>
           </div>
+          {request.workflow === 'shiftSwap' && request.workflowStatus === 'pending_supervisor' && (
+            <div className="rounded-lg border border-[#c9e8d6] bg-[#f0faf4] p-4 sm:col-span-2">
+              <dt className="text-xs font-bold uppercase tracking-[.08em] text-[#19885d]">Colleague decision</dt>
+              <dd className="mt-2 text-sm font-semibold leading-6 text-[#246b45]">Accepted. This offer is waiting for the supervisor’s final decision.</dd>
+            </div>
+          )}
+          {request.workflow === 'shiftSwap' && request.workflowStatus === 'pending_colleague' && supervisor && (
+            <div className="rounded-lg bg-[#f4f8fb] p-4 sm:col-span-2">
+              <dt className="text-xs font-bold uppercase tracking-[.08em] text-[#7890a4]">Colleague decision</dt>
+              <dd className="mt-2 text-sm font-semibold leading-6 text-[#243e5b]">Waiting for {request.replacement || 'the invited student'} to respond. Supervisor action is not available yet.</dd>
+            </div>
+          )}
           {request.replacement && (
             <Detail icon={FileText} label="Replacement">{request.replacement}</Detail>
           )}
-          {request.status === 'Rejected' && request.declineReason && (
+          {request.workflow === 'shiftSwap' && request.colleagueReason && (
+            <div className="rounded-lg border border-[#f3c7c1] bg-[#fff6f5] p-4 sm:col-span-2">
+              <dt className="text-xs font-bold uppercase tracking-[.08em] text-[#b84233]">Colleague response</dt>
+              <dd className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#8f3a2d]">{request.colleagueReason}</dd>
+            </div>
+          )}
+          {request.workflow === 'shiftSwap' && request.supervisorReason && (
+            <div className="rounded-lg border border-[#f3c7c1] bg-[#fff6f5] p-4 sm:col-span-2">
+              <dt className="text-xs font-bold uppercase tracking-[.08em] text-[#b84233]">Supervisor decision</dt>
+              <dd className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#8f3a2d]">{request.supervisorReason}</dd>
+            </div>
+          )}
+          {request.workflow !== 'shiftSwap' && request.status === 'Rejected' && request.declineReason && (
             <div className="rounded-lg border border-[#f3c7c1] bg-[#fff6f5] p-4 sm:col-span-2">
               <dt className="text-xs font-bold uppercase tracking-[.08em] text-[#b84233]">Decline reason</dt>
               <dd className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#8f3a2d]">{request.declineReason}</dd>

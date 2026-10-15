@@ -32,7 +32,11 @@ function RequestRow({ request, onOpen, onViewDocument }) {
         <p className="mt-1 flex items-center gap-1 text-[11px] text-[#9aabb9]"><Clock3 size={11} />{request.filed || 'Filed recently'}</p>
         {request.status === 'Rejected' && request.declineReason && <p className="mt-2 rounded-md bg-[#fbe4e1] px-2.5 py-1.5 text-xs leading-5 text-[#8f3a2d]"><strong className="font-bold">Declined: </strong>{request.declineReason}</p>}
       </td>
-      <td className="py-4 pr-4"><SupervisorStatus status={request.status} />      </td>
+      <td className="py-4 pr-4">
+        <SupervisorStatus status={request.status} />
+        {request.workflow === 'shiftSwap' && request.workflowStatus === 'pending_supervisor' && <p className="mt-1 text-[11px] font-semibold text-[#19885d]">Colleague accepted · Your review is required</p>}
+        {request.workflow === 'shiftSwap' && request.workflowStatus === 'pending_colleague' && <p className="mt-1 text-[11px] text-[#7890a4]">Waiting for colleague response</p>}
+      </td>
       <td className="py-4">
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => onOpen(request)} className="focus-ring rounded-lg border border-[#d0e0ea] bg-white px-3.5 py-2 text-xs font-bold text-[#1f70d0] transition-colors hover:bg-[#e7f1fa] hover:text-[#1555aa]" data-testid={`button-view-request-${request.id}`}>

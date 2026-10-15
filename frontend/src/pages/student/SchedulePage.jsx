@@ -7,8 +7,9 @@ import { useNotifications } from '@/context/NotificationsContext';
 import { timetableUploadedNotification } from '@/lib/notifications';
 import { useTimetables, saveTimetable, removeTimetable, formatFileSize } from '@/lib/timetables';
 import { useStrikeDays } from '@/lib/strikes';
-import { generateStudentSchedule, holidayName, isPublicHoliday, approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
+import { holidayName, isPublicHoliday, approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 import { useCancelledShifts } from '@/lib/cancelledShifts';
+import { apiFetch } from '@/lib/api';
 
 function getStudentNumber() {
   try { return JSON.parse(localStorage.getItem('session') || '{}')?.user?.student_number || STUDENT.number; } catch { return STUDENT.number; }
@@ -42,6 +43,8 @@ export default function SchedulePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [assignedShifts, setAssignedShifts] = useState([]);
+  const [shiftsLoading, setShiftsLoading] = useState(true);
+  const [shiftsError, setShiftsError] = useState('');
   const cancelledShifts = useCancelledShifts();
   const handleTimetableChange = async (e) => {
     const file = e.target.files?.[0];
@@ -68,16 +71,14 @@ export default function SchedulePage() {
     let cancelled = false;
     const loadAssignedShifts = async () => {
       try {
-        const session = JSON.parse(localStorage.getItem('session') || 'null');
-        if (!session?.access_token) return;
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data)) setAssignedShifts(data);
+        const res = await apiFetch('/api/shifts');
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not load your supervisor-assigned shifts.');
+        if (!cancelled) setAssignedShifts(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Load assigned shifts error:', error);
+        if (!cancelled) setShiftsError(error.message || 'Could not load your supervisor-assigned shifts.');
+      } finally {
+        if (!cancelled) setShiftsLoading(false);
       }
     };
     loadAssignedShifts();
@@ -99,10 +100,7 @@ export default function SchedulePage() {
       .map((shift) => shift.shiftDate)),
     [cancelledShifts],
   );
-  const schedule = useMemo(
-    () => (assignedShifts.length ? assignedSchedule : generateStudentSchedule(studentNumber, year)),
-    [assignedShifts.length, assignedSchedule, studentNumber, year],
-  );
+  const schedule = assignedSchedule;
   const approvedLeave = useMemo(() => new Set(approvedLeaveDates(requests)), [requests]);
   const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
   const swapByDate = useMemo(() => {
@@ -123,9 +121,7 @@ export default function SchedulePage() {
   const selectedKey = format(selected, 'yyyy-MM-dd');
   const selectedShift = cancelledDates.has(selectedKey) ? null : schedule[selectedKey];
   const selectedSwap = swapByDate.get(selectedKey);
-  const selectedSwapShift = selectedSwap?.direction === 'to' && selectedSwap.meta?.with
-    ? (selectedShift || generateStudentSchedule(selectedSwap.meta.with, year)[selectedKey])
-    : selectedShift;
+  const selectedSwapShift = selectedShift;
   const selectedHoliday = holidayName(selected);
   const selectedStrike = strikeDays[selectedKey];
   const monthIndex = monthDate.getMonth();
@@ -139,10 +135,13 @@ export default function SchedulePage() {
   };
 
   return <PortalShell><main className="px-5 py-7 md:px-8 md:py-8">
-    <div className="mb-6"><p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Schedule</p><h1 className="serif text-4xl text-[#10253f]">Library Assistant Shift Management</h1><p className="mt-2 max-w-2xl text-sm text-[#52708b]">Your shifts are generated as a stable individual roster: each student assistant works 2–3 days per week, on either a morning or afternoon shift. Sundays and public holidays are never scheduled.</p></div>
+    <div className="mb-6"><p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Student Schedule</p><h1 className="serif text-4xl text-[#10253f]">Library Assistant Shift Management</h1><p className="mt-2 max-w-2xl text-sm text-[#52708b]">This calendar shows shifts assigned to you by your supervisor. Only scheduled shifts are available when requesting a swap.</p></div>
     <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
       <section className="rounded-xl bg-[#f4f8fb] p-5 md:p-6">
         <div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-[#10253f]">{format(monthDate,'MMMM yyyy')}</h2><p className="text-sm text-black">Monthly shift calendar · {year}</p></div><div className="flex gap-2"><button disabled={!canGoPrev} onClick={()=>selectMonth(monthIndex-1)} className="focus-ring rounded-lg border bg-white p-2 text-black disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous month"><ChevronLeft size={20}/></button><button disabled={!canGoNext} onClick={()=>selectMonth(monthIndex+1)} className="focus-ring rounded-lg border bg-white p-2 text-black disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next month"><ChevronRight size={20}/></button></div></div>
+        {shiftsLoading && <p className="mt-4 rounded-lg bg-white px-4 py-3 text-sm text-[#52708b]">Loading your supervisor-assigned shifts…</p>}
+        {shiftsError && <p role="alert" className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-3 text-sm font-semibold text-[#c54f43]">{shiftsError}</p>}
+        {!shiftsLoading && !shiftsError && assignedShifts.length === 0 && <p className="mt-4 rounded-lg bg-white px-4 py-3 text-sm text-[#52708b]">Your supervisor has not assigned any shifts yet.</p>}
         <div className="mt-5 grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-[#dce5ec] bg-[#dce5ec]"><div className="col-span-7 grid grid-cols-7 bg-white">{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=><div key={d} className="p-2 text-center text-sm font-bold uppercase text-black">{d}</div>)}</div>{Array.from({length:leading}).map((_,i)=><div key={'lead'+i} className="min-h-24 bg-[#f8fafc]"/>)}{days.map(day=>{const k=format(day,'yyyy-MM-dd'); const shift=cancelledDates.has(k)?null:schedule[k]; const holiday=isPublicHoliday(day); const leave=approvedLeave.has(k); const swap=swapByDate.get(k); const strike=Boolean(strikeDays[k]); const past = k < format(today,'yyyy-MM-dd'); const sunday = day.getDay() === 0; const disabledDay = holiday || leave || swap?.direction === 'from' || strike || past || sunday; return <button key={k} disabled={disabledDay} onClick={()=>setSelected(day)} className={`min-h-28 p-2 text-left align-top ${isSameDay(day,selected)?'ring-2 ring-inset ring-[#1f70d0]':''} ${holiday?'bg-[#d9f3e3]':strike?'bg-[#d05b48]':swap?.direction==='from'?'bg-[#dce9ff]':swap?.direction==='to'?'bg-[#d9dde2]':leave?'bg-[#d9dde2]':'bg-white'} ${disabledDay?'opacity-80':''} disabled:cursor-not-allowed`}><div className="flex items-start justify-between"><span className={`calendar-day-number ${past||sunday?'calendar-x-number':''} grid size-8 place-items-center rounded-full text-sm font-bold ${isSameDay(day,selected)?'bg-[#1f70d0] text-white':'text-black'}`}>{format(day,'d')}</span>{holiday&&<span className="rounded px-1.5 py-0.5 text-xs font-bold text-[#246b45]">Holiday</span>}{strike&&<span className="rounded px-1.5 py-0.5 text-xs font-bold text-[#8f3a2d]">Closure</span>}</div>{holiday?<span className="mt-2 block text-xs font-bold leading-4 text-[#246b45]">{holidayName(day)}</span>:strike?<span className="mt-2 block rounded-md bg-[#d05b48] px-2 py-1 text-xs font-bold text-white">Institutional closure{strikeDays[k]?.closureType ? ` · ${strikeDays[k].closureType}` : ''}</span>:leave?<span className="mt-2 block rounded-md bg-[#d9dde2] px-2 py-1 text-xs font-bold text-black">Approved leave</span>:swap?<span className={`mt-2 block rounded-md px-2 py-1 text-xs font-bold ${swap.direction==='from'?'border border-[#2b67c9] bg-[#dce9ff] text-[#163f8a]':'bg-[#d9dde2] text-black'}`}>{swap.direction==='from'?`Swapped to ${swap.meta?.to || 'approved date'}`:`Swapped from ${swap.meta?.from || 'original date'}`}</span>:shift?<span className="schedule-shift-label mt-2 block rounded-md bg-[#e7f1fa] px-2 py-1 text-xs font-bold text-[#1f70d0]">SHIFT</span>:<span className="mt-2 block text-xs font-semibold text-black"></span>}</button>})}</div>
         <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-black"><span className="flex items-center gap-2"><span className="size-4 rounded border border-[#2c9b62] bg-[#d9f3e3]"/>Green box - Holiday</span><span className="flex items-center gap-2"><span className="size-4 rounded bg-[#fde0dc] border border-[#c4473d]"/>Red box - Institutional closure</span><span className="flex items-center gap-2"><span className="size-4 rounded bg-[#d9dde2]"/>Grey box - date swapped to</span><span className="flex items-center gap-2"><span className="size-4 rounded bg-[#dce9ff] border border-[#2b67c9]"/>Blue box - date swapped from</span></div>
       </section>
