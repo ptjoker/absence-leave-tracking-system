@@ -30,6 +30,8 @@ import LogoImg from '@/assets/images/logo.png';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
+console.log('>>> SUPCAL FILE LOADED');
+
 const formatDate = (date) => {
   if (!date) return '';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -939,6 +941,7 @@ export default function MasterSchedule() {
   };
 
   const handleCreateShift = () => {
+    console.log('>>> CREATE SHIFT HANDLER RAN');
     if (!selectedAssistant) {
       Alert.alert('Missing assistant', 'Please select a student assistant.');
       return;
@@ -962,18 +965,39 @@ export default function MasterSchedule() {
       selectedAssistant.name ||
       `${selectedAssistant.first_name || ''} ${selectedAssistant.last_name || ''}`.trim() ||
       'Assistant';
+    // Derive a real end time from the duration. Default to 4 hours
+    // when the supervisor left the duration field blank.
+    const startMatch = /^([0-9]{1,2}):([0-9]{2})$/.exec(String(shiftStartTime).trim());
+    let hours = Number(String(shiftDuration || '').replace(/[^0-9.]/g, ''));
+    if (!hours || Number.isNaN(hours) || hours <= 0) hours = 4;
+    const totalMinutes =
+      Number(startMatch[1]) * 60 + Number(startMatch[2]) + Math.round(hours * 60);
+    const endHH = String(Math.floor((totalMinutes % (24 * 60)) / 60)).padStart(2, '0');
+    const endMM = String(totalMinutes % 60).padStart(2, '0');
+    const endTime = `${endHH}:${endMM}`;
+    const startTime = String(shiftStartTime).trim();
+
     const newShift = {
       id: `shift-${Date.now()}`,
-      userId: selectedAssistant.id,
-      studentName: assistantName,
-      shiftDate: dateKey,
-      startTime: shiftStartTime.trim(),
-      endTime: '',
-      position: selectedPosition,
-      duration: shiftDuration,
-      notes: shiftNotes,
+      user_id: selectedAssistant.id,
+      shift_date: dateKey,
+      start_time: startTime,
+      end_time: endTime,
+      location: selectedPosition,
+      notes: shiftNotes || null,
+      duration: shiftDuration || null,
     };
-    setShifts((prev) => [...prev, newShift]);
+    setShifts((prev) => [...prev, {
+      id: newShift.id,
+      userId: newShift.user_id,
+      studentName: assistantName,
+      shiftDate: newShift.shift_date,
+      startTime: newShift.start_time,
+      endTime: newShift.end_time,
+      location: newShift.location,
+      position: newShift.location,
+      notes: newShift.notes,
+    }]);
 
     logActivity(
       'created',
