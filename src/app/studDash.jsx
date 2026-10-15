@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import RequestsTableWithActions from '../components/studentDash/RequestsTableWithActions';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card } from '../components/studentDash/ui';
 import { useRequests } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
 import { useStudent } from '../hooks/useStudent';
+
+// Unique identifier of a request: the backend row id (rawId), falling back to the display id.
+const requestKey = (r) => String(r?.rawId ?? r?.id);
 
 function InfoItem({ icon, label, value }) {
   const { c } = useStudTheme();
@@ -29,6 +32,22 @@ export default function StudDash() {
 
   const { requests, cancelRequest, loading: requestsLoading } = useRequests();
   const [cancellingId, setCancellingId] = useState(null);
+  const [pendingCancel, setPendingCancel] = useState(null); // request waiting for confirmation
+  const [hiddenIds, setHiddenIds] = useState([]); // unique keys of cancelled requests removed from Recent Requests
+
+  // If a different student is logged in, never carry over another student's pop-up or hidden list.
+  useEffect(() => {
+    setHiddenIds([]);
+    setPendingCancel(null);
+    setCancellingId(null);
+  }, [USER?.email]);
+
+  // A request may only be cancelled by the student it belongs to.
+  // The backend must enforce this too; this is an extra check on the app side.
+  const belongsToUser = (req) => {
+    if (!req?.email || !USER?.email) return true; // no owner info available here, backend decides
+    return String(req.email).toLowerCase() === String(USER.email).toLowerCase();
+  };
 
   const handleEdit = (req) => {
     const isSwap = String(req.type || '').toLowerCase().includes('shift swap');
@@ -42,31 +61,41 @@ export default function StudDash() {
     });
   };
 
+  // Cancel button only opens the confirmation pop-up for the selected request.
   const handleCancel = (req) => {
-    Alert.alert(
-      'Cancel request',
-      `Are you sure you want to cancel ${req.id}? It will remain in your history with Cancelled status.`,
-      [
-        { text: 'Keep request', style: 'cancel' },
-        {
-          text: 'Yes, cancel',
-          style: 'destructive',
-          onPress: async () => {
-            setCancellingId(req.id);
-            try {
-              await cancelRequest(req.rawId || req.id);
-            } catch (err) {
-              Alert.alert('Error', err.message || 'Could not cancel request.');
-            } finally {
-              setCancellingId(null);
-            }
-          },
-        },
-      ]
-    );
+    setPendingCancel(req);
   };
 
-  const rows = requests.slice(0, 3);
+  // "No, Keep Request" (or tapping outside / back button): close without changing anything.
+  const dismissCancel = () => {
+    setPendingCancel(null);
+  };
+
+  // "Yes, Cancel": close the pop-up, cancel only the selected request, remove only that request from the list.
+  const confirmCancel = async () => {
+    const req = pendingCancel;
+    if (!req) return;
+    setPendingCancel(null);
+
+    if (!belongsToUser(req)) {
+      Alert.alert('Error', 'You can only cancel your own requests.');
+      return;
+    }
+    if (cancellingId === req.id) return; // already cancelling this request
+
+    const key = requestKey(req);
+    setCancellingId(req.id);
+    try {
+      await cancelRequest(req.rawId || req.id);
+      setHiddenIds((prev) => (prev.includes(key) ? prev : [...prev, key]));
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Could not cancel request.');
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const rows = requests.filter((r) => !hiddenIds.includes(requestKey(r))).slice(0, 3);
 
   return (
     <ScreenShell
@@ -125,6 +154,56 @@ export default function StudDash() {
           />
         )}
       </Card>
+
+      {/* ---------------- cancel confirmation pop-up ---------------- */}
+      <Modal
+        visible={!!pendingCancel}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={dismissCancel}
+            accessibilityLabel="Close dialog"
+          />
+          <View style={[styles.modalBox, { backgroundColor: c.card, borderColor: c.border }]}>
+            <View style={[styles.modalIcon, { backgroundColor: c.badBg }]}>
+              <Ionicons name="alert-circle-outline" size={26} color={c.badText} />
+            </View>
+            <Text style={[styles.modalTitle, { color: c.text }]}>Cancel request</Text>
+            <Text style={[styles.modalMessage, { color: c.text }]}>
+              Are you sure you want to cancel this request?
+            </Text>
+            {pendingCancel ? (
+              <Text style={[styles.modalMeta, { color: c.muted }]}>
+                {pendingCancel.id}
+                {pendingCancel.type ? ` · ${pendingCancel.type}` : ''}
+              </Text>
+            ) : null}
+            <View style={styles.modalActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={dismissCancel}
+                style={[
+                  styles.modalBtn,
+                  { backgroundColor: c.inputBg, borderColor: c.inputBorder, borderWidth: 1, marginRight: 10 },
+                ]}
+              >
+                <Text style={[styles.modalBtnText, { color: c.text }]}>No, Keep Request</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={confirmCancel}
+                style={[styles.modalBtn, { backgroundColor: c.danger }]}
+              >
+                <Text style={[styles.modalBtnText, { color: '#ffffff' }]}>Yes, Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -143,4 +222,40 @@ const styles = StyleSheet.create({
   track: { height: 6, borderRadius: 3, marginTop: 8, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalBox: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    alignItems: 'center',
+  },
+  modalIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalMessage: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8 },
+  modalMeta: { fontSize: 12, fontWeight: '600', marginTop: 6, textAlign: 'center' },
+  modalActions: { flexDirection: 'row', marginTop: 18, alignSelf: 'stretch' },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnText: { fontSize: 14, fontWeight: '700' },
 });
