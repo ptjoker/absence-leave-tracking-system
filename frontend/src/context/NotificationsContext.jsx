@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/session';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'sa_notifications_v1';
@@ -23,7 +24,7 @@ function persist(list) {
 /** Who is signed in right now (read fresh from the session every time). */
 export function getViewer() {
   try {
-    const user = JSON.parse(localStorage.getItem('session') || 'null')?.user;
+    const user = getSession()?.user;
     if (!user) return null;
     return {
       role: user.role === 'supervisor' ? 'supervisor' : 'student',

@@ -1,3 +1,4 @@
+import { getSession, clearSession } from '@/lib/session';
 import { useState, useEffect } from 'react';
 import { CalendarDays, Bell, LogOut, LayoutDashboard, Plus, Clock3, User, ClipboardList, UsersRound, BarChart3, RefreshCw, Menu, X, ChevronLeft, ChevronRight, Check, Moon, Sun } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
@@ -97,7 +98,7 @@ export function PortalSidebar({ supervisor = false }) {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem('session');
+                  clearSession();
                   window.location.href = '/logout-success';
                 }}
                 className="focus-ring flex-1 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
@@ -131,8 +132,7 @@ export function ModeToggle({ size = 'default' }) {
 }
 
 export function PortalTopbar({ supervisor = false }) {
-  const stored = typeof window !== 'undefined' ? localStorage.getItem('session') : null;
-  const session = stored ? JSON.parse(stored) : null;
+const session = typeof window !== 'undefined' ? getSession() : null;
   const user = session?.user || {};
   const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';
@@ -157,27 +157,20 @@ export function PortalShell({ children, supervisor = false, className = '' }) {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    const checkAuth = () => {
-      const raw = localStorage.getItem('session');
-      if (!raw) {
-        window.location.href = '/login';
-        return false;
-      }
-      try {
-        const s = JSON.parse(raw);
-        const isExpired = s.expires_at && (s.expires_at * 1000 < Date.now());
-        if (isExpired) {
-          localStorage.removeItem('session');
-          window.location.href = '/login';
-          return false;
-        }
-      } catch {
-        localStorage.removeItem('session');
-        window.location.href = '/login';
-        return false;
-      }
-      return true;
-    };
+const checkAuth = () => {
+  const session = getSession();
+  if (!session) {
+    window.location.href = '/login';
+    return false;
+  }
+  const isExpired = session.expires_at && (session.expires_at * 1000 < Date.now());
+  if (isExpired) {
+    clearSession();
+    window.location.href = '/login';
+    return false;
+  }
+  return true;
+};
 
     checkAuth();
 
@@ -188,8 +181,8 @@ export function PortalShell({ children, supervisor = false, className = '' }) {
     return () => window.removeEventListener('pageshow', onPageShow);
   }, []);
 
-  const stored = localStorage.getItem('session');
-  if (!stored) return null;
+const session = getSession();
+if (!session) return null;
 
   return <div className={`portal-shell min-h-[100dvh] bg-[#90bddb] ${className}`}><PortalSidebar supervisor={supervisor} /><div className="portal-main"><PortalTopbar supervisor={supervisor} /><main className="portal-page">{children}</main></div></div>;
 }
