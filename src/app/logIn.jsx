@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 
-import backImg from '@/assets/images/background.png';
+import backImg from '@/assets/images/library.jpg';
 import LogoImg from '@/assets/images/logo.png';
 import { apiFetch, saveSession } from '@/lib/api';
 
@@ -120,7 +120,7 @@ export default function LoginScreen() {
         source={backImg}
         style={styles.backgroundImage}
         blurRadius={4}
-        imageStyle={{ opacity: 0.65 }}
+        imageStyle={{ opacity: 0.45 }}
       >
         <View style={styles.overlay} />
 
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: { flex: 1 },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(219, 234, 254, 0.65)',
+    backgroundColor: 'rgba(219, 234, 254, 0.5)',
   },
   scrollContent: {
     flexGrow: 1,
@@ -447,9 +447,9 @@ const styles = StyleSheet.create({
     fontSize: 28, fontWeight: 'bold', color: COLORS.darkBlue,
     marginBottom: 12, lineHeight: 34,
   },
-  welcomeSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 20, marginBottom: 16 },
+  welcomeSubtitle: { fontSize: 13, fontWeight: '500', color: '#000000', lineHeight: 20, marginBottom: 16 },
   securityNote: { flexDirection: 'row', alignItems: 'flex-start' },
-  securityText: { fontSize: 11, color: COLORS.textMuted, flex: 1, lineHeight: 16, marginLeft: 8 },
+  securityText: { fontSize: 11, color: '#000000', flex: 1, lineHeight: 16, marginLeft: 8 },
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
