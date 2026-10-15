@@ -10,20 +10,21 @@ import { useStrikeDays } from '@/lib/strikes';
 import { holidayName, isPublicHoliday, approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 import { useCancelledShifts } from '@/lib/cancelledShifts';
 import { apiFetch } from '@/lib/api';
+import { getSession } from '@/lib/session';
 
 function getStudentNumber() {
-  try { return JSON.parse(localStorage.getItem('session') || '{}')?.user?.student_number || STUDENT.number; } catch { return STUDENT.number; }
+  try { return getSession()?.user?.student_number || STUDENT.number; } catch { return STUDENT.number; }
 }
 
 function getStudentName() {
   try {
-    const u = JSON.parse(localStorage.getItem('session') || '{}')?.user || {};
+    const u = getSession()?.user || {};
     return `${u.first_name || ''} ${u.last_name || ''}`.trim() || STUDENT.name;
   } catch { return STUDENT.name; }
 }
 
 function getUserId() {
-  try { return JSON.parse(localStorage.getItem('session') || '{}')?.user?.id || ''; } catch { return ''; }
+  try { return getSession()?.user?.id || ''; } catch { return ''; }
 }
 
 function swapMeta(request) {

@@ -3,6 +3,7 @@ import { CalendarDays, ChevronDown, Clock3, Filter, Search, ShieldCheck, X, Refr
 import { PortalShell, StatusBadge} from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { useRequests } from '@/context/RequestsContext';
+import { getSession } from '@/lib/session';
 
 const typeOptions = ['All Types', 'Shift Swap', 'Leave'];
 
@@ -145,8 +146,7 @@ export default function RequestsPage() {
   const [tab, setTab] = useState('pending');
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
-  const stored = localStorage.getItem('session');
-  const session = stored ? JSON.parse(stored) : null;
+  const session = getSession();
   const user = session?.user || {};
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Supervisor';
   const [refreshing, setRefreshing] = useState(false);

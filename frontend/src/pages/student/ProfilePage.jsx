@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, ShieldCheck, Pencil, X, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
 import { recordActivity } from '@/lib/activityLog';
+import { getSession as readSession, updateSession } from '@/lib/session';
 
 const LEVELS = [
   { value: 'first', label: 'First Year' },
@@ -58,8 +59,7 @@ function validateCellNumber(value) {
 }
 
 function getSession() {
-  const raw = localStorage.getItem('session');
-  return raw ? JSON.parse(raw) : null;
+  return readSession();
 }
 
 function formatDate(value) {
@@ -184,7 +184,7 @@ export default function ProfilePage() {
       const { course, level_of_study, ...safeProfile } = data.profile || {};
       const updatedUser = { ...user, ...safeProfile };
       const updatedSession = { ...session, user: updatedUser };
-      localStorage.setItem('session', JSON.stringify(updatedSession));
+      updateSession(updatedSession);
       setSession(updatedSession);
       setEditing(false);
       if (user.role === 'supervisor') {

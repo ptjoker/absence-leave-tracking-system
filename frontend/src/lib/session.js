@@ -11,6 +11,12 @@ export function setSession(data) {
   sessionStorage.setItem('session', JSON.stringify(data));
 }
 
+export function updateSession(data) {
+  const serialized = JSON.stringify(data);
+  if (sessionStorage.getItem('session')) sessionStorage.setItem('session', serialized);
+  if (localStorage.getItem('session')) localStorage.setItem('session', serialized);
+}
+
 export function rememberSession(data) {
   localStorage.setItem('session', JSON.stringify(data));
 }

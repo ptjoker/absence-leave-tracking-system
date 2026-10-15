@@ -4,6 +4,7 @@ import { Link, useLocation } from 'wouter';
 import { PortalShell, StatusBadge} from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { useRequests } from '@/context/RequestsContext';
+import { getSession } from '@/lib/session';
 
 export default function HistoryPage() {
   const [, setLocation] = useLocation();
@@ -14,8 +15,7 @@ export default function HistoryPage() {
   const [cancelError, setCancelError] = useState('');
   const [swapDecisionBusy, setSwapDecisionBusy] = useState(null);
   const [swapDecisionError, setSwapDecisionError] = useState('');
-  const stored = localStorage.getItem('session');
-  const session = stored ? JSON.parse(stored) : null;
+  const session = getSession();
   const user = session?.user || {};
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
   const incomingSwapOffers = requests.filter((request) =>

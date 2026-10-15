@@ -5,6 +5,7 @@ import { PortalShell } from '@/components/portal/PortalComponents';
 import { useRequests } from '@/context/RequestsContext';
 import { parseDateRangeKeys } from '@/lib/schedule';
 import { exportPerformanceReport } from '@/lib/reportExport';
+import { getSession } from '@/lib/session';
 
 const REPORT_ROSTER = [
   
@@ -58,7 +59,7 @@ function requestDays(request) { return Math.max(parseDateRangeKeys(request?.date
 export default function ReportsPage() {
   const { requests } = useRequests();
   const [shifts, setShifts] = useState([]);
-  useEffect(() => { (async () => { try { const session = JSON.parse(localStorage.getItem('session') || 'null'); if (!session?.access_token) return; const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts`, { headers: { Authorization: `Bearer ${session.access_token}` } }); const data = await res.json(); if (res.ok) setShifts(Array.isArray(data) ? data : []); } catch (e) { console.error('Load report shifts error:', e); } })(); }, []);
+  useEffect(() => { (async () => { try { const session = getSession(); if (!session?.access_token) return; const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts`, { headers: { Authorization: `Bearer ${session.access_token}` } }); const data = await res.json(); if (res.ok) setShifts(Array.isArray(data) ? data : []); } catch (e) { console.error('Load report shifts error:', e); } })(); }, []);
   const [search, setSearch] = useState('');
   const [range, setRange] = useState('Last 7 Days');
   const [rangeFrom, setRangeFrom] = useState(inputDate(new Date()));

@@ -23,6 +23,7 @@ import { useRequests } from '@/context/RequestsContext';
 import { declareInstitutionalClosure, removeInstitutionalClosure, useStrikeDays } from '@/lib/strikes';
 import { institutionalStrikeNotification, shiftCancelledNotification } from '@/lib/notifications';
 import { recordActivity } from '@/lib/activityLog';
+import { getSession } from '@/lib/session';
 import { recordCancelledShift, useCancelledShifts } from '@/lib/cancelledShifts';
 import { isPublicHoliday, isSunday, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 import { useTimetables, formatFileSize } from '@/lib/timetables';
@@ -169,8 +170,7 @@ export default function CalendarPage() {
     setLoading(true);
     setError('');
     try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
+      const session = getSession();
       if (!session?.access_token) {
         setError('Not authenticated');
         return;
@@ -202,8 +202,7 @@ export default function CalendarPage() {
       setStudentsLoading(true);
       setStudentsError('');
       try {
-        const raw = localStorage.getItem('session');
-        const session = raw ? JSON.parse(raw) : null;
+        const session = getSession();
         if (!session?.access_token) {
           setStudentsError('Not authenticated');
           setStudentsLoading(false);
@@ -286,8 +285,7 @@ export default function CalendarPage() {
 
     setSaving(true);
     try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
+      const session = getSession();
       if (!session?.access_token) {
         setFormError('Not authenticated');
         return;
@@ -376,7 +374,7 @@ export default function CalendarPage() {
   };
   const cancelShift = async (shift, reason = 'Manual cancellation') => {
     try {
-      const session = JSON.parse(localStorage.getItem('session') || 'null');
+      const session = getSession();
       const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts/${shift.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.access_token}` },

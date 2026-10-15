@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowRight, Grid2X2, LockKeyhole, Mail } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { API_BASE } from '@/lib/api';
+import { clearSession, setSession } from '@/lib/session';
 
 export default function AdminLoginPage() {
   const [, setLocation] = useLocation();
@@ -35,12 +36,13 @@ export default function AdminLoginPage() {
         return;
       }
 
-      localStorage.setItem('session', JSON.stringify({
+      clearSession();
+      setSession({
         access_token: data.session.access_token,
         refresh_token: data.session.refresh_token,
         expires_at: data.session.expires_at,
         user: data.user,
-      }));
+      });
       setLocation('/admin');
     } catch (requestError) {
       console.error('Administrator login error:', requestError);

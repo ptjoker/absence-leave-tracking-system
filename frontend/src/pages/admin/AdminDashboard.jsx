@@ -3,6 +3,7 @@ import { Activity, BarChart3, ChevronLeft, ChevronRight, Download, Eye, Filter, 
 import { useLocation } from 'wouter';
 import { format, subDays } from 'date-fns';
 import { apiFetch } from '@/lib/api';
+import { clearSession, getSession } from '@/lib/session';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Grid2X2 },
@@ -12,11 +13,7 @@ const navItems = [
 ];
 
 function readAdminSession() {
-  try {
-    return JSON.parse(localStorage.getItem('session') || 'null');
-  } catch {
-    return null;
-  }
+  return getSession();
 }
 
 function MetricCard({ label, value, note, icon: Icon, tint }) {
@@ -277,7 +274,7 @@ export default function AdminDashboard() {
   }, [accounts]);
 
   const handleLogout = () => {
-    localStorage.removeItem('session');
+    clearSession();
     setSession(null);
     window.dispatchEvent(new Event('storage'));
     setLocation('/admin/login');

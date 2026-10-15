@@ -6,6 +6,7 @@ import { useRequests } from '@/context/RequestsContext';
 import { useNotifications } from '@/context/NotificationsContext';
 import { exportActivityLogPdf } from '@/lib/reportExport';
 import { recordActivity, useActivityLog } from '@/lib/activityLog';
+import { getSession } from '@/lib/session';
 
 const PERIODS = ['Today', 'This week', 'This month', 'All time'];
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
@@ -74,7 +75,7 @@ export default function SupervisorDashboard() {
   useEffect(() => {
     const loadShifts = async () => {
       try {
-        const session = JSON.parse(localStorage.getItem('session') || 'null');
+        const session = getSession();
         if (!session?.access_token) return;
         const response = await fetch(`${API_BASE}/api/shifts`, {
           headers: { Authorization: `Bearer ${session.access_token}` },

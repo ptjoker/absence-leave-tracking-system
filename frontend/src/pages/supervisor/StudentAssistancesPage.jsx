@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { PortalShell, StatusBadge } from '@/components/portal/PortalComponents';
+import { getSession } from '@/lib/session';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -115,8 +116,7 @@ export default function StudentAssistancesPage() {
     setLoading(true);
     setError('');
     try {
-      const raw = localStorage.getItem('session');
-      const session = raw ? JSON.parse(raw) : null;
+      const session = getSession();
       if (!session?.access_token) {
         setError('Not authenticated');
         return;
