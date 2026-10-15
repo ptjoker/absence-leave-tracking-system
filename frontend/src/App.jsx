@@ -25,6 +25,7 @@ import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { generateStudentSchedule } from '@/lib/schedule';
 import { useCancelledShifts } from '@/lib/cancelledShifts';
 import { assetUrl } from '@/lib/assets';
+import { setSession, rememberSession, clearSession, getSession } from '@/lib/session';
 const queryClient = new QueryClient();
 
 /* Fixed, page-independent background photo shown behind every route. */
@@ -277,12 +278,16 @@ function LoginPage() {
         setServerError(data.error || 'Login failed. Please check your credentials.');
         return;
       }
-      localStorage.setItem('session', JSON.stringify({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-        expires_at: data.session.expires_at,
-        user: data.user,
-      }));
+const sessionData = {
+  access_token: data.session.access_token,
+  refresh_token: data.session.refresh_token,
+  expires_at: data.session.expires_at,
+  user: data.user,
+};
+
+clearSession();              // wipe any leftover from previous user in this tab
+setSession(sessionData);     // this tab's session
+if (remember) rememberSession(sessionData);
       setLocation(role === 'student' ? '/dashboard' : '/supervisor');
     } catch (err) {
       console.error('Login error:', err);
@@ -448,7 +453,7 @@ function Sidebar() {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem('session');
+                  clearSession();
                   window.location.href = '/logout-success';
                 }}
                 className="focus-ring flex-1 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
@@ -465,10 +470,8 @@ function Sidebar() {
 }
 
 function PortalTopBar() {
-  const stored = localStorage.getItem('session');
-  const session = stored ? JSON.parse(stored) : null;
-  const user = session?.user || {};
-  const firstName = user.first_name || 'User';
+  const session = getSession();
+  const user = session?.user || {};  const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim();
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
@@ -500,7 +503,7 @@ function DashboardPage() {
     const loadAssignedShifts = async () => {
       let activeSession;
       try {
-        activeSession = JSON.parse(localStorage.getItem('session') || 'null');
+        activeSession = getSession();
       } catch (error) {
         console.error('Load dashboard shifts error:', error);
         return;
@@ -525,10 +528,8 @@ function DashboardPage() {
     loadAssignedShifts();
     return () => { cancelled = true; };
   }, []);
-  const stored = localStorage.getItem('session');
-  if (!stored) return null;
-  let session = {};
-  try { session = JSON.parse(stored); } catch { return null; }
+   const session = getSession();
+  if (!session) return null;
   const user = session?.user || {};
   const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';

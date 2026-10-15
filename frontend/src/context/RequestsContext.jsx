@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/session';
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useNotifications, getViewer } from '@/context/NotificationsContext';
 import {
@@ -24,24 +25,11 @@ const DECLINE_REASONS_KEY = 'sa_decline_reasons_v1';
 const SNAPSHOT_PREFIX = 'sa_request_snapshot_v1:';
 const POLL_MS = 20000;
 
-function getSession() {
-  try {
-    return JSON.parse(localStorage.getItem('session') || 'null');
-  } catch {
-    return null;
-  }
-}
 
 function getAuthHeader() {
-  try {
-    const raw = localStorage.getItem('session');
-    if (!raw) return null;
-    const session = JSON.parse(raw);
-    if (!session.access_token) return null;
-    return { Authorization: `Bearer ${session.access_token}` };
-  } catch {
-    return null;
-  }
+  const session = getSession();
+  if (!session?.access_token) return null;
+  return { Authorization: `Bearer ${session.access_token}` };
 }
 
 function normalizeStatus(status) {
@@ -141,13 +129,13 @@ export function RequestsProvider({ children }) {
 
   useEffect(() => {
     refresh();
-    let lastSession = localStorage.getItem('session');
+    let lastSession = sessionStorage.getItem('session');
     let lastPoll = Date.now();
     const onStorage = (e) => {
       if (e.key === 'session') refresh();
     };
     const tick = () => {
-      const current = localStorage.getItem('session');
+    const current = sessionStorage.getItem('session');
       if (current !== lastSession) {
         lastSession = current;
         lastPoll = Date.now();
