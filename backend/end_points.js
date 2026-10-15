@@ -876,6 +876,201 @@ router.get('/assistants', async (req, res) => {
 });
 
 // ============================================
+// Timetable endpoints
+// ============================================
+
+// Base64 PNG/JPG/PDF validation. 5 MB hard cap, same as absence documents.
+const MAX_TIMETABLE_BYTES = 5 * 1024 * 1024;
+
+function parseTimetablePayload(value) {
+  if (!value || typeof value !== 'object') {
+    return { file: null, error: 'Missing timetable payload' };
+  }
+  const { fileName, contentType, dataUrl } = value;
+  if (typeof fileName !== 'string' || !fileName.trim()) {
+    return { file: null, error: 'fileName is required' };
+  }
+  if (typeof contentType !== 'string' || !contentType.trim()) {
+    return { file: null, error: 'contentType is required' };
+  }
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+    return { file: null, error: 'dataUrl must be a data: URL' };
+  }
+
+  // dataUrl looks like: data:<mime>;base64,<payload>
+  const comma = dataUrl.indexOf(',');
+  if (comma === -1) return { file: null, error: 'Malformed dataUrl' };
+  const meta = dataUrl.slice(5, comma);        // "<mime>;base64"
+  const encoded = dataUrl.slice(comma + 1);
+  if (!meta.endsWith(';base64')) return { file: null, error: 'Only base64 payloads are supported' };
+
+  const buffer = Buffer.from(encoded, 'base64');
+  if (buffer.length === 0 || buffer.length > MAX_TIMETABLE_BYTES) {
+    return { file: null, error: 'Timetable must be between 1 byte and 5 MB.' };
+  }
+  if (buffer.toString('base64') !== encoded) {
+    return { file: null, error: 'Malformed base64 payload' };
+  }
+
+  const allowed = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+  ]);
+  if (!allowed.has(contentType)) {
+    return { file: null, error: 'Timetable must be a PDF, PNG, or JPEG.' };
+  }
+
+  const safeName = fileName.trim().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255);
+  if (!safeName) return { file: null, error: 'Invalid fileName' };
+
+  return {
+    file: {
+      fileName: safeName,
+      contentType,
+      size: buffer.length,
+      data: encoded,
+    },
+    error: null,
+  };
+}
+
+// POST /api/timetables — student uploads their timetable
+router.post('/timetables', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'student') {
+      return res.status(403).json({ error: 'Only students can upload timetables' });
+    }
+
+    const parsed = parseTimetablePayload(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+
+    // One timetable per student — replace any existing upload.
+    const rows = await sql`
+      WITH deleted AS (
+        DELETE FROM public.timetables WHERE user_id = ${user.id}
+      )
+      INSERT INTO public.timetables
+        (user_id, file_name, content_type, file_size, data)
+      VALUES (
+        ${user.id},
+        ${parsed.file.fileName},
+        ${parsed.file.contentType},
+        ${parsed.file.size},
+        ${parsed.file.data}
+      )
+      RETURNING id, user_id, file_name, content_type, file_size, uploaded_at
+    `;
+
+    const row = rows[0];
+    res.status(201).json({
+      id: row.id,
+      userId: row.user_id,
+      fileName: row.file_name,
+      contentType: row.content_type,
+      fileSize: row.file_size,
+      uploadedAt: row.uploaded_at,
+    });
+  } catch (err) {
+    console.error('Upload timetable error:', err);
+    res.status(500).json({ error: 'Could not upload timetable' });
+  }
+});
+
+// GET /api/timetables — supervisor sees every upload, student sees own
+router.get('/timetables', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    const role = callerProfile[0]?.role;
+    if (!role) return res.status(404).json({ error: 'Profile not found' });
+
+    let rows;
+    if (role === 'supervisor' || role === 'admin') {
+      rows = await sql`
+        SELECT
+          t.id, t.user_id, t.file_name, t.content_type, t.file_size, t.uploaded_at,
+          p.first_name, p.last_name, p.student_number
+        FROM public.timetables t
+        JOIN public.profiles p ON p.id = t.user_id
+        ORDER BY t.uploaded_at DESC
+      `;
+    } else {
+      rows = await sql`
+        SELECT
+          t.id, t.user_id, t.file_name, t.content_type, t.file_size, t.uploaded_at,
+          p.first_name, p.last_name, p.student_number
+        FROM public.timetables t
+        JOIN public.profiles p ON p.id = t.user_id
+        WHERE t.user_id = ${user.id}
+        ORDER BY t.uploaded_at DESC
+      `;
+    }
+
+    const formatted = rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      studentNumber: row.student_number || '',
+      fileName: row.file_name,
+      contentType: row.content_type,
+      fileSize: row.file_size,
+      uploadDate: row.uploaded_at,
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('List timetables error:', err);
+    res.status(500).json({ error: 'Could not load timetables' });
+  }
+});
+
+// GET /api/timetables/:id/file — returns the actual base64 data URL
+router.get('/timetables/:id/file', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    const role = callerProfile[0]?.role;
+
+    const rows = await sql`
+      SELECT user_id, file_name, content_type, data
+      FROM public.timetables
+      WHERE id = ${req.params.id}
+      LIMIT 1
+    `;
+    if (rows.length === 0) return res.status(404).json({ error: 'Timetable not found' });
+
+    const row = rows[0];
+    if (String(row.user_id) !== String(user.id) && role !== 'supervisor' && role !== 'admin') {
+      return res.status(403).json({ error: 'You are not allowed to view this timetable' });
+    }
+
+    res.json({
+      fileName: row.file_name,
+      contentType: row.content_type,
+      dataUrl: `data:${row.content_type};base64,${row.data}`,
+    });
+  } catch (err) {
+    console.error('Load timetable file error:', err);
+    res.status(500).json({ error: 'Could not load timetable file' });
+  }
+});
+
+// ============================================
 // Shift endpoints
 // ============================================
 
