@@ -1122,6 +1122,37 @@ router.post('/shifts', async (req, res) => {
       });
     }
 
+    const shiftDateValue = new Date(`${shift_date}T00:00:00`);
+    const currentYear = new Date().getFullYear();
+    if (
+      Number.isNaN(shiftDateValue.getTime())
+      || !/^\d{4}-\d{2}-\d{2}$/.test(shift_date)
+      || shiftDateValue.getFullYear() !== currentYear
+    ) {
+      return res.status(400).json({ error: 'Only dates in the current year can be used to assign shifts.' });
+    }
+
+    const timeToMinutes = (value) => {
+      if (!/^\d{2}:\d{2}$/.test(value)) return NaN;
+      const [hours, minutes] = value.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    const startMinutes = timeToMinutes(start_time);
+    const endMinutes = timeToMinutes(end_time);
+    const day = shiftDateValue.getDay();
+    const opening = day === 6 ? 9 * 60 : 8 * 60;
+    const closing = day === 5 ? 16 * 60 : day === 6 ? 17 * 60 : 21 * 60;
+    if (
+      Number.isNaN(startMinutes)
+      || Number.isNaN(endMinutes)
+      || startMinutes < opening
+      || endMinutes <= startMinutes
+      || endMinutes > closing
+    ) {
+      const window = day === 5 ? '08:00 and 16:00' : day === 6 ? '09:00 and 17:00' : '08:00 and 21:00';
+      return res.status(400).json({ error: `Shift times must fall between ${window}.` });
+    }
+
     const rows = await sql`
       INSERT INTO public.shifts (user_id, shift_date, start_time, end_time, role, location, notes, created_by)
       VALUES (

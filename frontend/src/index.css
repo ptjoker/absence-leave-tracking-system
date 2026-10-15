@@ -839,4 +839,4 @@ select option { background: #ffffff; color: #000000; }
 .calendar-x-day button { position: relative !important; }
 .calendar-x-day button::after { content: '×'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.55rem; line-height: 1; font-weight: 900; color: #8a98a5; pointer-events: none; }
 .calendar-x-number { position: relative; }
-.calendar-x-number::after { content: '×'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.15rem; font-weight: 900; color: #8a98a5; pointer-events: none; }
+.calendar-x-number::after { content: '×'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.15rem; font-weight: 900; color: #000000; pointer-events: none; }

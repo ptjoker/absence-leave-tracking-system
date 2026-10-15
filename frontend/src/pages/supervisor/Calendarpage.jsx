@@ -65,6 +65,26 @@ function isUnavailableShiftDate(date) {
   return date < today || isSunday(date) || isPublicHoliday(date);
 }
 
+function shiftWindowForDate(date) {
+  switch (date.getDay()) {
+    case 5:
+      return { label: 'Friday', opening: '08:00', closing: '16:00' };
+    case 6:
+      return { label: 'Saturday', opening: '09:00', closing: '17:00' };
+    default:
+      return { label: 'Monday–Thursday', opening: '08:00', closing: '21:00' };
+  }
+}
+
+function timeToMinutes(value) {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(value) {
+  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+}
+
 function buildCalendarGrid(monthDate) {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -126,9 +146,9 @@ export default function CalendarPage() {
   const [form, setForm] = useState({
     user_id: '',
     shift_date: '',
-    shift_time: 'Morning',
+    duration: '',
+    start_time: '',
     role: 'iCenter',
-    location: 'Main Desk',
     notes: '',
   });
   const [monthDate, setMonthDate] = useState(() => {
@@ -238,9 +258,9 @@ export default function CalendarPage() {
     setForm({
       user_id: '',
       shift_date: strikeDays[requestedDate] || unavailable ? '' : requestedDate,
-      shift_time: 'Morning',
+      duration: '',
+      start_time: '',
       role: 'iCenter',
-      location: 'Main Desk',
       notes: '',
     });
     setFormError(
@@ -262,7 +282,7 @@ export default function CalendarPage() {
       description: `${selectedStudent?.name || 'Student assistant'} was assigned a shift on ${form.shift_date}.`,
       student: selectedStudent?.name || 'Student assistant',
       date: form.shift_date,
-      details: `${form.shift_time} · ${form.role} · ${form.location}`,
+      details: `${form.duration || 'Unspecified duration'} · ${form.role}`,
     });
     setFormError('');
   };
@@ -272,8 +292,10 @@ export default function CalendarPage() {
     setFormError('');
     if (!form.user_id) return setFormError('Please select a student.');
     if (!form.shift_date) return setFormError('Please pick a date.');
-    if (!form.shift_time) return setFormError('Please select a shift time.');
+    if (!form.duration || Number(form.duration) <= 0) return setFormError('Please enter a valid shift duration.');
+    if (!form.start_time) return setFormError('Please select a starting time.');
     const selected = new Date(`${form.shift_date}T00:00:00`);
+    if (selected.getFullYear() !== new Date().getFullYear()) return setFormError('Only the current year can be used to assign shifts to current-year student assistants.');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (selected < today) return setFormError('Shifts cannot be assigned on past dates.');
@@ -281,7 +303,15 @@ export default function CalendarPage() {
     if (isPublicHoliday(selected)) return setFormError('Shifts cannot be assigned on public holidays.');
     if (strikeDays[form.shift_date]) return setFormError('Closure on this date');
     if ((shiftsByDate[form.shift_date] || []).some((shift) => shift.userId === form.user_id)) return setFormError('This student already has a shift assigned on that date.');
-    const [start_time, end_time] = form.shift_time === 'Morning' ? ['08:00', '12:00'] : ['12:00', '16:00'];
+    const window = shiftWindowForDate(selected);
+    const durationMinutes = Number(form.duration) * 60;
+    const startMinutes = timeToMinutes(form.start_time);
+    const endMinutes = startMinutes + durationMinutes;
+    if (startMinutes < timeToMinutes(window.opening) || endMinutes > timeToMinutes(window.closing)) {
+      return setFormError(`${window.label} shifts must fall between ${window.opening} and ${window.closing}.`);
+    }
+    const start_time = form.start_time;
+    const end_time = minutesToTime(endMinutes);
 
     setSaving(true);
     try {
@@ -296,7 +326,7 @@ export default function CalendarPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ user_id: form.user_id, shift_date: form.shift_date, start_time, end_time, role: form.role, location: form.location, notes: form.notes }),
+        body: JSON.stringify({ user_id: form.user_id, shift_date: form.shift_date, start_time, end_time, role: form.role, notes: form.notes }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -401,9 +431,15 @@ export default function CalendarPage() {
     }
   };
   const monthLabel = monthDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  const currentYear = new Date().getFullYear();
+  const formDateValue = form.shift_date ? new Date(`${form.shift_date}T00:00:00`) : null;
+  const formWindow = formDateValue && !Number.isNaN(formDateValue.getTime()) ? shiftWindowForDate(formDateValue) : null;
 
   const prevMonth = () => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1));
-  const nextMonth = () => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1));
+  const nextMonth = () => {
+    if (monthDate.getFullYear() === currentYear && monthDate.getMonth() === 11) return;
+    setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1));
+  };
   const goToday = () => {
     const now = new Date();
     setMonthDate(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -506,6 +542,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={nextMonth}
+                  disabled={monthDate.getFullYear() === currentYear && monthDate.getMonth() === 11}
                   className="focus-ring grid size-9 place-items-center rounded-lg border border-[#e2eaf1] text-[#52708b] hover:bg-[#f4f8fb]"
                   aria-label="Next month"
                 >
@@ -536,6 +573,7 @@ export default function CalendarPage() {
                   const isHoliday = isPublicHoliday(cell.date);
                   const isSundayDay = isSunday(cell.date);
                   const isPastDay = key < todayKey;
+                  const isOutsideCurrentYear = cell.date.getFullYear() !== currentYear;
                   const isSwapTo = swapDateKeys.to.has(key);
                   const isSwapFrom = swapDateKeys.from.has(key);
                   const overflowCount = dayShifts.length > 2 ? dayShifts.length - 2 : 0;
@@ -544,11 +582,13 @@ export default function CalendarPage() {
                     <button
                       key={`${key}-${index}`}
                       type="button"
-                      disabled={isPastDay || isSundayDay || isHoliday}
+                      disabled={isPastDay || isOutsideCurrentYear || isSundayDay || isHoliday}
                       onClick={() => setSelectedDate(cell.date)}
                       title={
                         isPastDay
                           ? 'Past dates cannot be selected'
+                        : isOutsideCurrentYear
+                        ? 'Only dates in the current year can be used to assign shifts'
                           : isSundayDay
                           ? 'Sundays cannot be selected'
                           : isHoliday
@@ -571,13 +611,8 @@ export default function CalendarPage() {
                               : ''
                           }`}
                         >
-                          <span className={`calendar-day-number ${isPastDay || isSundayDay ? 'calendar-x-number' : ''}`}>{cell.date.getDate()}</span>
+                          <span className={`calendar-day-number ${isPastDay || isOutsideCurrentYear || isSundayDay ? 'calendar-x-number' : ''}`}>{cell.date.getDate()}</span>
                         </span>
-                        {dayShifts.length > 0 && (
-                          <span className="mono grid size-4 place-items-center rounded bg-[#eef2f6] text-[9px] font-bold text-[#7890a4]">
-                            {dayShifts.length}
-                          </span>
-                        )}
                       </span>
                       <span className="flex flex-col gap-1">
                         {isStrike && <span className="mono truncate rounded bg-[#d05b48] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[.04em] text-white">Institutional closure</span>}
@@ -932,20 +967,25 @@ export default function CalendarPage() {
                   )}
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">
-                      Date of shift <em className="not-italic text-[#d05b48]">*</em>
-                    </label>
+                <div>
+                  <label className="sr-only" htmlFor="shift-date">Date of shift</label>
+                  <div className="flex w-fit items-center gap-2 rounded-full border border-[#b9d8ff] bg-[#f3f8ff] px-3 py-1.5 text-xs font-bold text-[#1f70d0]">
+                    <CalendarDays size={14} />
                     <input
+                      id="shift-date"
                       type="date"
                       value={form.shift_date}
                       min={ymd(new Date())}
+                      max={`${currentYear}-12-31`}
                       title={strikeDays[form.shift_date] ? 'Closure on this date' : undefined}
                       aria-describedby={strikeDays[form.shift_date] ? 'shift-date-closure-help' : undefined}
                       onChange={(e) => {
                         const nextDate = e.target.value;
                         const nextDateValue = new Date(`${nextDate}T00:00:00`);
+                        if (nextDateValue.getFullYear() !== currentYear) {
+                          setFormError('Only the current year can be used to assign shifts to current-year student assistants.');
+                          return;
+                        }
                         if (isUnavailableShiftDate(nextDateValue)) {
                           setFormError(
                             nextDateValue < new Date(new Date().setHours(0, 0, 0, 0))
@@ -964,46 +1004,57 @@ export default function CalendarPage() {
                         setForm((f) => ({ ...f, shift_date: nextDate }));
                         setFormError('');
                       }}
-                      className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
+                      className="focus-ring bg-transparent text-xs font-bold text-[#1f70d0] outline-none"
                     />
-                    {strikeDays[form.shift_date] && (
-                      <p id="shift-date-closure-help" className="mt-1.5 text-[11px] font-semibold text-[#d05b48]">
-                        Closure on this date
-                      </p>
-                    )}
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Position</label>
-                    <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]">
-                      <option value="iCenter">iCenter</option>
-                      <option value="Circular 2">Circular 2</option>
-                    </select>
-                  </div>
+                  {strikeDays[form.shift_date] && (
+                    <p id="shift-date-closure-help" className="mt-1.5 text-[11px] font-semibold text-[#d05b48]">Closure on this date</p>
+                  )}
+                  <p className="mt-1.5 text-[11px] font-semibold text-[#60768c]">
+                    Only dates in {currentYear} can be used to assign shifts to current-year student assistants.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-[#385570]">Position</label>
+                  <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]">
+                    <option value="iCenter">iCenter</option>
+                    <option value="Circular 2">Circular 2</option>
+                  </select>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Shift Time <em className="not-italic text-[#d05b48]">*</em></label>
-                    <select value={form.shift_time} onChange={(e) => setForm((f) => ({ ...f, shift_time: e.target.value }))} className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]">
-                      <option value="Morning">Morning [08:00AM - 12:00PM]</option>
-                      <option value="Afternoon">Afternoon [12:00PM - 04:00PM]</option>
-                    </select>
+                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Shift duration <em className="not-italic text-[#d05b48]">*</em></label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0.5"
+                        max={formWindow ? (timeToMinutes(formWindow.closing) - timeToMinutes(formWindow.opening)) / 60 : 13}
+                        step="0.5"
+                        value={form.duration}
+                        onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+                        placeholder="e.g. 4 hours"
+                        className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Duration</label>
-                    <input type="text" readOnly value="4 hours" className="w-full rounded-lg border border-[#cfdee9] bg-[#eef4f8] px-3.5 py-3 text-sm font-bold text-black outline-none" />
+                    <label className="mb-1.5 block text-xs font-bold text-[#385570]">Starting time <em className="not-italic text-[#d05b48]">*</em></label>
+                    <input
+                      type="time"
+                      value={form.start_time}
+                      min={formWindow?.opening || '08:00'}
+                      max={formWindow && form.duration ? minutesToTime(timeToMinutes(formWindow.closing) - Number(form.duration) * 60) : formWindow?.closing || '21:00'}
+                      onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
+                      className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
+                    />
+                    {formWindow && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-[#60768c]">
+                        {formWindow.label}: {formWindow.opening} – {formWindow.closing}
+                      </p>
+                    )}
                   </div>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-[#385570]">Location</label>
-                  <input
-                    type="text"
-                    value={form.location}
-                    onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
-                    placeholder="e.g. Main Desk"
-                    className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
-                  />
                 </div>
 
                 <div>
