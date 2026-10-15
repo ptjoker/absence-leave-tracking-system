@@ -1,31 +1,13 @@
 // frontend/src/lib/api.js
+import { getSession, setSession, clearSession } from '@/lib/session';
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 export { API_BASE };
 
-function getSession() {
-  try {
-    const raw = localStorage.getItem('session');
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveSession(session) {
-  localStorage.setItem('session', JSON.stringify(session));
-  // Notify other tabs and contexts that the session changed.
-  window.dispatchEvent(new Event('storage'));
-}
-
-function clearSession() {
-  localStorage.removeItem('session');
-}
-
 function isExpiringSoon(session) {
   if (!session?.expires_at) return false;
   const nowSec = Math.floor(Date.now() / 1000);
-  // Refresh if less than 60 seconds remain.
   return session.expires_at - nowSec < 60;
 }
 
@@ -53,7 +35,7 @@ async function refreshSession() {
       refresh_token: data.refresh_token,
       expires_at: data.expires_at,
     };
-    saveSession(updated);
+    setSession(updated);
     return updated;
   })().finally(() => {
     refreshPromise = null;
@@ -62,19 +44,12 @@ async function refreshSession() {
   return refreshPromise;
 }
 
-/**
- * Fetch wrapper that handles auth automatically:
- * - Preemptively refreshes if the token is about to expire
- * - Retries once on 401 after a refresh
- * - Clears session and redirects to /login on unrecoverable auth failure
- */
 export async function apiFetch(path, options = {}) {
- let session = getSession();
+  let session = getSession();
   if (!session) {
     throw new Error('Not authenticated');
   }
 
-  // Preemptive refresh
   if (isExpiringSoon(session)) {
     try {
       session = await refreshSession();
@@ -92,7 +67,6 @@ export async function apiFetch(path, options = {}) {
 
   let res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-  // Reactive refresh + retry on 401
   if (res.status === 401) {
     try {
       session = await refreshSession();

@@ -326,7 +326,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-
     res.status(201).json({
       success: true,
       message: 'Registration successful. A verification code has been sent to your email.',
@@ -375,7 +374,6 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (profile.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
     }
-
 
     if (profile[0].account_status === 'disabled') {
   return res.status(403).json({
@@ -876,10 +874,205 @@ router.get('/assistants', async (req, res) => {
 });
 
 // ============================================
+// Timetable endpoints
+// ============================================
+
+// Base64 PNG/JPG/PDF validation. 5 MB hard cap, same as absence documents.
+const MAX_TIMETABLE_BYTES = 5 * 1024 * 1024;
+
+function parseTimetablePayload(value) {
+  if (!value || typeof value !== 'object') {
+    return { file: null, error: 'Missing timetable payload' };
+  }
+  const { fileName, contentType, dataUrl } = value;
+  if (typeof fileName !== 'string' || !fileName.trim()) {
+    return { file: null, error: 'fileName is required' };
+  }
+  if (typeof contentType !== 'string' || !contentType.trim()) {
+    return { file: null, error: 'contentType is required' };
+  }
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+    return { file: null, error: 'dataUrl must be a data: URL' };
+  }
+
+  // dataUrl looks like: data:<mime>;base64,<payload>
+  const comma = dataUrl.indexOf(',');
+  if (comma === -1) return { file: null, error: 'Malformed dataUrl' };
+  const meta = dataUrl.slice(5, comma);        // "<mime>;base64"
+  const encoded = dataUrl.slice(comma + 1);
+  if (!meta.endsWith(';base64')) return { file: null, error: 'Only base64 payloads are supported' };
+
+  const buffer = Buffer.from(encoded, 'base64');
+  if (buffer.length === 0 || buffer.length > MAX_TIMETABLE_BYTES) {
+    return { file: null, error: 'Timetable must be between 1 byte and 5 MB.' };
+  }
+  if (buffer.toString('base64') !== encoded) {
+    return { file: null, error: 'Malformed base64 payload' };
+  }
+
+  const allowed = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+  ]);
+  if (!allowed.has(contentType)) {
+    return { file: null, error: 'Timetable must be a PDF, PNG, or JPEG.' };
+  }
+
+  const safeName = fileName.trim().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255);
+  if (!safeName) return { file: null, error: 'Invalid fileName' };
+
+  return {
+    file: {
+      fileName: safeName,
+      contentType,
+      size: buffer.length,
+      data: encoded,
+    },
+    error: null,
+  };
+}
+
+// POST /api/timetables — student uploads their timetable
+router.post('/timetables', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'student') {
+      return res.status(403).json({ error: 'Only students can upload timetables' });
+    }
+
+    const parsed = parseTimetablePayload(req.body);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+
+    // One timetable per student — replace any existing upload.
+    const rows = await sql`
+      WITH deleted AS (
+        DELETE FROM public.timetables WHERE user_id = ${user.id}
+      )
+      INSERT INTO public.timetables
+        (user_id, file_name, content_type, file_size, data)
+      VALUES (
+        ${user.id},
+        ${parsed.file.fileName},
+        ${parsed.file.contentType},
+        ${parsed.file.size},
+        ${parsed.file.data}
+      )
+      RETURNING id, user_id, file_name, content_type, file_size, uploaded_at
+    `;
+
+    const row = rows[0];
+    res.status(201).json({
+      id: row.id,
+      userId: row.user_id,
+      fileName: row.file_name,
+      contentType: row.content_type,
+      fileSize: row.file_size,
+      uploadedAt: row.uploaded_at,
+    });
+  } catch (err) {
+    console.error('Upload timetable error:', err);
+    res.status(500).json({ error: 'Could not upload timetable' });
+  }
+});
+
+// GET /api/timetables — supervisor sees every upload, student sees own
+router.get('/timetables', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    const role = callerProfile[0]?.role;
+    if (!role) return res.status(404).json({ error: 'Profile not found' });
+
+    let rows;
+    if (role === 'supervisor' || role === 'admin') {
+      rows = await sql`
+        SELECT
+          t.id, t.user_id, t.file_name, t.content_type, t.file_size, t.uploaded_at,
+          p.first_name, p.last_name, p.student_number
+        FROM public.timetables t
+        JOIN public.profiles p ON p.id = t.user_id
+        ORDER BY t.uploaded_at DESC
+      `;
+    } else {
+      rows = await sql`
+        SELECT
+          t.id, t.user_id, t.file_name, t.content_type, t.file_size, t.uploaded_at,
+          p.first_name, p.last_name, p.student_number
+        FROM public.timetables t
+        JOIN public.profiles p ON p.id = t.user_id
+        WHERE t.user_id = ${user.id}
+        ORDER BY t.uploaded_at DESC
+      `;
+    }
+
+    const formatted = rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      studentNumber: row.student_number || '',
+      fileName: row.file_name,
+      contentType: row.content_type,
+      fileSize: row.file_size,
+      uploadDate: row.uploaded_at,
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('List timetables error:', err);
+    res.status(500).json({ error: 'Could not load timetables' });
+  }
+});
+
+// GET /api/timetables/:id/file — returns the actual base64 data URL
+router.get('/timetables/:id/file', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    const role = callerProfile[0]?.role;
+
+    const rows = await sql`
+      SELECT user_id, file_name, content_type, data
+      FROM public.timetables
+      WHERE id = ${req.params.id}
+      LIMIT 1
+    `;
+    if (rows.length === 0) return res.status(404).json({ error: 'Timetable not found' });
+
+    const row = rows[0];
+    if (String(row.user_id) !== String(user.id) && role !== 'supervisor' && role !== 'admin') {
+      return res.status(403).json({ error: 'You are not allowed to view this timetable' });
+    }
+
+    res.json({
+      fileName: row.file_name,
+      contentType: row.content_type,
+      dataUrl: `data:${row.content_type};base64,${row.data}`,
+    });
+  } catch (err) {
+    console.error('Load timetable file error:', err);
+    res.status(500).json({ error: 'Could not load timetable file' });
+  }
+});
+
+// ============================================
 // Shift endpoints
 // ============================================
 
-// POST /api/shifts â€” create a shift (supervisors only)
+// POST /api/shifts — create a shift (supervisors only)
 router.post('/shifts', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -892,10 +1085,41 @@ router.post('/shifts', async (req, res) => {
       return res.status(403).json({ error: 'Only supervisors can create shifts' });
     }
 
-    const { user_id, shift_date, start_time, end_time, role, location, notes } = req.body;
+    const body = req.body || {};
 
-    if (!user_id || !shift_date || !start_time || !end_time) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Accept camelCase and snake_case.
+    const user_id    = body.user_id    ?? body.userId;
+    const shift_date = body.shift_date ?? body.shiftDate;
+    const start_time = body.start_time ?? body.startTime;
+    let   end_time   = body.end_time   ?? body.endTime;
+    const role       = body.role       ?? null;
+    const location   = body.location   ?? body.position ?? null;
+    const notes      = body.notes      ?? null;
+    const duration   = body.duration   ?? null;
+
+    if (!user_id || !shift_date || !start_time) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['user_id', 'shift_date', 'start_time'],
+      });
+    }
+
+    // Derive end_time from duration if the client didn't send one.
+    if (!end_time && duration) {
+      const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(String(start_time).trim());
+      const hours = Number(String(duration).replace(/[^0-9.]/g, ''));
+      if (match && !Number.isNaN(hours) && hours > 0) {
+        const total = Number(match[1]) * 60 + Number(match[2]) + Math.round(hours * 60);
+        const hh = String(Math.floor((total % (24 * 60)) / 60)).padStart(2, '0');
+        const mm = String(total % 60).padStart(2, '0');
+        end_time = `${hh}:${mm}`;
+      }
+    }
+
+    if (!end_time) {
+      return res.status(400).json({
+        error: 'end_time is required (or send a duration so it can be derived)',
+      });
     }
 
     const shiftDateValue = new Date(`${shift_date}T00:00:00`);
@@ -936,17 +1160,17 @@ router.post('/shifts', async (req, res) => {
         ${shift_date},
         ${start_time},
         ${end_time},
-        ${role || null},
-        ${location || null},
-        ${notes || null},
+        ${role},
+        ${location},
+        ${notes},
         ${user.id}
       )
-      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at, TO_CHAR(shift_date, 'YYYY-MM-DD') AS shift_date
+      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at,
+                TO_CHAR(shift_date, 'YYYY-MM-DD') AS shift_date
     `;
 
     const shiftRow = rows[0];
 
-    // Join to get the student's name for the response
     const studentRows = await sql`
       SELECT first_name, last_name FROM public.profiles WHERE id = ${shiftRow.user_id}
     `;
@@ -1187,8 +1411,6 @@ router.get('/admin/overview', async (req, res) => {
     });
   }
 });
-
-
 
 // GET /api/admin/assistants
 router.get('/admin/assistants', async (req, res) => {
@@ -2509,6 +2731,549 @@ router.patch('/admin/supervisors/:id', async (req, res) => {
     });
   }
 });
+
+
+
+/* ============================================
+   Find Eligible Colleagues for Shift Swap
+============================================ */
+
+router.get('/eligible-colleagues', async (req, res) => {
+  try {
+    // Check if the user is logged in
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: 'Please log in to continue.'
+      });
+    }
+
+    // Get the selected shift date
+    const shiftDate = req.query.shift_date;
+    const currentShiftDate = req.query.current_shift_date;
+
+    if (!shiftDate || !currentShiftDate) {
+      return res.status(400).json({
+        error: 'Please provide both shift dates.'
+      });
+    }
+    const validDate = (value) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    };
+    if (!validDate(shiftDate) || !validDate(currentShiftDate)) {
+      return res.status(400).json({ error: 'Shift dates must use YYYY-MM-DD format.' });
+    }
+
+    // Find active student colleagues with shifts
+    // on the selected date
+    const colleagues = await sql`
+      SELECT
+        p.id AS colleague_id,
+        p.first_name,
+        p.last_name,
+        s.id AS shift_id,
+        s.shift_date,
+        s.start_time,
+        s.end_time,
+        s.role AS shift_role,
+        s.location
+      FROM public.profiles p
+      INNER JOIN public.shifts s
+        ON s.user_id = p.id
+      WHERE p.role = 'student'
+        AND p.account_status = 'active'
+        AND p.id <> ${user.id}
+        AND s.shift_date = ${shiftDate}::date
+        AND NOT EXISTS (
+          SELECT 1
+          FROM public.shifts current_shift
+          WHERE current_shift.user_id = p.id
+            AND current_shift.shift_date = ${currentShiftDate}::date
+        )
+      ORDER BY
+        s.start_time,
+        p.first_name,
+        p.last_name
+    `;
+
+    return res.status(200).json({
+      message: 'Eligible colleagues retrieved successfully.',
+      colleagues: colleagues
+    });
+
+  } catch (error) {
+    console.error('Eligible colleagues error:', error);
+
+    return res.status(500).json({
+      error: 'Unable to retrieve eligible colleagues.'
+    });
+  }
+});
+
+// GET /api/shift-swap-requests — list offers relevant to the caller.
+router.get('/shift-swap-requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1
+    `;
+    if (!caller.length) return res.status(403).json({ error: 'User profile not found' });
+    const supervisor = caller[0].role === 'supervisor';
+
+    const rows = await sql`
+      SELECT
+        r.id,
+        r.requester_user_id,
+        r.colleague_user_id,
+        r.requester_shift_id,
+        r.colleague_shift_id,
+        r.status,
+        r.reason,
+        r.colleague_reason,
+        r.supervisor_reason,
+        r.created_at,
+        r.colleague_decided_at,
+        r.supervisor_decided_at,
+        requester.first_name AS requester_first_name,
+        requester.last_name AS requester_last_name,
+        colleague.first_name AS colleague_first_name,
+        colleague.last_name AS colleague_last_name,
+        TO_CHAR(requester_shift.shift_date, 'Mon FMDD, YYYY') AS requester_shift_date,
+        TO_CHAR(colleague_shift.shift_date, 'Mon FMDD, YYYY') AS colleague_shift_date,
+        requester_shift.start_time AS requester_start_time,
+        requester_shift.end_time AS requester_end_time,
+        colleague_shift.start_time AS colleague_start_time,
+        colleague_shift.end_time AS colleague_end_time
+      FROM public.shift_swap_requests r
+      JOIN public.profiles requester ON requester.id = r.requester_user_id
+      JOIN public.profiles colleague ON colleague.id = r.colleague_user_id
+      JOIN public.shifts requester_shift ON requester_shift.id = r.requester_shift_id
+      JOIN public.shifts colleague_shift ON colleague_shift.id = r.colleague_shift_id
+      WHERE (
+        ${supervisor}
+        OR r.requester_user_id = ${user.id}
+        OR r.colleague_user_id = ${user.id}
+      )
+      ORDER BY r.created_at DESC
+    `;
+
+    res.json(rows.map((row) => {
+      const isRequester = String(row.requester_user_id) === String(user.id);
+      const isColleague = String(row.colleague_user_id) === String(user.id);
+      const requesterName = `${row.requester_first_name || ''} ${row.requester_last_name || ''}`.trim() || 'Unknown';
+      const colleagueName = `${row.colleague_first_name || ''} ${row.colleague_last_name || ''}`.trim() || 'Unknown';
+      const stage = row.status;
+      let status;
+      if (stage === 'pending_colleague') {
+        status = isColleague ? 'Awaiting your response' : 'Awaiting colleague';
+      } else if (stage === 'pending_supervisor') {
+        status = supervisor ? 'Pending' : 'Colleague approved — Awaiting supervisor';
+      } else if (stage === 'rejected' && row.supervisor_decided_at) {
+        status = supervisor ? 'Rejected' : 'Declined by supervisor';
+      } else if (stage === 'rejected') {
+        status = 'Declined by colleague';
+      } else if (stage === 'approved') {
+        status = 'Approved';
+      } else {
+        status = stage;
+      }
+      const dateRange = `Swap from ${row.requester_shift_date} to ${row.colleague_shift_date}`;
+
+      return {
+        id: `SWAP-${row.id}`,
+        rawId: row.id,
+        workflow: 'shiftSwap',
+        workflowStatus: stage,
+        requesterUserId: row.requester_user_id,
+        colleagueUserId: row.colleague_user_id,
+        requesterShiftId: row.requester_shift_id,
+        colleagueShiftId: row.colleague_shift_id,
+        isRequester,
+        isSwapRecipient: isColleague,
+        name: requesterName,
+        replacement: colleagueName,
+        type: `Shift Swap – ${colleagueName}`,
+        status,
+        dateRange,
+        detail: `${dateRange} with ${colleagueName}.`,
+        reason: row.reason,
+        colleagueReason: row.colleague_reason,
+        supervisorReason: row.supervisor_reason,
+        declineReason: row.supervisor_decided_at ? row.supervisor_reason : row.colleague_reason,
+        requesterShiftTime: `${row.requester_start_time}–${row.requester_end_time}`,
+        colleagueShiftTime: `${row.colleague_start_time}–${row.colleague_end_time}`,
+        filed: 'Filed recently',
+        createdAt: row.created_at,
+        colleagueDecidedAt: row.colleague_decided_at,
+        supervisorDecidedAt: row.supervisor_decided_at,
+      };
+    }));
+  } catch (error) {
+    console.error('List shift swap requests error:', error);
+    res.status(500).json({ error: 'Could not load shift swap requests.' });
+  }
+});
+
+/* ============================================
+   Shift Swap Requests
+============================================ */
+
+// POST /api/shift-swap-requests
+// A student requests to exchange their shift with a colleague's shift.
+router.post('/shift-swap-requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const {
+      requester_shift_id,
+      colleague_user_id,
+      colleague_shift_id,
+      reason
+    } = req.body;
+
+    if (
+      !requester_shift_id ||
+      !colleague_user_id ||
+      !colleague_shift_id
+    ) {
+      return res.status(400).json({
+        error: 'Your shift, colleague and colleague shift are required.'
+      });
+    }
+    if (reason !== undefined && (typeof reason !== 'string' || reason.length > 100)) {
+      return res.status(400).json({ error: 'Justification and comments must be 100 characters or fewer.' });
+    }
+
+    if (
+      String(requester_shift_id) === String(colleague_shift_id) ||
+      String(user.id) === String(colleague_user_id)
+    ) {
+      return res.status(400).json({
+        error: 'Please select another colleague and a different shift.'
+      });
+    }
+
+    // Confirm both shifts belong to the expected students.
+    const shifts = await sql`
+      SELECT id, user_id, shift_date
+      FROM public.shifts
+      WHERE id IN (
+        ${requester_shift_id},
+        ${colleague_shift_id}
+      )
+    `;
+
+    const ownShift = shifts.find(
+      shift => String(shift.id) === String(requester_shift_id)
+    );
+
+    const colleagueShift = shifts.find(
+      shift => String(shift.id) === String(colleague_shift_id)
+    );
+
+    if (!ownShift || String(ownShift.user_id) !== String(user.id)) {
+      return res.status(400).json({
+        error: 'The selected shift does not belong to you.'
+      });
+    }
+
+    if (
+      !colleagueShift ||
+      String(colleagueShift.user_id) !== String(colleague_user_id)
+    ) {
+      return res.status(400).json({
+        error: 'The selected shift does not belong to the colleague.'
+      });
+    }
+    const ownDate = new Date(ownShift.shift_date).toISOString().slice(0, 10);
+    const colleagueDate = new Date(colleagueShift.shift_date).toISOString().slice(0, 10);
+    if (ownDate === colleagueDate) {
+      return res.status(400).json({ error: 'The replacement shift must be on a different date.' });
+    }
+    const colleagueConflict = await sql`
+      SELECT id
+      FROM public.shifts
+      WHERE user_id = ${colleague_user_id}
+        AND shift_date = ${ownDate}::date
+        AND id <> ${colleague_shift_id}
+      LIMIT 1
+    `;
+    if (colleagueConflict.length) {
+      return res.status(409).json({ error: 'The selected colleague is not free on your current shift date.' });
+    }
+
+    // Prevent either shift from being involved in another
+    // swap that has not reached a final decision.
+    const existing = await sql`
+      SELECT id
+      FROM public.shift_swap_requests
+      WHERE status IN ('pending_colleague', 'pending_supervisor')
+        AND (
+          requester_shift_id IN (
+            ${requester_shift_id},
+            ${colleague_shift_id}
+          )
+          OR colleague_shift_id IN (
+            ${requester_shift_id},
+            ${colleague_shift_id}
+          )
+        )
+      LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      return res.status(409).json({
+        error: 'One of these shifts already has a pending swap request.'
+      });
+    }
+
+    const inserted = await sql`
+      INSERT INTO public.shift_swap_requests (
+        requester_user_id,
+        colleague_user_id,
+        requester_shift_id,
+        colleague_shift_id,
+        status,
+        reason
+      )
+      VALUES (
+        ${user.id},
+        ${colleague_user_id},
+        ${requester_shift_id},
+        ${colleague_shift_id},
+        'pending_colleague',
+        ${typeof reason === 'string' ? reason.trim().slice(0, 100) || null : null}
+      )
+      RETURNING *
+    `;
+
+    return res.status(201).json({
+      message: 'Shift swap request sent to your colleague.',
+      request: inserted[0]
+    });
+
+  } catch (error) {
+    console.error('Create shift swap error:', error);
+    return res.status(500).json({
+      error: 'Could not create shift swap request.'
+    });
+  }
+});
+
+
+// PATCH /api/shift-swap-requests/:id/colleague-decision
+// Only the invited colleague may accept or decline.
+router.patch(
+  '/shift-swap-requests/:id/colleague-decision',
+  async (req, res) => {
+    try {
+      const user = await getUserFromToken(req);
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { decision, reason } = req.body;
+
+      if (!['accept', 'decline'].includes(decision)) {
+        return res.status(400).json({
+          error: 'Decision must be accept or decline.'
+        });
+      }
+
+      const nextStatus =
+        decision === 'accept'
+          ? 'pending_supervisor'
+          : 'rejected';
+
+      const updated = await sql`
+        UPDATE public.shift_swap_requests
+        SET
+          status = ${nextStatus},
+          colleague_reason = ${reason || null},
+          colleague_decided_at = NOW()
+        WHERE id = ${req.params.id}
+          AND colleague_user_id = ${user.id}
+          AND status = 'pending_colleague'
+        RETURNING *
+      `;
+
+      if (updated.length === 0) {
+        return res.status(409).json({
+          error: 'Request not found, not assigned to you, or already answered.'
+        });
+      }
+
+      return res.json({
+        message: decision === 'accept'
+          ? 'Request accepted. It is now waiting for supervisor approval.'
+          : 'Request declined.',
+        request: updated[0]
+      });
+
+    } catch (error) {
+      console.error('Colleague shift swap decision error:', error);
+      return res.status(500).json({
+        error: 'Could not update the shift swap request.'
+      });
+    }
+  }
+);
+
+
+// PATCH /api/shift-swap-requests/:id/supervisor-decision
+// Only a supervisor may make the final decision.
+// Shifts are exchanged only when the supervisor approves.
+router.patch(
+  '/shift-swap-requests/:id/supervisor-decision',
+  async (req, res) => {
+    try {
+      const user = await getUserFromToken(req);
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const caller = await sql`
+        SELECT role
+        FROM public.profiles
+        WHERE id = ${user.id}
+        LIMIT 1
+      `;
+
+      if (caller[0]?.role !== 'supervisor') {
+        return res.status(403).json({
+          error: 'Only supervisors can make the final decision.'
+        });
+      }
+
+      const { decision, reason } = req.body;
+
+      if (!['approve', 'reject'].includes(decision)) {
+        return res.status(400).json({
+          error: 'Decision must be approve or reject.'
+        });
+      }
+
+      // All database changes for an approval happen in one transaction.
+      const result = await sql.begin(async tx => {
+        const requests = await tx`
+          SELECT *
+          FROM public.shift_swap_requests
+          WHERE id = ${req.params.id}
+            AND status = 'pending_supervisor'
+          FOR UPDATE
+        `;
+
+        if (requests.length === 0) {
+          return { conflict: true };
+        }
+
+        const swap = requests[0];
+
+        if (decision === 'reject') {
+          const rejected = await tx`
+            UPDATE public.shift_swap_requests
+            SET
+              status = 'rejected',
+              supervisor_reason = ${reason || null},
+              supervisor_decided_at = NOW()
+            WHERE id = ${swap.id}
+              AND status = 'pending_supervisor'
+            RETURNING *
+          `;
+
+          return { request: rejected[0] };
+        }
+
+        // Lock both shifts and confirm they still belong
+        // to the students who originally requested the swap.
+        const lockedShifts = await tx`
+          SELECT id, user_id
+          FROM public.shifts
+          WHERE id IN (
+            ${swap.requester_shift_id},
+            ${swap.colleague_shift_id}
+          )
+          ORDER BY id
+          FOR UPDATE
+        `;
+
+        const ownShift = lockedShifts.find(
+          shift => String(shift.id) === String(swap.requester_shift_id)
+        );
+
+        const colleagueShift = lockedShifts.find(
+          shift => String(shift.id) === String(swap.colleague_shift_id)
+        );
+
+        if (
+          !ownShift ||
+          !colleagueShift ||
+          String(ownShift.user_id) !== String(swap.requester_user_id) ||
+          String(colleagueShift.user_id) !== String(swap.colleague_user_id)
+        ) {
+          return { conflict: true };
+        }
+
+        // Exchange the assignments only after colleague acceptance
+        // and supervisor approval.
+        await tx`
+          UPDATE public.shifts
+          SET user_id = ${swap.colleague_user_id}
+          WHERE id = ${swap.requester_shift_id}
+        `;
+
+        await tx`
+          UPDATE public.shifts
+          SET user_id = ${swap.requester_user_id}
+          WHERE id = ${swap.colleague_shift_id}
+        `;
+
+        const approved = await tx`
+          UPDATE public.shift_swap_requests
+          SET
+            status = 'approved',
+            supervisor_reason = ${reason || null},
+            supervisor_decided_at = NOW()
+          WHERE id = ${swap.id}
+            AND status = 'pending_supervisor'
+          RETURNING *
+        `;
+
+        return { request: approved[0] };
+      });
+
+      if (result.conflict) {
+        return res.status(409).json({
+          error: 'The request is no longer awaiting approval, or a shift assignment has changed.'
+        });
+      }
+
+      return res.json({
+        message: decision === 'approve'
+          ? 'Shift swap approved and assignments exchanged.'
+          : 'Shift swap rejected.',
+        request: result.request
+      });
+
+    } catch (error) {
+      console.error('Supervisor shift swap decision error:', error);
+      return res.status(500).json({
+        error: 'Could not process the supervisor decision.'
+      });
+    }
+  }
+);
 
 
 export default router;

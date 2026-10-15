@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/session';
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useNotifications, getViewer } from '@/context/NotificationsContext';
 import {
@@ -12,8 +13,10 @@ const RequestsContext = createContext({
   loading: false,
   error: null,
   addRequest: async () => {},
+  addShiftSwapRequest: async () => {},
   updateRequest: async () => {},
   cancelRequest: async () => {},
+  decideShiftSwap: async () => {},
   updateRequestStatus: async () => {},
   getRequestDocument: async () => {},
   refresh: async () => {},
@@ -24,24 +27,11 @@ const DECLINE_REASONS_KEY = 'sa_decline_reasons_v1';
 const SNAPSHOT_PREFIX = 'sa_request_snapshot_v1:';
 const POLL_MS = 20000;
 
-function getSession() {
-  try {
-    return JSON.parse(localStorage.getItem('session') || 'null');
-  } catch {
-    return null;
-  }
-}
 
 function getAuthHeader() {
-  try {
-    const raw = localStorage.getItem('session');
-    if (!raw) return null;
-    const session = JSON.parse(raw);
-    if (!session.access_token) return null;
-    return { Authorization: `Bearer ${session.access_token}` };
-  } catch {
-    return null;
-  }
+  const session = getSession();
+  if (!session?.access_token) return null;
+  return { Authorization: `Bearer ${session.access_token}` };
 }
 
 function normalizeStatus(status) {
@@ -93,7 +83,7 @@ export function RequestsProvider({ children }) {
         if (!request.rawId) return;
         const before = previous[request.rawId];
         if (viewer.role === 'supervisor') {
-          if (request.status === 'Pending' && before === undefined) {
+          if (request.status === 'Pending' && before !== 'Pending') {
             push(requestSubmittedNotification(request));
           }
         } else if (before === 'Pending' && (request.status === 'Approved' || request.status === 'Rejected')) {
@@ -117,13 +107,22 @@ export function RequestsProvider({ children }) {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/requests`, { headers: auth });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Request failed (${res.status})`);
-      }
-      const data = await res.json();
-      const list = withDeclineReasons(Array.isArray(data) ? data : []);
+      const [requestsRes, swapsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/requests`, { headers: auth }),
+        fetch(`${API_BASE}/api/shift-swap-requests`, { headers: auth }),
+      ]);
+      const [requestsData, swapsData] = await Promise.all(
+        [requestsRes, swapsRes].map(async (res) => {
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
+          return body;
+        }),
+      );
+      const list = withDeclineReasons([
+        ...(Array.isArray(requestsData) ? requestsData : []),
+        ...(Array.isArray(swapsData) ? swapsData : []),
+      ]);
+      list.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
       setRequests(list);
       detectChanges(list);
       return list;
@@ -141,13 +140,13 @@ export function RequestsProvider({ children }) {
 
   useEffect(() => {
     refresh();
-    let lastSession = localStorage.getItem('session');
+    let lastSession = sessionStorage.getItem('session');
     let lastPoll = Date.now();
     const onStorage = (e) => {
       if (e.key === 'session') refresh();
     };
     const tick = () => {
-      const current = localStorage.getItem('session');
+    const current = sessionStorage.getItem('session');
       if (current !== lastSession) {
         lastSession = current;
         lastPoll = Date.now();
@@ -214,6 +213,39 @@ export function RequestsProvider({ children }) {
     }));
   };
 
+  const addShiftSwapRequest = async ({ requesterShiftId, colleagueUserId, colleagueShiftId, reason = '' }) => {
+    const auth = getAuthHeader();
+    if (!auth) throw new Error('Not authenticated');
+    const res = await fetch(`${API_BASE}/api/shift-swap-requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({
+        requester_shift_id: requesterShiftId,
+        colleague_user_id: colleagueUserId,
+        colleague_shift_id: colleagueShiftId,
+        reason,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Could not submit the shift swap offer.');
+    const list = await refresh();
+    const created = list.find((request) => request.rawId && String(request.rawId) === String(body.request?.id));
+    if (created) push(requestSubmittedNotification(created));
+  };
+
+  const decideShiftSwap = async (id, decision) => {
+    const auth = getAuthHeader();
+    if (!auth) throw new Error('Not authenticated');
+    const res = await fetch(`${API_BASE}/api/shift-swap-requests/${encodeURIComponent(id)}/colleague-decision`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...auth },
+      body: JSON.stringify({ decision }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Could not respond to the shift swap offer.');
+    await refresh();
+  };
+
   const updateRequest = async (id, entry) => {
     const auth = getAuthHeader();
     if (!auth) throw new Error('Not authenticated');
@@ -242,6 +274,25 @@ export function RequestsProvider({ children }) {
     const rawId = target.rawId;
     const cleanReason = String(reason || '').trim();
     const declined = status === 'Rejected';
+    if (target.workflow === 'shiftSwap') {
+      const res = await fetch(`${API_BASE}/api/shift-swap-requests/${encodeURIComponent(rawId)}/supervisor-decision`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ decision: declined ? 'reject' : 'approve', reason: cleanReason }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not update the shift swap decision.');
+      await refresh();
+      recordActivity({
+        type: declined ? 'request_rejected' : 'request_accepted',
+        title: `Shift swap ${declined ? 'rejected' : 'accepted'}`,
+        description: `${target.name || 'Student assistant'}'s shift swap was ${status.toLowerCase()} by the supervisor.`,
+        student: target.name || 'Student assistant',
+        requestType: target.type || 'Shift Swap',
+        date: target.dateRange || '',
+      });
+      return;
+    }
     const res = await fetch(`${API_BASE}/api/requests/${rawId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...auth },
@@ -275,7 +326,7 @@ export function RequestsProvider({ children }) {
   };
 
   return (
-    <RequestsContext.Provider value={{ requests, loading, error, addRequest, updateRequest, cancelRequest, updateRequestStatus, getRequestDocument, refresh }}>
+    <RequestsContext.Provider value={{ requests, loading, error, addRequest, addShiftSwapRequest, updateRequest, cancelRequest, decideShiftSwap, updateRequestStatus, getRequestDocument, refresh }}>
       {children}
     </RequestsContext.Provider>
   );

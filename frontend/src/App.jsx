@@ -20,11 +20,14 @@ import SupervisorRequestsPage from '@/pages/supervisor/Requestspage';
 import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage';
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
+import AdminLoginPage from '@/pages/admin/AdminLoginPage';
+import AdminDashboard from '@/pages/admin/AdminDashboard';
 import { ModeToggle, PortalShell, STUDENT } from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { generateStudentSchedule } from '@/lib/schedule';
 import { useCancelledShifts } from '@/lib/cancelledShifts';
 import { assetUrl } from '@/lib/assets';
+import { setSession, rememberSession, clearSession, getSession } from '@/lib/session';
 const queryClient = new QueryClient();
 
 /* Fixed, page-independent background photo shown behind every route. */
@@ -107,7 +110,7 @@ function Footer() {
     <div className="border-t border-[#91bfdc]">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-8 py-5 text-[10px] text-[#52708b] sm:flex-row sm:items-center sm:justify-between sm:px-12">
         <span>© 2026 Student Assistance Absence Tracker. All rights reserved.</span>
-        <span className="flex gap-5"><a href="#accessibility" className="hover:text-[#286ee5]" data-testid="link-footer-accessibility">Accessibility</a><a href="#support" className="hover:text-[#286ee5]">Contact Support</a></span>
+        <span className="flex gap-5"><Link href="/admin/login" className="hover:text-[#286ee5]" data-testid="link-footer-administrator">Administrator</Link><a href="mailto:general@tut.ac.za" className="hover:text-[#286ee5]">Contact Support</a></span>
       </div>
     </div>
   </footer>);
@@ -277,12 +280,16 @@ function LoginPage() {
         setServerError(data.error || 'Login failed. Please check your credentials.');
         return;
       }
-      localStorage.setItem('session', JSON.stringify({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-        expires_at: data.session.expires_at,
-        user: data.user,
-      }));
+const sessionData = {
+  access_token: data.session.access_token,
+  refresh_token: data.session.refresh_token,
+  expires_at: data.session.expires_at,
+  user: data.user,
+};
+
+clearSession();              // wipe any leftover from previous user in this tab
+setSession(sessionData);     // this tab's session
+if (remember) rememberSession(sessionData);
       setLocation(role === 'student' ? '/dashboard' : '/supervisor');
     } catch (err) {
       console.error('Login error:', err);
@@ -448,7 +455,7 @@ function Sidebar() {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem('session');
+                  clearSession();
                   window.location.href = '/logout-success';
                 }}
                 className="focus-ring flex-1 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
@@ -465,10 +472,8 @@ function Sidebar() {
 }
 
 function PortalTopBar() {
-  const stored = localStorage.getItem('session');
-  const session = stored ? JSON.parse(stored) : null;
-  const user = session?.user || {};
-  const firstName = user.first_name || 'User';
+  const session = getSession();
+  const user = session?.user || {};  const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim();
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
@@ -500,7 +505,7 @@ function DashboardPage() {
     const loadAssignedShifts = async () => {
       let activeSession;
       try {
-        activeSession = JSON.parse(localStorage.getItem('session') || 'null');
+        activeSession = getSession();
       } catch (error) {
         console.error('Load dashboard shifts error:', error);
         return;
@@ -525,10 +530,8 @@ function DashboardPage() {
     loadAssignedShifts();
     return () => { cancelled = true; };
   }, []);
-  const stored = localStorage.getItem('session');
-  if (!stored) return null;
-  let session = {};
-  try { session = JSON.parse(stored); } catch { return null; }
+   const session = getSession();
+  if (!session) return null;
   const user = session?.user || {};
   const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';
@@ -957,7 +960,7 @@ function ShiftSwapPage() {
 
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={SupervisorReportsPage} /><Route path="/supervisor/profile" component={StudentProfilePage} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/admin/login" component={AdminLoginPage} /><Route path="/admin" component={AdminDashboard} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={SupervisorReportsPage} /><Route path="/supervisor/profile" component={StudentProfilePage} /><Route component={NotFound} /></Switch>;
 }
 function RoutedErrorBoundary({ children }) {
   const [location] = useLocation();

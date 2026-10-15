@@ -23,6 +23,10 @@ async function startServer() {
       ALTER TABLE public.absence_requests
       ADD COLUMN IF NOT EXISTS supporting_document JSONB
     `;
+    await sql`
+      ALTER TABLE public.shift_swap_requests
+      ADD COLUMN IF NOT EXISTS reason TEXT
+    `;
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

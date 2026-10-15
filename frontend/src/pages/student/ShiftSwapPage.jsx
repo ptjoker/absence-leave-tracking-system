@@ -2,22 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { format, endOfYear, isBefore, startOfDay } from 'date-fns';
 import { RefreshCw, Clock3, FileText, Info, ChevronRight, Users, CalendarDays } from 'lucide-react';
 import { useLocation, useSearch } from 'wouter';
-import { PortalShell, FieldLabel, SuggestionBox, BackButton, STUDENT } from '@/components/portal/PortalComponents';
+import { PortalShell, FieldLabel, SuggestionBox, BackButton } from '@/components/portal/PortalComponents';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useRequests } from '@/context/RequestsContext';
-import { approvedLeaveDates, approvedSwapRequests, generateStudentSchedule, parseDateRangeKeys, isPublicHoliday, isSunday } from '@/lib/schedule';
+import { apiFetch } from '@/lib/api';
+import { approvedLeaveDates, approvedSwapRequests, parseDateRangeKeys, isPublicHoliday, isSunday } from '@/lib/schedule';
 import { useStrikeDays } from '@/lib/strikes';
 
-const COLLEAGUES = [
-  'Hlongwane Jan',
-  'Jiyane Duduzile',
-  'Segomotso Lencwe',
-  'Shoba Thabiso',
-  'Mawelela Sibusiso',
-  'Simphiwe Masanabo',
-  'Mashabela Basetsana',
-];
+const MAX_JUSTIFICATION_LENGTH = 100;
 
 function dateLabel(key) {
   const d = new Date(`${key}T00:00:00`);
@@ -107,36 +100,55 @@ function YearDatePicker({ value, onChange, label, error, helper, blockedDates = 
 
 export default function ShiftSwapPage() {
   const [, setLocation] = useLocation();
-  const { addRequest, updateRequest, requests } = useRequests();
+  const { addShiftSwapRequest, updateRequest, requests } = useRequests();
   const strikeDays = useStrikeDays();
   const [shift, setShift] = useState('');
   const [colleague, setColleague] = useState('');
   const [newDate, setNewDate] = useState();
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState({});
+  const [assignedShifts, setAssignedShifts] = useState([]);
+  const [shiftsLoading, setShiftsLoading] = useState(true);
+  const [shiftsError, setShiftsError] = useState('');
+  const [availableStudents, setAvailableStudents] = useState([]);
+  const [colleaguesLoading, setColleaguesLoading] = useState(false);
+  const [colleaguesError, setColleaguesError] = useState('');
   const search = new URLSearchParams(useSearch());
   const editId = search.get('edit');
   const returnTo = search.get('from') === 'history' ? '/dashboard/history' : '/dashboard';
   const editTarget = editId ? requests.find((r) => String(r.rawId) === String(editId)) : null;
   const editing = Boolean(editTarget && editTarget.status === 'Pending');
-  const studentNumber = (() => {
-    try { return JSON.parse(localStorage.getItem('session') || '{}')?.user?.student_number || STUDENT.number; } catch { return STUDENT.number; }
-  })();
 
-  const schedule = useMemo(() => generateStudentSchedule(studentNumber, 2026), [studentNumber]);
+  useEffect(() => {
+    let cancelled = false;
+    setShiftsLoading(true);
+    setShiftsError('');
+    apiFetch('/api/shifts')
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not load your assigned shifts.');
+        if (!cancelled) setAssignedShifts(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        if (!cancelled) setShiftsError(error.message || 'Could not load your assigned shifts.');
+      })
+      .finally(() => { if (!cancelled) setShiftsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const approvedLeaves = useMemo(() => approvedLeaveDates(requests), [requests]);
   const approvedSwaps = useMemo(() => approvedSwapRequests(requests), [requests]);
   const approvedSwapBlocked = useMemo(() => approvedSwaps.flatMap((request) => parseDateRangeKeys(request.dateRange)), [approvedSwaps]);
-  const availableCurrentShifts = useMemo(() => Object.values(schedule)
-    .filter((item) => item.date >= format(new Date(), 'yyyy-MM-dd') && !isPublicHoliday(new Date(`${item.date}T00:00:00`)) && !approvedSwapBlocked.includes(item.date) && !strikeDays[item.date])
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 6), [schedule, approvedSwapBlocked]);
+  const availableCurrentShifts = useMemo(() => assignedShifts
+    .filter((item) => item.shiftDate >= format(new Date(), 'yyyy-MM-dd')
+      && !isPublicHoliday(new Date(`${item.shiftDate}T00:00:00`))
+      && !approvedLeaves.includes(item.shiftDate)
+      && !approvedSwapBlocked.includes(item.shiftDate)
+      && !strikeDays[item.shiftDate])
+    .sort((a, b) => a.shiftDate.localeCompare(b.shiftDate) || String(a.startTime).localeCompare(String(b.startTime))), [assignedShifts, approvedLeaves, approvedSwapBlocked, strikeDays]);
 
-  // Each colleague gets a stable generated schedule (seeded by name) so we can tell who is working on a given date.
-  const roster = useMemo(() => COLLEAGUES.map((name) => ({ name, schedule: generateStudentSchedule(name, 2026) })), []);
-
-  const activeShiftDate = shift || availableCurrentShifts[0]?.date || '';
-  const currentShift = availableCurrentShifts.find((item) => item.date === activeShiftDate) || availableCurrentShifts[0];
+  const activeShiftId = shift || availableCurrentShifts[0]?.id || '';
+  const currentShift = availableCurrentShifts.find((item) => String(item.id) === String(activeShiftId)) || availableCurrentShifts[0];
   const swapDateMeta = useMemo(() => {
     const to = [...approvedSwapBlocked];
     const from = [];
@@ -151,37 +163,78 @@ export default function ShiftSwapPage() {
     return { to: [...new Set(to)], from: [...new Set(from)] };
   }, [approvedSwaps, approvedSwapBlocked]);
   const closureDates = Object.keys(strikeDays);
-  const blockedDates = Object.assign([...approvedLeaves, ...approvedSwapBlocked, ...closureDates, ...(currentShift ? [currentShift.date] : [])], { swapTo: swapDateMeta.to, swapFrom: swapDateMeta.from, strike: closureDates, closure: closureDates });
+  const blockedDates = Object.assign([...approvedLeaves, ...approvedSwapBlocked, ...closureDates, ...(currentShift ? [currentShift.shiftDate] : [])], { swapTo: swapDateMeta.to, swapFrom: swapDateMeta.from, strike: closureDates, closure: closureDates });
   const newKey = newDate ? format(newDate, 'yyyy-MM-dd') : '';
-  // Available = works on the chosen date (has a shift to trade) and is free on the student's current shift date.
-  const availableStudents = useMemo(() => (newKey && currentShift
-    ? roster.filter((item) => item.schedule[newKey] && !item.schedule[currentShift.date]).map((item) => ({ name: item.name, ...item.schedule[newKey] }))
-    : []), [roster, newKey, currentShift]);
+  useEffect(() => {
+    if (!newKey || !currentShift) {
+      setAvailableStudents([]);
+      setColleaguesError('');
+      setColleaguesLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setColleaguesLoading(true);
+    setColleaguesError('');
+    setAvailableStudents([]);
+    const query = new URLSearchParams({
+      shift_date: newKey,
+      current_shift_date: currentShift.shiftDate,
+    });
+    apiFetch(`/api/eligible-colleagues?${query}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not load available student assistants.');
+        const colleagues = Array.isArray(data.colleagues) ? data.colleagues.map((item) => ({
+          id: item.colleague_id,
+          shiftId: item.shift_id,
+          date: item.shift_date,
+          name: `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Student assistant',
+          time: `${String(item.start_time || '').slice(0, 5)}–${String(item.end_time || '').slice(0, 5)}`,
+        })) : [];
+        if (!cancelled) setAvailableStudents(colleagues);
+      })
+      .catch((error) => {
+        if (!cancelled) setColleaguesError(error.message || 'Could not load available student assistants.');
+      })
+      .finally(() => { if (!cancelled) setColleaguesLoading(false); });
+    return () => { cancelled = true; };
+  }, [newKey, currentShift?.id, currentShift?.shiftDate]);
 
   useEffect(() => {
     if (!editing) return;
     const meta = swapMeta(editTarget);
-    if (meta?.from) setShift(format(new Date(meta.from), 'yyyy-MM-dd'));
+    if (meta?.from) {
+      const shiftForDate = availableCurrentShifts.find((item) => item.shiftDate === format(new Date(meta.from), 'yyyy-MM-dd'));
+      if (shiftForDate) setShift(shiftForDate.id);
+    }
     const toKeys = parseDateRangeKeys(editTarget.dateRange);
     if (toKeys[0]) setNewDate(new Date(`${toKeys[0]}T00:00:00`));
-    if (meta?.with) setColleague(meta.with);
     setReason(editTarget.reason || '');
-  }, [editing, editTarget?.rawId]);
+  }, [editing, editTarget?.rawId, availableCurrentShifts]);
 
   const submit = async (e) => {
     e.preventDefault();
     const next = {};
     if (!currentShift) next.shift = 'Select one of your upcoming assigned shifts.';
     if (!newDate) next.newDate = 'Select a future working date in 2026.';
-    if (newDate && currentShift && format(newDate, 'yyyy-MM-dd') === currentShift.date) next.newDate = 'The new date must be different from the current shift.';
-    if (!colleague || !availableStudents.some((item) => item.name === colleague)) next.colleague = newDate ? 'Select one of the available student assistants.' : 'Choose a new shift date first, then select an available student assistant.';
+    if (newDate && currentShift && format(newDate, 'yyyy-MM-dd') === currentShift.shiftDate) next.newDate = 'The new date must be different from the current shift.';
+    if (!colleague || !availableStudents.some((item) => String(item.id) === String(colleague))) next.colleague = newDate ? 'Select one of the available student assistants.' : 'Choose a new shift date first, then select an available student assistant.';
+    if (reason.length > MAX_JUSTIFICATION_LENGTH) next.reason = `Justification and comments must be ${MAX_JUSTIFICATION_LENGTH} characters or fewer.`;
     setErrors(next);
     if (Object.keys(next).length) return;
     try {
       const newDateLabel = format(newDate, 'MMM d, yyyy');
-      const fromLabel = dateLabel(currentShift.date);
-      const entry = { type: `Shift Swap – ${colleague}`, replacement: colleague, dateRange: newDateLabel, detail: `Swap from ${fromLabel} to ${newDateLabel} with ${colleague}. ${reason.trim() || 'Shift swap requested with an eligible colleague.'}`, reason: reason.trim() };
-      if (editing) await updateRequest(editTarget.id, entry); else await addRequest(entry);
+      const selectedColleague = availableStudents.find((item) => String(item.id) === String(colleague));
+      if (!selectedColleague) throw new Error('Choose an available student assistant before submitting.');
+      const fromLabel = dateLabel(currentShift.shiftDate);
+      const entry = { type: `Shift Swap – ${selectedColleague.name}`, replacement: selectedColleague.name, dateRange: newDateLabel, detail: `Swap from ${fromLabel} to ${newDateLabel} with ${selectedColleague.name}. ${reason.trim() || 'Shift swap requested with an eligible colleague.'}`, reason: reason.trim() };
+      if (editing) await updateRequest(editTarget.id, entry);
+      else await addShiftSwapRequest({
+        requesterShiftId: currentShift.id,
+        colleagueUserId: selectedColleague.id,
+        colleagueShiftId: selectedColleague.shiftId,
+        reason: reason.trim(),
+      });
       setLocation(editing ? returnTo : '/dashboard');
     } catch (err) {
       setErrors({ submit: err.message || 'Could not submit the shift swap request.' });
@@ -199,11 +252,13 @@ export default function ShiftSwapPage() {
     <form onSubmit={submit} className="mt-6 rounded-xl bg-white p-5 shadow-[0_3px_8px_rgba(53,91,121,.08)] md:p-6">
       <div className="flex items-center gap-3 border-b border-[#e2eaf1] pb-5"><span className="grid size-9 place-items-center rounded-lg bg-[#e7f1fa] text-[#1f70d0]"><RefreshCw size={20}/></span><div><h2 className="text-lg font-bold text-[#10253f]">{editing ? `Edit Swap Request ${editTarget.id}` : 'New Swap Request'}</h2><p className="text-sm text-[#52708b]">Fill in the details for your proposed shift exchange.</p></div></div>
       <div className="mt-6 max-w-xl">
-        <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[.08em] text-black"><span className="inline-block h-3.5 w-1 rounded-full bg-[#1f70d0]"/>1. Select Your Current Shift</p>
-        {availableCurrentShifts.length ? <>
-          <FieldLabel icon={<Clock3 size={16} className="text-black"/>}>Current shift</FieldLabel>
-          <select id="swap-current-shift" value={activeShiftDate} onChange={(e)=>{ setShift(e.target.value); setColleague(''); }} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm font-semibold text-black outline-none ${errors.shift ? 'border-[#d05b48]' : 'border-[#cfdee9]'}`}>
-            {availableCurrentShifts.map(s => <option key={s.date} value={s.date}>{dateLabel(s.date)} · {s.time} · {s.shift}</option>)}
+        <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[.08em] text-black"><span className="inline-block h-3.5 w-1 rounded-full bg-[#1f70d0]"/>1. Choose the shift you want to swap</p>
+        {shiftsLoading ? <p className="rounded-lg bg-[#eef1f4] p-4 text-sm font-semibold text-black">Loading your assigned shifts...</p>
+          : shiftsError ? <p role="alert" className="rounded-lg bg-[#fbe4e1] p-4 text-sm font-semibold text-[#c54f43]">{shiftsError}</p>
+            : availableCurrentShifts.length ? <>
+          <FieldLabel icon={<Clock3 size={16} className="text-black"/>}>Shift to swap</FieldLabel>
+          <select id="swap-current-shift" value={activeShiftId} onChange={(e)=>{ setShift(e.target.value); setColleague(''); }} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm font-semibold text-black outline-none ${errors.shift ? 'border-[#d05b48]' : 'border-[#cfdee9]'}`}>
+            {availableCurrentShifts.map(s => <option key={s.id} value={s.id}>{dateLabel(s.shiftDate)} · {String(s.startTime).slice(0, 5)}–{String(s.endTime).slice(0, 5)}</option>)}
           </select>
         </> : <p className="rounded-lg bg-[#eef1f4] p-4 text-sm font-semibold text-black">No upcoming working shifts are available for swapping.</p>}
         {errors.shift && <p className="mt-2 text-sm font-bold text-[#c54f43]">{errors.shift}</p>}
@@ -218,15 +273,21 @@ export default function ShiftSwapPage() {
           <FieldLabel icon={<Users size={16} className="text-black"/>}>Student Assistant</FieldLabel>
           {!newDate ? <p className="rounded-lg border border-dashed border-[#cfdee9] bg-[#f4f8fb] p-4 text-sm text-black">Select a new shift date to see which student assistants are available.</p>
             : availableStudents.length ? <>
-              <p className="mb-2 text-sm text-black">Working on <strong>{dateLabel(newKey)}</strong> and free on <strong>{dateLabel(currentShift.date)}</strong>:</p>
+              <p className="mb-2 text-sm text-black">Working on <strong>{dateLabel(newKey)}</strong> and free on <strong>{dateLabel(currentShift.shiftDate)}</strong>:</p>
               <div role="radiogroup" aria-label="Available student assistants" className="grid gap-2">
-                {availableStudents.map(item => <button type="button" role="radio" aria-checked={colleague===item.name} key={item.name} onClick={()=>setColleague(item.name)} className={`focus-ring flex items-center justify-between rounded-lg border px-4 py-3 text-left ${colleague===item.name?'border-[#1f70d0] bg-[#e7f1fa]':errors.colleague?'border-[#d05b48] hover:border-[#9cc0dd]':'border-[#d0e0ea] hover:border-[#9cc0dd]'}`}><span><span className="block text-sm font-bold text-[#243e5b]">{item.name}</span><span className="mt-1 block text-sm text-black"><Clock3 size={16} className="mr-1 inline"/>{item.time} · {item.shift}</span></span><span className="text-sm font-bold text-[#1f70d0]">{colleague===item.name?'Selected':'Select'}</span></button>)}
+                {availableStudents.map(item => <button type="button" role="radio" aria-checked={String(colleague) === String(item.id)} key={item.id} onClick={()=>setColleague(item.id)} className={`focus-ring flex items-center justify-between rounded-lg border px-4 py-3 text-left ${String(colleague) === String(item.id)?'border-[#1f70d0] bg-[#e7f1fa]':errors.colleague?'border-[#d05b48] hover:border-[#9cc0dd]':'border-[#d0e0ea] hover:border-[#9cc0dd]'}`}><span><span className="block text-sm font-bold text-[#243e5b]">{item.name}</span><span className="mt-1 block text-sm text-black"><Clock3 size={16} className="mr-1 inline"/>{item.time}</span></span><span className="text-sm font-bold text-[#1f70d0]">{String(colleague) === String(item.id)?'Selected':'Select'}</span></button>)}
               </div>
-            </> : <p className="rounded-lg bg-[#eef1f4] p-4 text-sm font-semibold text-black">No student assistants are available on {dateLabel(newKey)}. Please choose another date.</p>}
+            </> : colleaguesLoading ? <p className="rounded-lg bg-[#eef1f4] p-4 text-sm font-semibold text-black">Checking available student assistants...</p>
+              : colleaguesError ? <p role="alert" className="rounded-lg bg-[#fbe4e1] p-4 text-sm font-semibold text-[#c54f43]">{colleaguesError}</p>
+                : <p className="rounded-lg bg-[#eef1f4] p-4 text-sm font-semibold text-black">No student assistants are available on {dateLabel(newKey)}. Please choose another date.</p>}
           {errors.colleague && <p className="mt-2 text-sm font-bold text-[#c54f43]">{errors.colleague}</p>}
         </div>
       </div>
-      <div className="mt-7"><label htmlFor="swap-reason"><FieldLabel icon={<FileText size={16} className="text-black"/>}>Reason for Swap</FieldLabel><textarea id="swap-reason" rows={4} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Example: I need to exchange this shift with an available colleague because of a university timetable conflict." className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-black focus:border-[#1f70d0]"/></label><SuggestionBox suggestions={["Medical appointment", "Family commitment", "Academic timetable conflict", "Transport or scheduling issue"]}/></div>
+      <div className="mt-7">
+        <label htmlFor="swap-reason"><FieldLabel icon={<FileText size={16} className="text-black"/>}>Justification &amp; Comments</FieldLabel><textarea id="swap-reason" rows={4} maxLength={MAX_JUSTIFICATION_LENGTH} value={reason} onChange={e=>{ setReason(e.target.value); setErrors(prev => ({ ...prev, reason: '' })); }} aria-describedby="swap-reason-count" placeholder="Example: I need to exchange this shift with an available colleague because of a university timetable conflict." className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none placeholder:text-black focus:border-[#1f70d0]"/></label>
+        <div className="mt-1 flex justify-between text-xs text-[#718196]"><p id="swap-reason-count">{reason.length}/{MAX_JUSTIFICATION_LENGTH} characters</p>{errors.reason && <p className="font-medium text-[#c54f43]" role="alert">{errors.reason}</p>}</div>
+        <SuggestionBox title="Suggested text" suggestions={["Medical appointment", "Family commitment", "Academic timetable conflict", "Transport or scheduling issue"]} onSelect={(text) => { setReason(text); setErrors(prev => ({ ...prev, reason: '' })); }} />
+      </div>
       <div className="mt-6 flex items-start gap-3 rounded-lg border border-[#d0e0ea] bg-[#f4f8fb] p-4"><Info size={20} className="mt-0.5 shrink-0 text-[#1f70d0]"/><div><p className="text-sm font-bold text-[#243e5b]">Swap Policy Notice</p><p className="mt-1 text-sm leading-5 text-black">All swaps are subject to department lead approval. Approved swaps are shown on your schedule and the swapped dates become unavailable for another request.</p></div></div>
       {errors.submit && <p className="mt-4 rounded-lg bg-[#fbe4e1] px-4 py-3 text-sm font-bold text-[#c54f43]">{errors.submit}</p>}
       <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-[#e2eaf1] pt-6"><div className="flex gap-3"><button type="button" onClick={()=>setLocation(editing ? returnTo : '/dashboard/request')} className="focus-ring rounded-lg bg-[#d05b48] px-6 py-2.5 text-sm font-bold text-white">Cancel</button><button type="submit" className="focus-ring flex items-center gap-2 rounded-lg bg-[#1f70d0] px-6 py-2.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa]">{editing ? 'Save changes' : 'Submit Swap Request'}<ChevronRight size={18}/></button></div></div>
