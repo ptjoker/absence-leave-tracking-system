@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api'; // Ensure this matches your alias! (The top of your file had '@libapi', but your code uses '@/lib/api')
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react';
+import { Platform } from 'react-native';
 
 /* ================================================================== */
 /* SAMPLE DATA - everything marked TODO(API) should later come from    */
@@ -131,6 +132,295 @@ export function computeLeaveDates(startKey, days) {
     guard += 1;
   }
   return out;
+}
+
+/* ================================================================== */
+/* SHIFT TIMER (Start Shift / countdown / auto-complete)               */
+/* ================================================================== */
+
+/* TEST MODE: set SHIFT_TEST_MODE to true to try the timer without waiting.
+   While on, 1 assigned hour counts down as SHIFT_TEST_SECONDS_PER_HOUR seconds
+   (1h = 10s, 2h = 20s, 4h = 40s) and the "not before start / after end"
+   check is skipped. Set it back to false for real use. */
+export const SHIFT_TEST_MODE = false;
+export const SHIFT_TEST_SECONDS_PER_HOUR = 10;
+
+const MINUTE_MS = 60000;
+
+function clockToMinutes(h, m, meridiem) {
+  let hh = Number(h);
+  const mm = Number(m);
+  if (meridiem) {
+    const mer = meridiem.toUpperCase();
+    if (mer === 'PM' && hh < 12) hh += 12;
+    if (mer === 'AM' && hh === 12) hh = 0;
+  }
+  if (hh > 24 || mm > 59) return null;
+  return hh * 60 + mm;
+}
+
+/* Reads every clock time ("08:00 AM", "4:00 PM", "16:00") found in a string. */
+function readClockTimes(text) {
+  const out = [];
+  const re = /(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?/gi;
+  let match = re.exec(text);
+  while (match) {
+    const value = clockToMinutes(match[1], match[2], match[3]);
+    if (value !== null) out.push(value);
+    match = re.exec(text);
+  }
+  return out;
+}
+
+export function formatClock(totalMinutes) {
+  const m = ((totalMinutes % 1440) + 1440) % 1440;
+  const h24 = Math.floor(m / 60);
+  const mm = m % 60;
+  const meridiem = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${String(h12).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${meridiem}`;
+}
+
+/* The assigned duration is ALWAYS calculated from the start and end times, so a
+   stored "duration" field can never disagree with the real shift hours.
+   Accepts { startTime, endTime } / { start, end } or the existing { time: 'A – B' }.
+   Shifts that cross midnight (end <= start) get +24h. */
+export function parseShiftTimes(shift) {
+  if (!shift) return null;
+  let startMin = null;
+  let endMin = null;
+  const s = shift.startTime ?? shift.start;
+  const e = shift.endTime ?? shift.end;
+  if (s && e) {
+    startMin = readClockTimes(String(s))[0] ?? null;
+    endMin = readClockTimes(String(e))[0] ?? null;
+  }
+  if (startMin === null || endMin === null) {
+    const found = readClockTimes(String(shift.time || ''));
+    if (found.length >= 2) {
+      startMin = found[0];
+      endMin = found[1];
+    }
+  }
+  if (startMin === null || endMin === null) return null;
+  if (endMin <= startMin) endMin += 1440;
+  return {
+    startMin,
+    endMin,
+    durationMinutes: endMin - startMin,
+    startLabel: formatClock(startMin),
+    endLabel: formatClock(endMin),
+  };
+}
+
+/* Real timestamps (ms) for a shift on a given date key. */
+export function getShiftWindow(dateKey, shift) {
+  const t = parseShiftTimes(shift);
+  if (!t || t.durationMinutes <= 0) return null;
+  const day = fromKey(dateKey);
+  const startTs = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, t.startMin).getTime();
+  const realMs = t.durationMinutes * MINUTE_MS;
+  const timerMs = SHIFT_TEST_MODE
+    ? Math.round((t.durationMinutes / 60) * SHIFT_TEST_SECONDS_PER_HOUR * 1000)
+    : realMs;
+  return { ...t, startTs, endTs: startTs + realMs, durationMs: realMs, timerMs };
+}
+
+export function formatCountdown(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+export function formatDuration(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const parts = [];
+  if (h) parts.push(`${h} ${h === 1 ? 'hour' : 'hours'}`);
+  if (m) parts.push(`${m} min`);
+  return parts.join(' ') || '0 min';
+}
+
+/* ---- shift records: { [dateKey]: { startedAt, endsAt, timerMs, completedAt|null, ... } } ----
+   Kept in a module-level store so the countdown survives navigation between screens,
+   and saved to storage so it survives a page refresh / app restart. */
+// TODO(API): replace with GET/POST /student/shift-sessions so records live in your database.
+const SHIFT_STORAGE_KEY = 'studShiftRecords';
+let shiftRecords = {};
+const shiftListeners = new Set();
+const emitShifts = () => shiftListeners.forEach((fn) => fn());
+
+function getShiftStorage() {
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return {
+          getItem: async (k) => window.localStorage.getItem(k),
+          setItem: async (k, v) => window.localStorage.setItem(k, v),
+        };
+      }
+    } catch (e) {
+      /* storage blocked */
+    }
+    return null;
+  }
+  try {
+    // Optional: works after `npx expo install @react-native-async-storage/async-storage`.
+    // Without it the countdown still survives navigation, just not a full app restart.
+    // eslint-disable-next-line global-require
+    const mod = require('@react-native-async-storage/async-storage');
+    return mod.default || mod;
+  } catch (e) {
+    return null;
+  }
+}
+
+function persistShiftRecords() {
+  const storage = getShiftStorage();
+  if (!storage) return;
+  Promise.resolve()
+    .then(() => storage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(shiftRecords)))
+    .catch(() => {});
+}
+
+/* Marks any record whose end time has passed as completed (idempotent). */
+function completeFinishedShifts(now) {
+  let changed = false;
+  const next = { ...shiftRecords };
+  Object.keys(next).forEach((key) => {
+    const r = next[key];
+    if (!r.completedAt && now >= r.endsAt) {
+      next[key] = { ...r, completedAt: r.endsAt };
+      changed = true;
+    }
+  });
+  if (changed) {
+    shiftRecords = next;
+    persistShiftRecords();
+    emitShifts();
+  }
+}
+
+async function hydrateShiftRecords() {
+  const storage = getShiftStorage();
+  if (!storage) return;
+  try {
+    const raw = await storage.getItem(SHIFT_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      shiftRecords = { ...parsed, ...shiftRecords };
+      completeFinishedShifts(Date.now());
+      emitShifts();
+    }
+  } catch (e) {
+    /* ignore corrupt data */
+  }
+}
+hydrateShiftRecords();
+
+const subscribeShifts = (fn) => {
+  shiftListeners.add(fn);
+  return () => shiftListeners.delete(fn);
+};
+
+export function useShiftRecords() {
+  return useSyncExternalStore(subscribeShifts, () => shiftRecords, () => shiftRecords);
+}
+
+/* ---- ONE shared 1-second ticker for the whole app ----
+   It only runs while at least one component uses useNow(), and it stops
+   when the last one unmounts, so intervals can never pile up or leak. */
+let tickNow = Date.now();
+let tickTimer = null;
+const tickListeners = new Set();
+
+function runTick() {
+  tickNow = Date.now();
+  completeFinishedShifts(tickNow);
+  tickListeners.forEach((fn) => fn());
+}
+
+function subscribeTick(fn) {
+  tickListeners.add(fn);
+  if (!tickTimer) {
+    tickNow = Date.now();
+    completeFinishedShifts(tickNow);
+    tickTimer = setInterval(runTick, 1000);
+  }
+  return () => {
+    tickListeners.delete(fn);
+    if (tickListeners.size === 0 && tickTimer) {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
+  };
+}
+
+/* Current time in ms, refreshed every second. */
+export function useNow() {
+  const [mountedAt] = useState(() => Date.now());
+  const tick = useSyncExternalStore(subscribeTick, () => tickNow, () => tickNow);
+  return Math.max(tick, mountedAt);
+}
+
+/* 'upcoming' | 'available' | 'inProgress' | 'completed' | 'ended' | 'invalid' */
+export function getShiftStatus(dateKey, shift, record, now) {
+  if (record?.completedAt) return 'completed';
+  if (record) return now >= record.endsAt ? 'completed' : 'inProgress';
+  const w = getShiftWindow(dateKey, shift);
+  if (!w) return 'invalid';
+  if (SHIFT_TEST_MODE) return 'available';
+  if (now < w.startTs) return 'upcoming';
+  if (now >= w.endTs) return 'ended';
+  return 'available';
+}
+
+/* Starts a shift. Returns { ok: true } or { ok: false, message }. */
+export function startShift(dateKey, shift, now = Date.now()) {
+  const w = getShiftWindow(dateKey, shift);
+  if (!w) {
+    return { ok: false, message: 'This shift has no valid start and end time, so it cannot be started.' };
+  }
+  const existing = shiftRecords[dateKey];
+  if (existing) {
+    return {
+      ok: false,
+      message: existing.completedAt || now >= existing.endsAt
+        ? 'This shift has already been completed and cannot be started again.'
+        : 'This shift is already in progress.',
+    };
+  }
+  const running = Object.keys(shiftRecords).find(
+    (k) => !shiftRecords[k].completedAt && now < shiftRecords[k].endsAt,
+  );
+  if (running) {
+    return { ok: false, message: `Finish your shift on ${formatLong(fromKey(running))} before starting another one.` };
+  }
+  if (!SHIFT_TEST_MODE) {
+    if (now < w.startTs) {
+      return { ok: false, message: `You can only start this shift from ${w.startLabel} on its scheduled day.` };
+    }
+    if (now >= w.endTs) {
+      return { ok: false, message: 'The assigned time for this shift has ended, so it can no longer be started.' };
+    }
+  }
+  const record = {
+    startedAt: now,
+    endsAt: now + w.timerMs,
+    timerMs: w.timerMs,
+    durationMinutes: w.durationMinutes,
+    scheduledStart: w.startTs,
+    scheduledEnd: w.endTs,
+    testMode: SHIFT_TEST_MODE,
+    completedAt: null,
+  };
+  shiftRecords = { ...shiftRecords, [dateKey]: record };
+  persistShiftRecords();
+  emitShifts();
+  return { ok: true };
 }
 
 /* ------------------------------ form data ----------------------------- */
@@ -289,3 +579,4 @@ export function RequestsProvider({ children }) {
 export function useRequests() {
   return useContext(RequestsContext);
 }
+console.log('studData LOADED, useShiftRecords is', typeof useShiftRecords);

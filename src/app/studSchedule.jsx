@@ -15,12 +15,22 @@ import { AppButton, Card } from '../components/studentDash/ui';
 import {
   MONTHS,
   MONTHS_SHORT,
+  SHIFT_TEST_MODE,
+  SHIFT_TEST_SECONDS_PER_HOUR,
   WEEKDAYS,
   WEEKDAYS_LONG,
   buildMonthGrid,
+  formatClock,
+  formatCountdown,
+  formatDuration,
   fromKey,
   getDayInfo,
+  getShiftStatus,
+  getShiftWindow,
+  startShift,
   toKey,
+  useNow,
+  useShiftRecords,
 } from '../constants/studData';
 import { useStudTheme } from '../constants/studTheme';
 import { useShifts } from '../hooks/useShifts';
@@ -30,9 +40,11 @@ const CELL_H = 64;
 const MAX_BYTES = 2 * 1024 * 1024;
 
 /* Compact tag styles per day kind (full wording shows in "Selected Day"). */
-function tagFor(info) {
+function tagFor(info, record) {
   switch (info.kind) {
     case 'shift':
+      if (record?.completedAt) return { text: 'DONE', bg: '#bbf7d0', fg: '#166534' };
+      if (record) return { text: 'LIVE', bg: '#fde68a', fg: '#92400e' };
       return { text: 'SHIFT', bg: '#dbeafe', fg: '#1d4ed8' };
     case 'leave':
       return { text: 'Leave', bg: '#d1d5db', fg: '#374151' };
@@ -57,12 +69,30 @@ function cellBg(kind, c) {
   return c.inputBg;
 }
 
-function DayCell({ date, size, selected, onPress, c, shifts }) {
+/* Colours + button text for each shift status, taken from the existing theme. */
+function statusLook(status, c) {
+  switch (status) {
+    case 'available':
+      return { label: 'Available to start', bg: c.primarySoft, fg: c.primary, btnLabel: 'Start Shift', btnIcon: 'play', btnBg: c.primary, btnFg: '#ffffff', locked: false };
+    case 'inProgress':
+      return { label: 'In progress', bg: c.warnBg, fg: c.warnText, btnLabel: 'Shift in Progress', btnIcon: 'timer-outline', btnBg: c.warnBg, btnFg: c.warnText, locked: true };
+    case 'completed':
+      return { label: 'Completed', bg: c.okBg, fg: c.okText, btnLabel: 'Shift Completed', btnIcon: 'checkmark-circle', btnBg: c.okBg, btnFg: c.okText, locked: true };
+    case 'ended':
+      return { label: 'Time window closed', bg: c.badBg, fg: c.badText, btnLabel: 'Start Shift', btnIcon: 'play', btnBg: c.panel, btnFg: c.muted, locked: false };
+    case 'invalid':
+      return { label: 'Time unavailable', bg: c.panel, fg: c.muted, btnLabel: 'Start Shift', btnIcon: 'play', btnBg: c.panel, btnFg: c.muted, locked: false };
+    default:
+      return { label: 'Upcoming', bg: c.panel, fg: c.muted, btnLabel: 'Start Shift', btnIcon: 'play', btnBg: c.panel, btnFg: c.muted, locked: false };
+  }
+}
+
+function DayCell({ date, size, selected, onPress, c, shifts, record }) {
   if (!date) {
     return <View style={{ width: size, height: CELL_H, backgroundColor: c.panel }} />;
   }
   const info = getDayInfo(date, shifts);
-  const tag = tagFor(info);
+  const tag = tagFor(info, record);
   return (
     <Pressable
       accessibilityRole="button"
@@ -130,10 +160,195 @@ function SelectedDayBody({ date, c, shifts }) {
   );
 }
 
+function InfoChip({ label, value, c }) {
+  return (
+    <View style={[styles.chip, { backgroundColor: c.panel, borderColor: c.border }]}>
+      <Text style={{ color: c.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 }}>{label}</Text>
+      <Text style={{ color: c.text, fontSize: 13, fontWeight: '700', marginTop: 2 }}>{value}</Text>
+    </View>
+  );
+}
+
+/* "Selected Day" card: heading with the Start Shift button on the right,
+   the day's details, and (on shift days) the timetable + countdown panel. */
+function SelectedDayCard({ selectedKey, selectedDate, shifts, records, c }) {
+  const now = useNow(); // shared 1-second ticker (one interval for the whole app)
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    setNotice(null);
+  }, [selectedKey]);
+
+  const info = getDayInfo(selectedDate, shifts);
+  const shift = info.kind === 'shift' ? info.shift : null;
+  const win = shift ? getShiftWindow(selectedKey, shift) : null;
+  const record = shift ? records[selectedKey] : null;
+  const status = shift ? getShiftStatus(selectedKey, shift, record, now) : null;
+  const look = status ? statusLook(status, c) : null;
+
+  const handleStart = () => {
+    const res = startShift(selectedKey, shift);
+    setNotice(res.ok ? null : res.message);
+  };
+
+  let message = null;
+  if (win) {
+    if (status === 'available') {
+      message = `Ready to start. Your ${formatDuration(win.durationMinutes)} countdown begins when you tap Start Shift.`;
+    } else if (status === 'upcoming') {
+      message = `This shift opens at ${win.startLabel}. You can start it from then until ${win.endLabel}.`;
+    } else if (status === 'ended') {
+      message = `The assigned time (${win.startLabel} – ${win.endLabel}) has passed, so this shift can no longer be started.`;
+    }
+  } else if (status === 'invalid') {
+    message = 'This shift has no valid start and end time, so it cannot be started.';
+  }
+
+  const remaining = record && status === 'inProgress' ? Math.max(0, record.endsAt - now) : 0;
+  const progress = record && record.timerMs ? Math.min(1, Math.max(0, 1 - remaining / record.timerMs)) : 0;
+
+  return (
+    <Card>
+      <View style={styles.selHead}>
+        <View style={[styles.sideHead, { marginBottom: 4, flexShrink: 1, marginRight: 8 }]}>
+          <View style={[styles.sideIcon, { backgroundColor: c.primarySoft }]}>
+            <Ionicons name="calendar-outline" size={16} color={c.primary} />
+          </View>
+          <View style={{ marginLeft: 10, flexShrink: 1 }}>
+            <Text style={[styles.sideTitle, { color: c.text }]}>SELECTED DAY</Text>
+            <Text style={{ color: c.text, fontSize: 12, fontWeight: '600' }}>
+              {WEEKDAYS_LONG[selectedDate.getDay()]}, {MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getDate()}
+            </Text>
+          </View>
+        </View>
+
+        {look ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={look.btnLabel}
+            accessibilityState={{ disabled: look.locked }}
+            disabled={look.locked}
+            onPress={handleStart}
+            style={[styles.shiftBtn, { backgroundColor: look.btnBg }]}
+          >
+            <Ionicons name={look.btnIcon} size={16} color={look.btnFg} />
+            <Text style={[styles.shiftBtnText, { color: look.btnFg }]}>{look.btnLabel}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <SelectedDayBody date={selectedDate} c={c} shifts={shifts} />
+
+      {look ? (
+        <View style={{ marginTop: 12 }}>
+          <View style={[styles.statusBadge, { backgroundColor: look.bg }]}>
+            <Text style={{ color: look.fg, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
+              {look.label.toUpperCase()}
+            </Text>
+          </View>
+
+          {win ? (
+            <View style={styles.chipRow}>
+              <InfoChip label="START" value={win.startLabel} c={c} />
+              <InfoChip label="END" value={win.endLabel} c={c} />
+              <InfoChip label="DURATION" value={formatDuration(win.durationMinutes)} c={c} />
+            </View>
+          ) : null}
+
+          {status === 'inProgress' ? (
+            <View style={[styles.timerBox, { backgroundColor: c.warnBg }]}>
+              <Text style={{ color: c.warnText, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>
+                TIME REMAINING
+              </Text>
+              <Text style={[styles.timerText, { color: c.warnText }]} accessibilityLiveRegion="polite">
+                {formatCountdown(remaining)}
+              </Text>
+              <View style={[styles.progressTrack, { backgroundColor: c.border }]}>
+                <View style={[styles.progressFill, { backgroundColor: c.warnText, width: `${Math.round(progress * 100)}%` }]} />
+              </View>
+              <Text style={{ color: c.warnText, fontSize: 12, marginTop: 6 }}>
+                Started {formatClock(new Date(record.startedAt).getHours() * 60 + new Date(record.startedAt).getMinutes())}
+                {' · '}Ends {formatClock(new Date(record.endsAt).getHours() * 60 + new Date(record.endsAt).getMinutes())}
+              </Text>
+            </View>
+          ) : null}
+
+          {status === 'completed' ? (
+            <View style={[styles.timerBox, { backgroundColor: c.okBg }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="checkmark-circle" size={20} color={c.okText} />
+                <Text style={{ color: c.okText, fontSize: 16, fontWeight: '800', marginLeft: 8 }}>Shift Completed</Text>
+              </View>
+              {record ? (
+                <Text style={{ color: c.okText, fontSize: 12, marginTop: 6 }}>
+                  Started {formatClock(new Date(record.startedAt).getHours() * 60 + new Date(record.startedAt).getMinutes())}
+                  {' · '}Finished {formatClock(new Date(record.endsAt).getHours() * 60 + new Date(record.endsAt).getMinutes())}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {message ? (
+            <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, marginTop: 10 }}>{message}</Text>
+          ) : null}
+
+          {notice ? (
+            <View style={[styles.notice, { backgroundColor: c.badBg, marginTop: 10 }]}>
+              <Text style={{ color: c.badText, fontSize: 13, fontWeight: '700', lineHeight: 18 }}>{notice}</Text>
+            </View>
+          ) : null}
+
+          {SHIFT_TEST_MODE ? (
+            <Text style={{ color: c.warnText, fontSize: 11, fontWeight: '700', marginTop: 8 }}>
+              TEST MODE · 1 hour counts as {SHIFT_TEST_SECONDS_PER_HOUR} seconds
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
+/* Shown at the top of the page while a shift is running on a day that is NOT
+   currently selected, so the timer stays visible while browsing the calendar. */
+function ActiveShiftBanner({ records, selectedKey, onView, c }) {
+  const now = useNow();
+  const activeKey = Object.keys(records).find(
+    (k) => !records[k].completedAt && now < records[k].endsAt,
+  );
+  if (!activeKey || activeKey === selectedKey) return null;
+  const record = records[activeKey];
+  const d = fromKey(activeKey);
+  return (
+    <Card style={{ padding: 12 }}>
+      <View style={styles.bannerRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1, marginRight: 8 }}>
+          <Ionicons name="timer-outline" size={22} color={c.warnText} />
+          <View style={{ marginLeft: 10, flexShrink: 1 }}>
+            <Text style={{ color: c.text, fontSize: 13, fontWeight: '800' }}>Shift in progress</Text>
+            <Text style={{ color: c.muted, fontSize: 12 }}>
+              {MONTHS_SHORT[d.getMonth()]} {d.getDate()}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.bannerTime, { color: c.warnText }]}>{formatCountdown(record.endsAt - now)}</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onView(activeKey)}
+          style={[styles.viewBtn, { borderColor: c.border, backgroundColor: c.inputBg }]}
+        >
+          <Text style={{ color: c.text, fontSize: 12, fontWeight: '700' }}>View</Text>
+        </Pressable>
+      </View>
+    </Card>
+  );
+}
+
 export default function StudSchedule() {
   const { c } = useStudTheme();
   const { width } = useWindowDimensions();
   const { shifts, loading: shiftsLoading, error: shiftsError } = useShifts();
+  const records = useShiftRecords();
   const today = new Date();
   const [view, setView] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [selectedKey, setSelectedKey] = useState(toKey(today));
@@ -180,6 +395,13 @@ export default function StudSchedule() {
   const shiftMonth = (n) => {
     const d = new Date(view.y, view.m + n, 1);
     setView({ y: d.getFullYear(), m: d.getMonth() });
+  };
+
+  /* Jump the calendar to a day (used by the active-shift banner). */
+  const viewDay = (key) => {
+    const d = fromKey(key);
+    setView({ y: d.getFullYear(), m: d.getMonth() });
+    setSelectedKey(key);
   };
 
   const pickTimetable = async () => {
@@ -289,6 +511,8 @@ export default function StudSchedule() {
       title="Library Assistant Shift Management"
       subtitle="Your shifts are generated as a stable individual roster: each student assistant works 2–3 days per week, on either a morning or afternoon shift. Sundays and public holidays are never scheduled."
     >
+      <ActiveShiftBanner records={records} selectedKey={selectedKey} onView={viewDay} c={c} />
+
       <Card style={{ padding: 12 }}>
         {shiftsLoading ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
@@ -339,6 +563,7 @@ export default function StudSchedule() {
                 size={size}
                 c={c}
                 shifts={shifts}
+                record={d ? records[toKey(d)] : null}
                 selected={d ? toKey(d) === selectedKey : false}
                 onPress={() => d && setSelectedKey(toKey(d))}
               />
@@ -356,20 +581,13 @@ export default function StudSchedule() {
         </View>
       </Card>
 
-      <Card>
-        <View style={styles.sideHead}>
-          <View style={[styles.sideIcon, { backgroundColor: c.primarySoft }]}>
-            <Ionicons name="calendar-outline" size={16} color={c.primary} />
-          </View>
-          <View style={{ marginLeft: 10 }}>
-            <Text style={[styles.sideTitle, { color: c.text }]}>SELECTED DAY</Text>
-            <Text style={{ color: c.text, fontSize: 12, fontWeight: '600' }}>
-              {WEEKDAYS_LONG[selectedDate.getDay()]}, {MONTHS_SHORT[selectedDate.getMonth()]} {selectedDate.getDate()}
-            </Text>
-          </View>
-        </View>
-        <SelectedDayBody date={selectedDate} c={c} shifts={shifts} />
-      </Card>
+      <SelectedDayCard
+        selectedKey={selectedKey}
+        selectedDate={selectedDate}
+        shifts={shifts}
+        records={records}
+        c={c}
+      />
 
       <Card>
         <Text style={[styles.cardTitle, { color: c.text }]}>Schedule notes</Text>
@@ -481,4 +699,28 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 12,
   },
+
+  /* Shift timer */
+  selHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 10 },
+  shiftBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginLeft: 'auto',
+    marginBottom: 4,
+  },
+  shiftBtnText: { fontSize: 13, fontWeight: '800', marginLeft: 6 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10 },
+  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8, marginBottom: 8 },
+  timerBox: { borderRadius: 10, padding: 14, marginTop: 4, alignItems: 'center' },
+  timerText: { fontSize: 38, fontWeight: '800', marginTop: 4, fontVariant: ['tabular-nums'] },
+  progressTrack: { height: 6, borderRadius: 3, alignSelf: 'stretch', marginTop: 8, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3 },
+  bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bannerTime: { fontSize: 20, fontWeight: '800', marginRight: 10, fontVariant: ['tabular-nums'] },
+  viewBtn: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 8 },
 });
