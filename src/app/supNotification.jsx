@@ -17,50 +17,71 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import logoImg from '@/assets/images/logo.png';
-import { apiFetch } from '@/lib/api';
-import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { apiFetch } from '@/lib/api';
 
 function formatDate(iso) {
   if (!iso) return '';
   try {
     const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso);
     return d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
   } catch {
     return String(iso);
   }
 }
 
+function formatTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-ZA', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return '';
+  }
+}
+
+/* Card now shows ONLY: name + date + time (no arrow) */
 const NotificationCard = ({ item, onPress, styles, theme }) => (
-  <TouchableOpacity
-    style={styles.card}
-    onPress={() => onPress(item)}
-    activeOpacity={0.7}
-  >
-    <View style={styles.cardHeader}>
-      <View style={styles.cardHeaderLeft}>
-        <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
-          <Text style={styles.avatarText}>{item.initials}</Text>
+  <TouchableOpacity style={styles.card} onPress={() => onPress(item)} activeOpacity={0.7}>
+    <View style={styles.cardRow}>
+      <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
+        <Text style={styles.avatarText}>{item.initials}</Text>
+      </View>
+
+      <View style={styles.cardInfo}>
+        <Text style={styles.studentName} numberOfLines={1}>
+          {item.name}
+        </Text>
+
+        <View style={styles.metaRow}>
+          <Ionicons
+            name="calendar-outline"
+            size={14}
+            color={theme.textMuted}
+            style={styles.metaIcon}
+          />
+          <Text style={styles.dateText}>{item.date}</Text>
+
+          {!!item.time && (
+            <>
+              <Text style={styles.metaSeparator}>•</Text>
+              <Ionicons
+                name="time-outline"
+                size={14}
+                color={theme.textMuted}
+                style={styles.metaIcon}
+              />
+              <Text style={styles.dateText}>{item.time}</Text>
+            </>
+          )}
         </View>
-        <Text style={styles.studentName}>{item.name}</Text>
-      </View>
-      <View style={styles.typeBadge}>
-        <Text style={styles.typeBadgeText}>{item.type}</Text>
-      </View>
-    </View>
-
-    <View style={styles.divider} />
-
-    <View style={styles.cardBody}>
-      <Text style={styles.requestText} numberOfLines={2}>
-        {item.reason}
-      </Text>
-    </View>
-
-    <View style={styles.metaRow}>
-      <View style={styles.dateContainer}>
-        <Ionicons name="calendar-outline" size={16} color={theme.textMuted} style={styles.metaIcon} />
-        <Text style={styles.dateText}>{item.date}</Text>
       </View>
     </View>
   </TouchableOpacity>
@@ -75,6 +96,7 @@ export default function SupervisorNotifications() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+
   useSupervisorBadges({
     markNotificationsRead: true,
     readNotificationIds: notifications.map((notification) => notification.id),
@@ -99,9 +121,9 @@ export default function SupervisorNotifications() {
           name: r.name || 'Unknown',
           initials: r.initials || '?',
           avatarColor: '#A78BFA',
-          type: r.type || 'REQUEST',
           reason: r.reason || r.detail || 'No details provided.',
           date: formatDate(r.createdAt) || r.dateRange || 'Recently',
+          time: formatTime(r.createdAt),
         }));
 
       setNotifications(formatted);
@@ -133,6 +155,8 @@ export default function SupervisorNotifications() {
     setIsModalVisible(true);
   };
 
+  const closeModal = () => setIsModalVisible(false);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -162,9 +186,7 @@ export default function SupervisorNotifications() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {loading && (
-          <Text style={styles.emptyText}>Loading notifications…</Text>
-        )}
+        {loading && <Text style={styles.emptyText}>Loading notifications…</Text>}
 
         {!loading && notifications.length === 0 && (
           <View style={styles.emptyState}>
@@ -173,15 +195,16 @@ export default function SupervisorNotifications() {
           </View>
         )}
 
-        {!loading && notifications.map((item) => (
-          <NotificationCard
-            key={item.id}
-            item={item}
-            onPress={handleNotificationPress}
-            styles={styles}
-            theme={theme}
-          />
-        ))}
+        {!loading &&
+          notifications.map((item) => (
+            <NotificationCard
+              key={item.id}
+              item={item}
+              onPress={handleNotificationPress}
+              styles={styles}
+              theme={theme}
+            />
+          ))}
       </ScrollView>
 
       <View style={styles.footerNote}>
@@ -200,13 +223,9 @@ export default function SupervisorNotifications() {
         animationType="slide"
         transparent={true}
         visible={isModalVisible}
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={closeModal}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setIsModalVisible(false)}
-        >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeModal}>
           <TouchableOpacity
             style={styles.modalContent}
             activeOpacity={1}
@@ -230,29 +249,44 @@ export default function SupervisorNotifications() {
                       <Text style={styles.modalSender} numberOfLines={1}>
                         {selectedNotification.name}
                       </Text>
-                      <Text style={styles.modalDate}>
-                        {selectedNotification.type} • {selectedNotification.date}
-                      </Text>
+                      <View style={styles.modalMetaRow}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={13}
+                          color={theme.textMuted}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.modalDate}>{selectedNotification.date}</Text>
+                        {!!selectedNotification.time && (
+                          <>
+                            <Text style={styles.metaSeparator}>•</Text>
+                            <Ionicons
+                              name="time-outline"
+                              size={13}
+                              color={theme.textMuted}
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text style={styles.modalDate}>{selectedNotification.time}</Text>
+                          </>
+                        )}
+                      </View>
                     </View>
                   </View>
-                  <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+                  <TouchableOpacity onPress={closeModal}>
                     <Ionicons name="close-circle" size={28} color={theme.textMuted} />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.divider} />
 
+                <Text style={styles.sectionLabel}>NOTIFICATION</Text>
+
                 <ScrollView style={styles.messageScroll} showsVerticalScrollIndicator={false}>
-                  <Text style={styles.modalMessage}>
-                    {selectedNotification.reason}
-                  </Text>
+                  <Text style={styles.modalMessage}>{selectedNotification.reason}</Text>
                 </ScrollView>
 
                 <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalPrimaryBtn}
-                    onPress={() => setIsModalVisible(false)}
-                  >
+                  <TouchableOpacity style={styles.modalPrimaryBtn} onPress={closeModal}>
                     <Ionicons
                       name="checkmark-done-outline"
                       size={18}
@@ -298,24 +332,24 @@ const baseStyles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginLeft: 16 },
   scrollContent: { padding: 16, paddingBottom: 60 },
+
+  /* Card */
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  cardHeader: {
+  cardRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  cardHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
     width: 40,
     height: 40,
@@ -325,36 +359,15 @@ const baseStyles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
-  studentName: { fontSize: 15, fontWeight: '700', color: '#1A202C' },
-  typeBadge: {
-    backgroundColor: '#EDF2F7',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#4A5568',
-    letterSpacing: 0.5,
-  },
-  divider: { height: 1, backgroundColor: '#E2E8F0', marginHorizontal: 16 },
-  cardBody: { padding: 16 },
-  requestText: { fontSize: 14, color: '#4A5568', lineHeight: 20 },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  dateContainer: { flexDirection: 'row', alignItems: 'center' },
-  metaIcon: { marginRight: 6 },
+  cardInfo: { flex: 1, marginRight: 8 },
+  studentName: { fontSize: 15, fontWeight: '700', color: '#1A202C', marginBottom: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center' },
+  metaIcon: { marginRight: 5 },
+  metaSeparator: { fontSize: 12, color: '#A0AEC0', marginHorizontal: 8 },
   dateText: { fontSize: 13, color: '#718096' },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-  },
+
+  /* Empty / loading */
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
   emptyText: {
     fontSize: 14,
     color: '#A0AEC0',
@@ -363,6 +376,7 @@ const baseStyles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
   },
+
   footerNote: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -373,6 +387,8 @@ const baseStyles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   footerNoteText: { flex: 1, fontSize: 11, color: '#718096', lineHeight: 16 },
+
+  /* Modal */
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -399,12 +415,7 @@ const baseStyles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
-  modalHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 10,
-  },
+  modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
   modalAvatar: {
     width: 44,
     height: 44,
@@ -414,14 +425,19 @@ const baseStyles = StyleSheet.create({
     marginRight: 12,
   },
   modalAvatarText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  modalSender: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A202C',
-    marginBottom: 4,
-  },
+  modalSender: { fontSize: 16, fontWeight: '700', color: '#1A202C', marginBottom: 4 },
+  modalMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   modalDate: { fontSize: 12, color: '#718096', fontWeight: '500' },
-  messageScroll: { maxHeight: 300, marginBottom: 24 },
+  divider: { height: 1, backgroundColor: '#E2E8F0' },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#A0AEC0',
+    letterSpacing: 1,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  messageScroll: { maxHeight: 260, marginBottom: 24 },
   modalMessage: { fontSize: 14, color: '#4A5568', lineHeight: 22 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end' },
   modalPrimaryBtn: {

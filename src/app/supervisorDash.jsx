@@ -1,3 +1,4 @@
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import {
   filterActivityLogsByRange,
@@ -7,7 +8,6 @@ import {
   subscribeToActivityLogs,
 } from '@/lib/activityLog';
 import { apiFetch, getSession } from '@/lib/api';
-import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -146,6 +146,52 @@ const ACTIVITY_FILTERS = [
 const SUMMARY_LOG_COUNT = 3;
 const ALL_LOGS_PAGE_SIZE = 12;
 
+// ---------------------------------------------------------------------------
+// Helpers for parsing API payloads robustly
+// ---------------------------------------------------------------------------
+
+/** Pick the first array found in a list of candidate keys on an object. */
+function extractArray(payload, candidateKeys = []) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    for (const key of candidateKeys) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+  }
+  return [];
+}
+
+/** Normalize any status string to one of: Pending | Approved | Rejected. */
+function normalizeStatus(status) {
+  const s = String(status ?? '').trim().toLowerCase();
+  if (s === 'pending' || s === 'awaiting' || s === 'in review' || s === 'in_review') {
+    return 'Pending';
+  }
+  if (s === 'approved' || s === 'accepted' || s === 'complete' || s === 'completed') {
+    return 'Approved';
+  }
+  if (
+    s === 'rejected' ||
+    s === 'declined' ||
+    s === 'denied' ||
+    s === 'cancelled' ||
+    s === 'canceled'
+  ) {
+    return 'Rejected';
+  }
+  // Unknown / empty → treat as Pending so it still shows up for review
+  return 'Pending';
+}
+
+/** Ensure a request row has a stable status field. */
+function normalizeRequest(raw) {
+  if (!raw || typeof raw !== 'object') return raw;
+  return {
+    ...raw,
+    status: normalizeStatus(raw.status ?? raw.state ?? raw.decision),
+  };
+}
+
 export default function SupervisorDashboard() {
   const { isDarkMode, toggleTheme } = useSupervisorTheme();
   const router = useRouter();
@@ -196,26 +242,87 @@ export default function SupervisorDashboard() {
     });
   };
 
+  // -------------------------------------------------------------------------
+  // UPDATED loadData — accepts multiple payload shapes, normalizes statuses,
+  // and logs exactly what came back so you can see why nothing is showing.
+  // -------------------------------------------------------------------------
   const loadData = async () => {
     try {
       const [reqRes, asstRes] = await Promise.all([
         apiFetch('/api/requests'),
         apiFetch('/api/assistants'),
       ]);
-      const [reqData, asstData] = await Promise.all([reqRes.json(), asstRes.json()]);
 
-      if (reqRes.ok && Array.isArray(reqData)) {
-        setRequests(reqData);
-      } else if (reqData?.error) {
-        console.warn('Requests load error:', reqData.error);
+      // Parse JSON safely — a bad response shouldn't kill the whole load.
+      let reqPayload = null;
+      let asstPayload = null;
+      try {
+        reqPayload = await reqRes.json();
+      } catch (e) {
+        console.warn('[Dashboard] /api/requests JSON parse failed:', e?.message);
       }
-      if (asstRes.ok && Array.isArray(asstData)) {
-        setAssistants(asstData);
-      } else if (asstData?.error) {
-        console.warn('Assistants load error:', asstData.error);
+      try {
+        asstPayload = await asstRes.json();
+      } catch (e) {
+        console.warn('[Dashboard] /api/assistants JSON parse failed:', e?.message);
+      }
+
+      // 👇 Debug: open Metro/console and check exactly what the API returned.
+      console.log('[Dashboard] /api/requests →', reqRes.status, reqPayload);
+      console.log('[Dashboard] /api/assistants →', asstRes.status, asstPayload);
+
+      // Accept `[...]`, `{ requests: [...] }`, `{ data: [...] }`, `{ items: [...] }`, etc.
+      const rawRequests = extractArray(reqPayload, [
+        'requests',
+        'data',
+        'items',
+        'results',
+        'rows',
+      ]);
+      const rawAssistants = extractArray(asstPayload, [
+        'assistants',
+        'data',
+        'items',
+        'results',
+        'rows',
+        'students',
+        'users',
+      ]);
+
+      if (!reqRes.ok) {
+        console.warn(
+          '[Dashboard] Requests endpoint error:',
+          reqRes.status,
+          reqPayload?.error || reqPayload?.message || '(no message)'
+        );
+      }
+      if (!asstRes.ok) {
+        console.warn(
+          '[Dashboard] Assistants endpoint error:',
+          asstRes.status,
+          asstPayload?.error || asstPayload?.message || '(no message)'
+        );
+      }
+
+      // Normalize before storing so downstream `.status === 'Pending'` works
+      // regardless of how the backend capitalized the string.
+      setRequests(rawRequests.map(normalizeRequest));
+      setAssistants(rawAssistants);
+
+      if (rawRequests.length === 0) {
+        console.warn(
+          '[Dashboard] /api/requests returned 0 rows after parsing. ' +
+            'Check the response shape above.'
+        );
+      }
+      if (rawAssistants.length === 0) {
+        console.warn(
+          '[Dashboard] /api/assistants returned 0 rows after parsing. ' +
+            'Check the response shape above.'
+        );
       }
     } catch (err) {
-      console.error('Dashboard load error:', err);
+      console.error('[Dashboard] loadData threw:', err);
       Alert.alert('Connection error', 'Could not reach the server.');
     } finally {
       setRefreshing(false);
@@ -514,6 +621,7 @@ export default function SupervisorDashboard() {
     setAllLogsFilterOpen(false);
   };
 
+  // Status is now normalized, so these comparisons are case-safe.
   const pendingCount = requests.filter((request) => request.status === 'Pending').length;
   const approvedCount = requests.filter((request) => request.status === 'Approved').length;
   const metrics = [
@@ -831,7 +939,6 @@ export default function SupervisorDashboard() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.allLogsModalContainer}>
-              {/* MODAL HEADER */}
               <View style={styles.allLogsHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.allLogsTitle}>All Activity Logs</Text>
@@ -849,7 +956,6 @@ export default function SupervisorDashboard() {
                 </TouchableOpacity>
               </View>
 
-              {/* FILTER ROW */}
               <View style={styles.allLogsControls}>
                 <TouchableOpacity
                   style={styles.filterButton}
@@ -901,7 +1007,6 @@ export default function SupervisorDashboard() {
                 </View>
               )}
 
-              {/* SEARCH */}
               <View style={styles.allLogsSearchBar}>
                 <Feather name="search" size={16} color={theme.textMuted} />
                 <TextInput
@@ -924,7 +1029,6 @@ export default function SupervisorDashboard() {
                 )}
               </View>
 
-              {/* PAGE META */}
               {allLogsSearched.length > 0 && (
                 <View style={styles.allLogsMetaBar}>
                   <Text style={styles.allLogsMetaText}>
@@ -941,7 +1045,6 @@ export default function SupervisorDashboard() {
                 </View>
               )}
 
-              {/* LIST */}
               <ScrollView
                 style={styles.allLogsList}
                 contentContainerStyle={styles.allLogsListContent}
@@ -1019,7 +1122,6 @@ export default function SupervisorDashboard() {
                 )}
               </ScrollView>
 
-              {/* PAGINATION */}
               {allLogsSearched.length > 0 && (
                 <View style={styles.allLogsPagination}>
                   <TouchableOpacity
@@ -1125,7 +1227,6 @@ export default function SupervisorDashboard() {
                 </View>
               )}
 
-              {/* FOOTER */}
               <View style={styles.allLogsFooter}>
                 <TouchableOpacity
                   style={styles.allLogsCloseOutline}
@@ -1362,7 +1463,7 @@ export default function SupervisorDashboard() {
   );
 }
 
-// --- Styles Generator ---
+// --- Styles Generator (unchanged) ---
 const getStyles = (theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.bg },
