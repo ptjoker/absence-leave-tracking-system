@@ -1,4 +1,3 @@
-import { apiFetch } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,31 +5,32 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import {
-  AppButton,
-  Card,
-  DateField,
-  FieldLabel,
-  HelperText,
-  SelectField,
-  SuggestedText,
-  TextArea,
+    AppButton,
+    Card,
+    DateField,
+    FieldLabel,
+    HelperText,
+    SelectField,
+    SuggestedText,
+    TextArea,
 } from '../components/studentDash/ui';
 import {
-  AVAILABLE_ASSISTANTS,
-  LEAVE_CATEGORIES,
-  LEAVE_SUGGESTIONS,
-  SHIFT_OPTIONS,
-  SWAPS,
-  SWAP_SUGGESTIONS,
-  computeLeaveDates,
-  drafts,
-  formatLong,
-  fromKey,
-  isUnavailable,
-  toKey,
-  useRequests,
+    AVAILABLE_ASSISTANTS,
+    LEAVE_CATEGORIES,
+    LEAVE_SUGGESTIONS,
+    SHIFT_OPTIONS,
+    SWAPS,
+    SWAP_SUGGESTIONS,
+    computeLeaveDates,
+    drafts,
+    formatLong,
+    fromKey,
+    isUnavailable,
+    toKey,
+    useRequests,
 } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
+
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -61,6 +61,16 @@ function swapMeta(request) {
 function goBackOrHome(router) {
   if (router.canGoBack()) router.back();
   else router.replace(ROUTES.dashboard);
+}
+async function fileToDataUrl(file) {
+  const response = await fetch(file.uri);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // "data:image/png;base64,iVBOR..."
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 function FormFooter({ submitLabel, onCancel, onSubmit, loading }) {
@@ -162,7 +172,7 @@ function LeaveForm({ onSwitch, editTarget, returnTo }) {
         Alert.alert('File too large', 'Please choose a PNG or JPG under 5 MB.');
         return;
       }
-      setFile({ name: f.name, uri: f.uri });
+      setFile({ name: f.name, uri: f.uri, mimeType: f.mimeType || 'image/png' });
       setAttached(false);
     } catch {
       Alert.alert('Could not open files', 'Please try again.');
@@ -175,62 +185,82 @@ function LeaveForm({ onSwitch, editTarget, returnTo }) {
     Alert.alert('Document attached', `${file.name} will be submitted with your request.`);
   };
 
-  const submit = async () => {
-    if (!startKey) {
-      Alert.alert('Date required', 'Please select a start date.');
-      return;
-    }
-    if (!reason.trim()) {
-      Alert.alert('Justification required', 'Please add a short justification for your request.');
-      return;
-    }
-    if (covered.length === 0) {
-      Alert.alert('Date range invalid', 'Could not compute working days from your start date.');
-      return;
-    }
+const submit = async () => {
+  console.log('🚀 SUBMIT FIRED');
+console.log('startKey:', startKey, '| reason:', reason, '| covered:', covered.length);
+console.log('file:', JSON.stringify(file));   // ← add this
+    console.log('🚀 SUBMIT FIRED');
+  console.log('startKey:', startKey, '| reason:', reason, '| covered:', covered.length);
 
-    setSubmitting(true);
-    try {
-      const first = formatLong(fromKey(covered[0]));
-      const last = formatLong(fromKey(covered[covered.length - 1]));
-      const dateRange = covered.length > 1 ? `${first} – ${last}` : first;
+  if (!startKey) {
+    Alert.alert('Date required', 'Please select a start date.');
+    return;
+  }
+  if (!startKey) {
+    Alert.alert('Date required', 'Please select a start date.');
+    return;
+  }
+  if (!reason.trim()) {
+    Alert.alert('Justification required', 'Please add a short justification for your request.');
+    return;
+  }
+  if (covered.length === 0) {
+    Alert.alert('Date range invalid', 'Could not compute working days from your start date.');
+    return;
+  }
+  if ((category === 'Sick Leave' || category === 'Exam Leave') && !file) {
+  Alert.alert(
+    'Supporting document required',
+    `A supporting document is required for ${category}. Please attach a PNG or JPG before submitting.`
+  );
+  return;
+}
 
-      if (editing) {
-        await updateRequest(editTarget.id, {
-          type: category,
-          dateRange,
-          detail: reason.trim(),
-          reason: reason.trim(),
-        });
-        drafts.leave = null;
-        Alert.alert('Request updated', `${editTarget.id} has been saved.`, [
-          { text: 'OK', onPress: () => router.replace(returnTo) },
-        ]);
-        return;
-      }
+  setSubmitting(true);
+  try {
+    const first = formatLong(fromKey(covered[0]));
+    const last = formatLong(fromKey(covered[covered.length - 1]));
+    const dateRange = covered.length > 1 ? `${first} – ${last}` : first;
 
-      // CREATE — keep your existing apiFetch call
-      const res = await apiFetch('/api/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: category, dateRange, detail: reason.trim() }),
+    if (editing) {
+      await updateRequest(editTarget.id, {
+        type: category,
+        dateRange,
+        detail: reason.trim(),
+        reason: reason.trim(),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        Alert.alert('Submission failed', data.error || 'Please try again.');
-        return;
-      }
       drafts.leave = null;
-      Alert.alert('Request submitted', `${data.id} (${category}) was submitted and is pending approval.`, [
-        { text: 'OK', onPress: () => router.replace(ROUTES.history) },
-      ]);
-    } catch (err) {
-      console.error('Submit leave request error:', err);
-      Alert.alert('Error', err.message || 'Could not reach the server.');
-    } finally {
-      setSubmitting(false);
+      Alert.alert(
+        'Request updated',
+        `${editTarget.id} has been saved.`,
+        [{ text: 'OK', onPress: () => router.replace(returnTo) }],
+        { cancelable: false }
+      );
+      return;
     }
-  };
+
+    // CREATE — use the context method so the list refreshes everywhere
+    await addRequest({
+      type: category,
+      dateRange,
+      detail: reason.trim(),
+    });
+
+    drafts.leave = null;
+
+    Alert.alert(
+      'Request submitted',
+      `${category} was submitted and is now pending supervisor approval.`,
+      [{ text: 'View my requests', onPress: () => router.replace(ROUTES.history) }],
+      { cancelable: false }
+    );
+  } catch (err) {
+    console.error('Submit leave request error:', err);
+    Alert.alert('Submission failed', err.message || 'Could not reach the server.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const cancel = () => {
     if (!editing) drafts.leave = null;
@@ -333,7 +363,7 @@ function LeaveForm({ onSwitch, editTarget, returnTo }) {
 function SwapForm({ editTarget, returnTo }) {
   const router = useRouter();
   const { c } = useStudTheme();
-  const { updateRequest } = useRequests();
+  const { updateRequest, addRequest } = useRequests();
   const editing = Boolean(editTarget);
   const loadedFor = useRef(null);
 
@@ -385,71 +415,90 @@ function SwapForm({ editTarget, returnTo }) {
     drafts.swap = { currentKey, newKey, assistant, reason };
   }, [editing, currentKey, newKey, assistant, reason]);
 
-  const submit = async () => {
-    if (!newKey) {
-      Alert.alert('New shift date required', 'Please select a new shift date.');
-      return;
-    }
-    if (!assistant) {
-      Alert.alert('Choose a student assistant', 'Select an available student assistant to swap with.');
-      return;
-    }
-    if (!reason.trim()) {
-      Alert.alert('Reason required', 'Please give a reason for the swap.');
-      return;
-    }
+const submit = async () => {
+  if (!newKey) {
+    Alert.alert('New shift date required', 'Please select a new shift date.');
+    return;
+  }
+  if (!assistant) {
+    Alert.alert('Choose a student assistant', 'Select an available student assistant to swap with.');
+    return;
+  }
+  if (!reason.trim()) {
+    Alert.alert('Reason required', 'Please give a reason for the swap.');
+    return;
+  }
 
-    setSubmitting(true);
-    try {
-      const newDateLabel = formatLong(fromKey(newKey));
-      const fromLabel = formatLong(fromKey(currentKey));
-      const detail = `Swap from ${fromLabel} to ${newDateLabel} with ${assistant}. ${
-        reason.trim() || 'Shift swap requested with an eligible colleague.'
-      }`;
+  setSubmitting(true);
+  try {
+    const newDateLabel = formatLong(fromKey(newKey));
+    const fromLabel = formatLong(fromKey(currentKey));
+    const detail = `Swap from ${fromLabel} to ${newDateLabel} with ${assistant}. ${
+      reason.trim() || 'Shift swap requested with an eligible colleague.'
+    }`;
 
-      if (editing) {
-        await updateRequest(editTarget.id, {
-          type: `Shift Swap – ${assistant}`,
-          replacement: assistant,
-          dateRange: newDateLabel,
-          detail,
-          reason: reason.trim(),
+    if (editing) {
+      let editDoc = null;
+      if (file && file.uri && !file.existing) {
+        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.Base64,
         });
-        drafts.swap = null;
-        Alert.alert('Swap updated', `${editTarget.id} has been saved.`, [
-          { text: 'OK', onPress: () => router.replace(returnTo) },
-        ]);
-        return;
+        editDoc = {
+          fileName: file.name,
+          dataUrl: `data:${file.mimeType || 'image/png'};base64,${base64}`,
+        };
       }
 
-      // CREATE
-      const res = await apiFetch('/api/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: `Shift Swap – ${assistant}`,
-          replacement: assistant,
-          reason: reason.trim(),
-          dateRange: newDateLabel,
-          detail,
-        }),
+      await updateRequest(editTarget.id, {
+        type: category,
+        dateRange,
+        detail: reason.trim(),
+        reason: reason.trim(),
+        supportingDocument: editDoc,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        Alert.alert('Submission failed', data.error || 'Please try again.');
-        return;
-      }
       drafts.swap = null;
-      Alert.alert('Swap request submitted', `${data.id} was sent for department lead approval.`, [
-        { text: 'OK', onPress: () => router.replace(ROUTES.history) },
-      ]);
-    } catch (err) {
-      console.error('Submit swap request error:', err);
-      Alert.alert('Error', err.message || 'Could not reach the server.');
-    } finally {
-      setSubmitting(false);
+      Alert.alert(
+        'Swap updated',
+        `${editTarget.id} has been saved.`,
+        [{ text: 'OK', onPress: () => router.replace(returnTo) }],
+        { cancelable: false }
+      );
+      return;
     }
-  };
+
+      let editDoc = null;
+      if (file && file.uri && !file.existing) {
+        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        editDoc = {
+          fileName: file.name,
+          dataUrl: `data:${file.mimeType || 'image/png'};base64,${base64}`,
+        };
+      }
+
+      await updateRequest(editTarget.id, {
+        type: category,
+        dateRange,
+        detail: reason.trim(),
+        reason: reason.trim(),
+        supportingDocument: editDoc,
+      });
+    drafts.swap = null;
+
+    Alert.alert(
+      'Swap request submitted',
+      'Your shift swap was sent for department lead approval.',
+      [{ text: 'View my requests', onPress: () => router.replace(ROUTES.history) }],
+      { cancelable: false }
+    );
+  } catch (err) {
+    console.error('Submit swap request error:', err);
+    Alert.alert('Submission failed', err.message || 'Could not reach the server.');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const cancel = () => {
     if (!editing) drafts.swap = null;
