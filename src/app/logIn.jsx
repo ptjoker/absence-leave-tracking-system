@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 
-import backImg from '@/assets/images/library.jpg';
+import APP_BACKGROUND from '@/constants/appBackground';
 import LogoImg from '@/assets/images/logo.png';
 import { apiFetch, saveSession } from '@/lib/api';
 
@@ -25,7 +25,7 @@ const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   card: '#FFFFFF',
   border: '#E5E7EB',
@@ -117,10 +117,10 @@ export default function LoginScreen() {
       <StatusBar barStyle="dark-content" />
 
       <ImageBackground
-        source={backImg}
+        source={APP_BACKGROUND}
         style={styles.backgroundImage}
         blurRadius={4}
-        imageStyle={{ opacity: 0.45 }}
+        imageStyle={{ opacity: 1 }}
       >
         <View style={styles.overlay} />
 

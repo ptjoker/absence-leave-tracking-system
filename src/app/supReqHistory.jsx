@@ -15,6 +15,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
@@ -69,9 +70,9 @@ export default function SupervisorRequestHistory() {
 
       {/* Background Image with 70% White Overlay */}
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        source={APP_BACKGROUND}
         style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
+        imageStyle={{ opacity: 1 }}
         resizeMode="cover"
       >
         <View style={styles.overlay} />
@@ -216,7 +217,7 @@ const baseStyles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
 
   // --- STANDARD HEADER STYLES ---

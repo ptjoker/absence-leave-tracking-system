@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
+  ImageBackground,
   Modal,
   RefreshControl,
   ScrollView,
@@ -17,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import logoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch } from '@/lib/api';
@@ -160,7 +162,9 @@ export default function SupervisorNotifications() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <View style={styles.header}>
+      <ImageBackground source={APP_BACKGROUND} style={styles.backgroundImage} resizeMode="cover">
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.overlay }]} />
+        <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Ionicons name="chevron-back-outline" size={24} color={theme.textMain} />
@@ -218,6 +222,7 @@ export default function SupervisorNotifications() {
           Notifications include student requests, submitted reports, and academic calendar updates.
         </Text>
       </View>
+      </ImageBackground>
 
       <Modal
         animationType="slide"
@@ -306,7 +311,8 @@ export default function SupervisorNotifications() {
 }
 
 const baseStyles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F0F4F8' },
+  safeArea: { flex: 1 },
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

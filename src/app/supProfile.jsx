@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch, getSession } from '@/lib/api';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
@@ -30,7 +31,7 @@ const THEME = {
     primary: '#2563EB',
     darkBlue: '#1E3A8A',
     textMain: '#111827',
-    textMuted: '#6B7280',
+    textMuted: '#1F2937',
     bg: '#F8FAFC',
     card: '#FFFFFF',
     border: '#E5E7EB',
@@ -42,7 +43,7 @@ const THEME = {
     activeText: '#059669',
     studentBadgeBg: '#DBEAFE',
     studentBadgeText: '#2563EB',
-    overlay: 'rgba(255, 255, 255, 0.7)',
+    overlay: 'rgba(255, 255, 255, 0.5)',
     inputBg: '#F9FAFB',
     inputBorder: '#E5E7EB',
     inputText: '#111827',
@@ -54,7 +55,7 @@ const THEME = {
     primary: '#3B82F6',
     darkBlue: '#93C5FD',
     textMain: '#F9FAFB',
-    textMuted: '#9CA3AF',
+    textMuted: '#E2E8F0',
     bg: '#0F172A',
     card: '#1E293B',
     border: '#334155',
@@ -66,7 +67,7 @@ const THEME = {
     activeText: '#6EE7B7',
     studentBadgeBg: '#1E3A8A',
     studentBadgeText: '#93C5FD',
-    overlay: 'rgba(15, 23, 42, 0.75)',
+    overlay: 'rgba(15, 23, 42, 0.5)',
     inputBg: '#0F172A',
     inputBorder: '#334155',
     inputText: '#F9FAFB',
@@ -261,9 +262,9 @@ export default function SupervisorProfileScreen() {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        source={APP_BACKGROUND}
         style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
+        imageStyle={{ opacity: 1 }}
         resizeMode="cover"
       >
         <View style={styles.overlay} />

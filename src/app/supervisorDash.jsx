@@ -32,6 +32,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '../../assets/images/logo.png';
+import DashboardBackground from '@/constants/appBackground';
 
 // --- Theme Definitions ---
 const THEME = {
@@ -39,7 +40,7 @@ const THEME = {
     primary: '#2563EB',
     darkBlue: '#1E3A8A',
     textMain: '#111827',
-    textMuted: '#6B7280',
+    textMuted: '#1F2937',
     bg: '#F8FAFC',
     card: '#FFFFFF',
     border: '#E5E7EB',
@@ -54,8 +55,8 @@ const THEME = {
     headerIcon: '#1E3A8A',
     navActive: '#2563EB',
     navInactive: '#A0AEC0',
-    navText: '#6B7280',
-    overlay: 'rgba(255, 255, 255, 0.55)',
+    navText: '#1F2937',
+    overlay: 'rgba(255, 255, 255, 0.5)',
     workflowBg: '#EFF6FF',
     filterBg: '#F3F4F6',
     logApprovedBg: '#DCFCE7',
@@ -84,7 +85,7 @@ const THEME = {
     primary: '#3B82F6',
     darkBlue: '#93C5FD',
     textMain: '#F9FAFB',
-    textMuted: '#9CA3AF',
+    textMuted: '#E2E8F0',
     bg: '#0F172A',
     card: '#1E293B',
     border: '#334155',
@@ -99,8 +100,8 @@ const THEME = {
     headerIcon: '#93C5FD',
     navActive: '#60A5FA',
     navInactive: '#64748B',
-    navText: '#94A3B8',
-    overlay: 'rgba(15, 23, 42, 0.55)',
+    navText: '#E2E8F0',
+    overlay: 'rgba(15, 23, 42, 0.5)',
     workflowBg: '#1E3A8A',
     filterBg: '#334155',
     logApprovedBg: '#064E3B',
@@ -650,11 +651,9 @@ export default function SupervisorDashboard() {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
       <ImageBackground
-        source={{
-          uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop',
-        }}
+        source={DashboardBackground}
         style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
+        imageStyle={{ opacity: 1 }}
         resizeMode="cover"
       >
         <View style={styles.overlay} />

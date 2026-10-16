@@ -1,5 +1,6 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router'; // Assuming you are using Expo Router
+import APP_BACKGROUND from '@/constants/appBackground';
 import {
   ImageBackground,
   SafeAreaView,
@@ -15,7 +16,7 @@ const COLORS = {
   primary: '#2563EB', // Blue button
   darkBlue: '#1E3A8A', // Heading text
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   border: '#E5E7EB',
   successBg: '#D1FAE5', // Light green background for icon
@@ -32,7 +33,7 @@ export default function LogoutSuccessScreen() {
       
       {/* Background Image with Blur and Overlay */}
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        source={APP_BACKGROUND}
         style={styles.backgroundImage}
         blurRadius={8}
       >
@@ -99,7 +100,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)', // Light overlay to fade the blurred image
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
   
   // Header

@@ -129,7 +129,7 @@ function SelectedDayBody({ date, c, shifts }) {
     return (
       <View style={[styles.notice, { backgroundColor: '#fbe4e1' }]}>
         <Text style={[styles.noticeTitle, { color: '#b42318' }]}>{info.label}</Text>
-        <Text style={{ color: '#475569', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
+        <Text style={{ color: '#1F2937', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
           This date is unavailable because an institutional closure was declared.
         </Text>
       </View>

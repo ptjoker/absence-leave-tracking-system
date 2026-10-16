@@ -18,13 +18,14 @@ import {
 } from 'react-native';
 
 import LogoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { apiFetch } from '@/lib/api';
 
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   card: '#FFFFFF',
   border: '#E5E7EB',
@@ -176,7 +177,7 @@ export default function SupervisorSignUpScreen() {
       <StatusBar barStyle="dark-content" />
 
       <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
+        source={APP_BACKGROUND}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -489,7 +490,7 @@ const styles = StyleSheet.create({
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(219, 234, 254, 0.75)',
+    backgroundColor: 'rgba(219, 234, 254, 0.5)',
   },
   scrollContent: {
     flexGrow: 1,
