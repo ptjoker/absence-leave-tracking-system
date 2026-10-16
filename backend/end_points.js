@@ -668,7 +668,7 @@ router.get('/requests/:id/document', async (req, res) => {
       LIMIT 1
     `;
     if (!rows.length) return res.status(404).json({ error: 'Request not found' });
-    if (String(rows[0].user_id) !== String(user.id) && caller[0].role !== 'supervisor') {
+    if (String(rows[0].user_id) !== String(user.id) && caller[0].role !== 'supervisor' && caller[0].role !== 'admin') {
       return res.status(403).json({ error: 'You are not allowed to view this supporting document' });
     }
     if (!rows[0].supporting_document) {
@@ -693,6 +693,174 @@ router.get('/requests/:id/document', async (req, res) => {
   } catch (err) {
     console.error('Load request document error:', err);
     res.status(500).json({ error: 'Could not load the supporting document' });
+  }
+});
+
+// GET /api/admin/requests — read-only aggregate of leave and shift-swap requests.
+// Filtering is performed here so an admin never has to download unrelated requests.
+router.get('/admin/requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1
+    `;
+    if (caller[0]?.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can view all requests' });
+    }
+
+    const query = String(req.query.q || '').trim();
+    const status = String(req.query.status || '').trim();
+    const type = String(req.query.type || '').trim().toLowerCase();
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    const validDate = (value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (!validDate(from) || !validDate(to)) {
+      return res.status(400).json({ error: 'Date filters must use YYYY-MM-DD format' });
+    }
+    if (from && to && from > to) {
+      return res.status(400).json({ error: 'The start date cannot be after the end date' });
+    }
+    if (type && !['leave', 'shift-swap'].includes(type)) {
+      return res.status(400).json({ error: 'Request type must be leave or shift-swap' });
+    }
+    const statuses = new Set(['pending', 'approved', 'declined', 'cancelled']);
+    if (status && !statuses.has(status.toLowerCase())) {
+      return res.status(400).json({ error: 'Invalid request status filter' });
+    }
+
+    const leaveRows = type === 'shift-swap' ? [] : await sql`
+      SELECT
+        r.id, r.type, r.status, r.date_range, r.detail, r.replacement, r.reason,
+        r.created_at, r.reviewed_by, r.reviewed_at, r.supporting_document,
+        p.id AS student_id, p.first_name, p.last_name, p.student_number,
+        p.student_email, reviewer.first_name AS reviewer_first_name,
+        reviewer.last_name AS reviewer_last_name
+      FROM public.absence_requests r
+      JOIN public.profiles p ON p.id = r.user_id
+      LEFT JOIN public.profiles reviewer ON reviewer.id = r.reviewed_by
+      WHERE (
+        ${query} = ''
+        OR concat_ws(' ', p.first_name, p.last_name, p.student_number, p.student_email) ILIKE ${`%${query}%`}
+        OR concat_ws(' ', r.type, r.date_range, r.reason, r.detail) ILIKE ${`%${query}%`}
+      )
+      AND (${status} = '' OR lower(r.status) = ${status.toLowerCase()})
+      AND (${from} = '' OR r.created_at::date >= ${from || '1900-01-01'}::date)
+      AND (${to} = '' OR r.created_at::date <= ${to || '9999-12-31'}::date)
+      ORDER BY r.created_at DESC
+    `;
+
+    const swapRows = type === 'leave' ? [] : await sql`
+      SELECT
+        r.id, r.status, r.reason, r.colleague_reason, r.supervisor_reason,
+        r.created_at, r.colleague_decided_at, r.supervisor_decided_at,
+        r.requester_user_id, r.colleague_user_id,
+        requester.first_name AS requester_first_name,
+        requester.last_name AS requester_last_name,
+        requester.student_number AS requester_student_number,
+        requester.student_email AS requester_email,
+        colleague.first_name AS colleague_first_name,
+        colleague.last_name AS colleague_last_name,
+        requester_shift.shift_date AS requester_shift_date,
+        requester_shift.start_time AS requester_start_time,
+        requester_shift.end_time AS requester_end_time,
+        colleague_shift.shift_date AS colleague_shift_date,
+        colleague_shift.start_time AS colleague_start_time,
+        colleague_shift.end_time AS colleague_end_time
+      FROM public.shift_swap_requests r
+      JOIN public.profiles requester ON requester.id = r.requester_user_id
+      JOIN public.profiles colleague ON colleague.id = r.colleague_user_id
+      JOIN public.shifts requester_shift ON requester_shift.id = r.requester_shift_id
+      JOIN public.shifts colleague_shift ON colleague_shift.id = r.colleague_shift_id
+      WHERE (
+        ${query} = ''
+        OR concat_ws(' ', requester.first_name, requester.last_name, requester.student_number, requester.student_email) ILIKE ${`%${query}%`}
+        OR concat_ws(' ', r.reason, r.colleague_reason, r.supervisor_reason) ILIKE ${`%${query}%`}
+      )
+      AND (
+        ${status} = ''
+        OR (${status.toLowerCase()} = 'pending' AND r.status IN ('pending_colleague', 'pending_supervisor'))
+        OR (${status.toLowerCase()} = 'approved' AND r.status = 'approved')
+        OR (${status.toLowerCase()} = 'declined' AND r.status = 'rejected')
+      )
+      AND (${from} = '' OR r.created_at::date >= ${from || '1900-01-01'}::date)
+      AND (${to} = '' OR r.created_at::date <= ${to || '9999-12-31'}::date)
+      ORDER BY r.created_at DESC
+    `;
+
+    const leave = leaveRows.map((row) => ({
+      id: `REQ-${String(row.id).padStart(3, '0')}`,
+      rawId: row.id,
+      requestType: 'Leave',
+      requestDate: row.created_at,
+      requestedDate: row.date_range,
+      status: row.status,
+      decision: ['Approved', 'Rejected'].includes(row.status) ? row.status : 'Pending',
+      studentAssistant: {
+        id: row.student_id,
+        name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+        studentNumber: row.student_number || '',
+        email: row.student_email || '',
+      },
+      reason: row.reason || row.detail || '',
+      details: { leaveType: row.type || '', dates: row.date_range || '', replacement: row.replacement || '' },
+      supportingDocument: row.supporting_document ? {
+        fileName: row.supporting_document.fileName,
+        contentType: row.supporting_document.contentType,
+        size: row.supporting_document.size,
+      } : null,
+      supervisorDecision: row.reviewed_at ? {
+        decision: row.status,
+        comments: '',
+        decisionDate: row.reviewed_at,
+        supervisor: `${row.reviewer_first_name || ''} ${row.reviewer_last_name || ''}`.trim() || null,
+      } : null,
+      approvalHistory: row.reviewed_at ? [{ status: row.status, date: row.reviewed_at }] : [{ status: row.status, date: row.created_at }],
+    }));
+
+    const swaps = swapRows.map((row) => {
+      const status = row.status === 'approved' ? 'Approved' : row.status === 'rejected' ? 'Declined' : 'Pending';
+      const requesterName = `${row.requester_first_name || ''} ${row.requester_last_name || ''}`.trim() || 'Unknown';
+      const colleagueName = `${row.colleague_first_name || ''} ${row.colleague_last_name || ''}`.trim() || 'Unknown';
+      return {
+        id: `SWAP-${row.id}`,
+        rawId: row.id,
+        requestType: 'Shift Swap',
+        requestDate: row.created_at,
+        requestedDate: row.requester_shift_date,
+        status,
+        decision: status,
+        studentAssistant: {
+          id: row.requester_user_id,
+          name: requesterName,
+          studentNumber: row.requester_student_number || '',
+          email: row.requester_email || '',
+        },
+        reason: row.reason || '',
+        details: {
+          originalShift: { date: row.requester_shift_date, start: row.requester_start_time, end: row.requester_end_time },
+          proposedShift: { date: row.colleague_shift_date, start: row.colleague_start_time, end: row.colleague_end_time },
+          replacementStudentAssistant: colleagueName,
+          replacementResponse: row.colleague_reason || null,
+        },
+        supervisorDecision: row.supervisor_decided_at ? {
+          decision: status,
+          comments: row.supervisor_reason || '',
+          decisionDate: row.supervisor_decided_at,
+        } : null,
+        approvalHistory: [
+          { status: 'Submitted', date: row.created_at },
+          ...(row.colleague_decided_at ? [{ status: row.status === 'rejected' && !row.supervisor_decided_at ? 'Declined by replacement' : 'Accepted by replacement', date: row.colleague_decided_at }] : []),
+          ...(row.supervisor_decided_at ? [{ status, date: row.supervisor_decided_at }] : []),
+        ],
+      };
+    });
+
+    res.json({ requests: [...leave, ...swaps].sort((a, b) => new Date(b.requestDate) - new Date(a.requestDate)) });
+  } catch (error) {
+    console.error('Admin list all requests error:', error);
+    res.status(500).json({ error: 'Could not load all requests' });
   }
 });
 
