@@ -133,9 +133,13 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
             source={APP_BACKGROUND}
             style={styles.flex}
             resizeMode="cover"
-            imageStyle={{ opacity: 1 }}
+            blurRadius={1}
+            imageStyle={[
+              { opacity: 1 },
+              Platform.OS === 'web' ? { filter: 'blur(1px)' } : null,
+            ]}
           >
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay, opacity: 0.6 }]} />
             {body}
           </ImageBackground>
         </View>

@@ -33,7 +33,7 @@ export const SERIF = Platform.select({
 const LIGHT = {
   mode: 'light',
   bgFallback: '#8fb1d6',
-  overlay: 'rgba(120,160,210,0.5)',
+  overlay: 'rgba(255,255,255,0.45)',
   header: '#ffffff',
   card: '#f5f8fc',
   panel: '#e9f0f9',
@@ -62,7 +62,7 @@ const LIGHT = {
 const DARK = {
   mode: 'dark',
   bgFallback: '#1b2a41',
-  overlay: 'rgba(10,20,40,0.5)',
+  overlay: 'rgba(0,0,0,0.65)',
   header: '#111827',
   card: '#1e293b',
   panel: '#273449',
