@@ -8,3 +8,7 @@ parameters and returns Student Assistant details, request dates, current
 decision data, replacement responses, and approval history. Supporting leave
 documents remain available through the authorized
 `GET /api/requests/:id/document` endpoint.
+
+`GET /api/admin/active-users` returns active Student Assistants and Supervisors
+to authenticated Admins. It accepts optional `q` and `role` query parameters,
+where `role` is either `student` or `supervisor`.

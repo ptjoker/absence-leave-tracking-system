@@ -1580,6 +1580,102 @@ router.get('/admin/overview', async (req, res) => {
   }
 });
 
+// GET /api/admin/active-users — list active student assistants and supervisors.
+router.get('/admin/active-users', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const callerProfile = await sql`
+      SELECT role
+      FROM public.profiles
+      WHERE id = ${user.id}
+      LIMIT 1
+    `;
+
+    if (callerProfile.length === 0) {
+      return res.status(404).json({ error: 'Admin profile not found' });
+    }
+
+    if (callerProfile[0].role !== 'admin') {
+      return res.status(403).json({
+        error: 'Only admins can view active users'
+      });
+    }
+
+    const search = String(req.query.q || '').trim();
+    const requestedRole = String(req.query.role || '').trim().toLowerCase();
+    if (requestedRole && !['student', 'supervisor'].includes(requestedRole)) {
+      return res.status(400).json({
+        error: 'Role must be student or supervisor'
+      });
+    }
+
+    const rows = await sql`
+      SELECT
+        id,
+        first_name,
+        last_name,
+        student_number,
+        student_email,
+        personal_email,
+        course,
+        level_of_study,
+        cell_number,
+        role,
+        account_status,
+        created_at
+      FROM public.profiles
+      WHERE account_status = 'active'
+        AND role IN ('student', 'supervisor')
+        AND (${requestedRole} = '' OR role = ${requestedRole})
+        AND (
+          ${search} = ''
+          OR concat_ws(
+            ' ',
+            first_name,
+            last_name,
+            student_number,
+            student_email,
+            personal_email,
+            course
+          ) ILIKE ${`%${search}%`}
+        )
+      ORDER BY first_name ASC, last_name ASC, created_at ASC
+    `;
+
+    const users = rows.map((row) => ({
+      id: row.id,
+      firstName: row.first_name || '',
+      lastName: row.last_name || '',
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      studentNumber: row.student_number || '',
+      studentEmail: row.student_email || '',
+      personalEmail: row.personal_email || '',
+      course: row.course || '',
+      levelOfStudy: row.level_of_study || '',
+      cellNumber: row.cell_number || '',
+      role: row.role,
+      accountStatus: row.account_status,
+      createdAt: row.created_at
+    }));
+
+    res.json({
+      success: true,
+      count: users.length,
+      users
+    });
+  } catch (error) {
+    console.error('Admin active users error:', error);
+    res.status(500).json({
+      error: 'Could not load active users'
+    });
+  }
+});
+
 // GET /api/admin/assistants
 router.get('/admin/assistants', async (req, res) => {
   try {
