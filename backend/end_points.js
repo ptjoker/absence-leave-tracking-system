@@ -13,12 +13,36 @@ async function getUserFromToken(req) {
   if (!token) return null;
   // Local verification â€” no network round-trip to Supabase Auth.
   const user = await verifyToken(token);
+  if (user) {
+    await recordUserPresence(user.id, req);
+  }
   return user;
 }
 
 const router = express.Router();
 const MAX_SUPPORTING_DOCUMENT_BYTES = 5 * 1024 * 1024;
 const DOCUMENT_REQUIRED_TYPES = new Set(['sick leave', 'exam leave']);
+const ONLINE_WINDOW_MINUTES = 5;
+
+async function recordUserPresence(userId, req) {
+  try {
+    await sql`
+      INSERT INTO public.user_presence (user_id, ip_address, user_agent, last_seen_at)
+      VALUES (
+        ${userId},
+        ${req.ip || null},
+        ${String(req.get('user-agent') || '').slice(0, 512) || null},
+        NOW()
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        ip_address = EXCLUDED.ip_address,
+        user_agent = EXCLUDED.user_agent,
+        last_seen_at = EXCLUDED.last_seen_at
+    `;
+  } catch (error) {
+    console.error('Record user presence error:', error);
+  }
+}
 
 function parseSupportingDocument(value) {
   if (!value) return { document: null, error: null };
@@ -216,6 +240,42 @@ router.post('/auth/send-otp', otpLimiter, async (req, res) => {
   }
 });
 
+// POST /api/auth/resend-signup-otp
+router.post('/auth/resend-signup-otp', otpLimiter, async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Email is required'
+      });
+    }
+
+    const { error } = await supabaseAdmin.auth.resend({
+      type: 'signup',
+      email
+    });
+
+    if (error) {
+      console.error('Resend signup OTP error:', error);
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'A new verification code was sent to your email.',
+      registrationComplete: false
+    });
+  } catch (error) {
+    console.error('Resend signup OTP server error:', error);
+    res.status(500).json({
+      error: 'Could not resend the verification code'
+    });
+  }
+});
+
 
 // ============================================
 // Verify Email OTP
@@ -235,7 +295,7 @@ router.post('/auth/verify-otp', verifyOtpLimiter, async (req, res) => {
     const { data, error } = await supabaseAdmin.auth.verifyOtp({
       email,
       token,
-      type: 'email'
+      type: 'signup'
     });
 
     if (error) {
@@ -249,6 +309,7 @@ router.post('/auth/verify-otp', verifyOtpLimiter, async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'OTP verified successfully',
+      registrationComplete: Boolean(data.user?.email_confirmed_at),
       session: data.session,
       user: data.user
     });
@@ -326,9 +387,10 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    res.status(201).json({
+    res.status(202).json({
       success: true,
-      message: 'Registration successful. A verification code has been sent to your email.',
+      registrationComplete: false,
+      message: 'Registration pending. Verify your email with the OTP to complete registration.',
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -367,6 +429,12 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    if (!data.user?.email_confirmed_at) {
+      return res.status(403).json({
+        error: 'Please verify your email with the OTP before logging in.'
+      });
+    }
+
     const profile = await sql`
       SELECT * FROM profiles WHERE id = ${data.user.id}
     `;
@@ -384,6 +452,8 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (role && profile[0].role !== role) {
       return res.status(403).json({ error: 'Incorrect account type' });
     }
+
+    await recordUserPresence(data.user.id, req);
 
 res.status(200).json({
   message: 'Login successful',
@@ -1627,8 +1697,12 @@ router.get('/admin/active-users', async (req, res) => {
         cell_number,
         role,
         account_status,
-        created_at
+        created_at,
+        user_presence.ip_address AS presence_ip_address,
+        user_presence.user_agent AS presence_user_agent,
+        user_presence.last_seen_at AS presence_last_seen_at
       FROM public.profiles
+      LEFT JOIN public.user_presence ON user_presence.user_id = profiles.id
       WHERE account_status = 'active'
         AND role IN ('student', 'supervisor')
         AND (${requestedRole} = '' OR role = ${requestedRole})
@@ -1660,7 +1734,13 @@ router.get('/admin/active-users', async (req, res) => {
       cellNumber: row.cell_number || '',
       role: row.role,
       accountStatus: row.account_status,
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      online: row.presence_last_seen_at
+        ? new Date(row.presence_last_seen_at).getTime() >= Date.now() - ONLINE_WINDOW_MINUTES * 60 * 1000
+        : false,
+      ipAddress: row.presence_ip_address || null,
+      lastSeenAt: row.presence_last_seen_at || null,
+      userAgent: row.presence_user_agent || null
     }));
 
     res.json({

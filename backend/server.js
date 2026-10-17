@@ -27,6 +27,14 @@ async function startServer() {
       ALTER TABLE public.shift_swap_requests
       ADD COLUMN IF NOT EXISTS reason TEXT
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS public.user_presence (
+        user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+        ip_address TEXT,
+        user_agent TEXT,
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });

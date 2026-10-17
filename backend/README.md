@@ -11,4 +11,19 @@ documents remain available through the authorized
 
 `GET /api/admin/active-users` returns active Student Assistants and Supervisors
 to authenticated Admins. It accepts optional `q` and `role` query parameters,
-where `role` is either `student` or `supervisor`.
+where `role` is either `student` or `supervisor`. Each user also includes
+`online`, `ipAddress`, `lastSeenAt`, and `userAgent`. A user is considered
+online when their authenticated activity was recorded within the last five
+minutes. Presence is stored by the backend and refreshed on login and
+authenticated API requests.
+
+Users cannot log in until Supabase reports that their email has been
+confirmed through the email OTP. The login endpoint returns HTTP 403 with a
+verification message when `email_confirmed_at` is not set.
+
+`POST /api/register` returns HTTP 202 while registration is pending. The
+client must call `POST /api/auth/verify-otp` with the registration email and
+the six-digit token. If the code is not received, the client can call
+`POST /api/auth/resend-signup-otp` with the registration email to request a
+new code. Registration is complete only when verification returns
+`registrationComplete: true`; unverified users cannot log in.
