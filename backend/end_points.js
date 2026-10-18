@@ -14,6 +14,15 @@ async function getUserFromToken(req) {
   // Local verification â€” no network round-trip to Supabase Auth.
   const user = await verifyToken(token);
   if (user) {
+    const profile = await sql`
+      SELECT registration_status
+      FROM public.profiles
+      WHERE id = ${user.id}
+      LIMIT 1
+    `;
+    if (profile[0]?.registration_status && profile[0].registration_status !== 'approved') {
+      return null;
+    }
     await recordUserPresence(user.id, req);
   }
   return user;
@@ -306,6 +315,16 @@ router.post('/auth/verify-otp', verifyOtpLimiter, async (req, res) => {
       });
     }
 
+    const verifiedProfile = await sql`
+      UPDATE public.profiles
+      SET email_verified_at = COALESCE(email_verified_at, NOW())
+      WHERE id = ${data.user.id}
+      RETURNING registration_status
+    `;
+    if (verifiedProfile.length === 0) {
+      return res.status(404).json({ error: 'Registration profile not found' });
+    }
+
     res.status(200).json({
       success: true,
       message: 'OTP verified successfully',
@@ -387,9 +406,67 @@ router.post('/register', async (req, res) => {
       });
     }
 
+    const pendingProfile = await sql`
+      INSERT INTO public.profiles (
+        id,
+        first_name,
+        last_name,
+        student_number,
+        course,
+        level_of_study,
+        student_email,
+        cell_number,
+        role,
+        registration_status,
+        email_verified_at,
+        registration_rejection_reason,
+        registration_reviewed_by,
+        registration_reviewed_at
+      )
+      VALUES (
+        ${authData.user.id},
+        ${first_name},
+        ${last_name},
+        ${student_number || null},
+        ${course || null},
+        ${level_of_study || null},
+        ${student_email},
+        ${cell_number || null},
+        ${signupRole},
+        'pending',
+        NULL,
+        NULL,
+        NULL,
+        NULL
+      )
+      ON CONFLICT (id)
+      DO UPDATE SET
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
+        student_number = EXCLUDED.student_number,
+        course = EXCLUDED.course,
+        level_of_study = EXCLUDED.level_of_study,
+        student_email = EXCLUDED.student_email,
+        cell_number = EXCLUDED.cell_number,
+        role = EXCLUDED.role,
+        registration_status = 'pending',
+        email_verified_at = NULL,
+        registration_rejection_reason = NULL,
+        registration_reviewed_by = NULL,
+        registration_reviewed_at = NULL
+      RETURNING id
+    `;
+    if (pendingProfile.length === 0) {
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      return res.status(500).json({
+        error: 'Registration profile could not be prepared'
+      });
+    }
+
     res.status(202).json({
       success: true,
       registrationComplete: false,
+      approvalStatus: 'pending',
       message: 'Registration pending. Verify your email with the OTP to complete registration.',
       user: {
         id: authData.user.id,
@@ -441,6 +518,21 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     if (profile.length === 0) {
       return res.status(404).json({ error: 'User profile not found' });
+    }
+
+    if (profile[0].registration_status === 'pending') {
+      return res.status(403).json({
+        error: 'Your email is verified, but your registration is awaiting administrator approval.',
+        code: 'REGISTRATION_PENDING'
+      });
+    }
+
+    if (profile[0].registration_status === 'rejected') {
+      return res.status(403).json({
+        error: 'Your registration was rejected by an administrator.',
+        code: 'REGISTRATION_REJECTED',
+        reason: profile[0].registration_rejection_reason || null
+      });
     }
 
     if (profile[0].account_status === 'disabled') {
@@ -1572,6 +1664,183 @@ router.post('/refresh', async (req, res) => {
 // Admin endpoints
 // ============================================
 
+// GET /api/admin/registration-requests
+router.get('/admin/registration-requests', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1
+    `;
+    if (caller[0]?.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can view registration requests' });
+    }
+
+    const status = String(req.query.status || 'pending').trim().toLowerCase();
+    const role = String(req.query.role || '').trim().toLowerCase();
+    const search = String(req.query.q || '').trim();
+    if (!['pending', 'approved', 'rejected', 'all'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid registration status filter' });
+    }
+    if (role && !['student', 'supervisor'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be student or supervisor' });
+    }
+
+    const rows = await sql`
+      SELECT
+        p.id,
+        p.first_name,
+        p.last_name,
+        p.student_number,
+        p.student_email,
+        p.personal_email,
+        p.course,
+        p.level_of_study,
+        p.cell_number,
+        p.role,
+        p.registration_status,
+        p.registration_rejection_reason,
+        p.registration_reviewed_by,
+        p.registration_reviewed_at,
+        p.email_verified_at,
+        p.created_at,
+        reviewer.first_name AS reviewer_first_name,
+        reviewer.last_name AS reviewer_last_name
+      FROM public.profiles p
+      LEFT JOIN public.profiles reviewer ON reviewer.id = p.registration_reviewed_by
+      WHERE p.role IN ('student', 'supervisor')
+        AND (${status} = 'all' OR p.registration_status = ${status})
+        AND (${role} = '' OR p.role = ${role})
+        AND (
+          ${search} = ''
+          OR concat_ws(' ', p.first_name, p.last_name, p.student_number, p.student_email, p.personal_email, p.course)
+            ILIKE ${`%${search}%`}
+        )
+      ORDER BY p.created_at DESC
+    `;
+
+    res.json({
+      success: true,
+      count: rows.length,
+      requests: rows.map((row) => ({
+        id: row.id,
+        firstName: row.first_name || '',
+        lastName: row.last_name || '',
+        name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+        studentNumber: row.student_number || '',
+        studentEmail: row.student_email || '',
+        personalEmail: row.personal_email || '',
+        course: row.course || '',
+        levelOfStudy: row.level_of_study || '',
+        cellNumber: row.cell_number || '',
+        role: row.role,
+        registrationStatus: row.registration_status,
+        emailVerified: Boolean(row.email_verified_at),
+        rejectionReason: row.registration_rejection_reason || null,
+        reviewedAt: row.registration_reviewed_at || null,
+        reviewer: row.registration_reviewed_by ? {
+          id: row.registration_reviewed_by,
+          name: `${row.reviewer_first_name || ''} ${row.reviewer_last_name || ''}`.trim() || 'Unknown'
+        } : null,
+        createdAt: row.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('Admin registration requests error:', error);
+    res.status(500).json({ error: 'Could not load registration requests' });
+  }
+});
+
+// PATCH /api/admin/registration-requests/:id/approve
+router.patch('/admin/registration-requests/:id/approve', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1
+    `;
+    if (caller[0]?.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can approve registrations' });
+    }
+
+    const rows = await sql`
+      UPDATE public.profiles
+      SET
+        registration_status = 'approved',
+        registration_rejection_reason = NULL,
+        registration_reviewed_by = ${user.id},
+        registration_reviewed_at = NOW()
+      WHERE id = ${req.params.id}
+        AND role IN ('student', 'supervisor')
+        AND registration_status = 'pending'
+        AND email_verified_at IS NOT NULL
+      RETURNING id, first_name, last_name, student_email, role, registration_status, registration_reviewed_at
+    `;
+    if (rows.length === 0) {
+      return res.status(409).json({
+        error: 'Registration must be pending and email-verified before approval'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Registration approved successfully',
+      registration: rows[0]
+    });
+  } catch (error) {
+    console.error('Approve registration error:', error);
+    res.status(500).json({ error: 'Could not approve registration' });
+  }
+});
+
+// PATCH /api/admin/registration-requests/:id/reject
+router.patch('/admin/registration-requests/:id/reject', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const caller = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id} LIMIT 1
+    `;
+    if (caller[0]?.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can reject registrations' });
+    }
+
+    const reason = String(req.body.reason || '').trim();
+    if (!reason) {
+      return res.status(400).json({ error: 'A rejection reason is required' });
+    }
+
+    const rows = await sql`
+      UPDATE public.profiles
+      SET
+        registration_status = 'rejected',
+        registration_rejection_reason = ${reason.slice(0, 1000)},
+        registration_reviewed_by = ${user.id},
+        registration_reviewed_at = NOW()
+      WHERE id = ${req.params.id}
+        AND role IN ('student', 'supervisor')
+        AND registration_status = 'pending'
+      RETURNING id, first_name, last_name, student_email, role, registration_status,
+        registration_rejection_reason, registration_reviewed_at
+    `;
+    if (rows.length === 0) {
+      return res.status(409).json({ error: 'Only pending registrations can be rejected' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Registration rejected successfully',
+      registration: rows[0]
+    });
+  } catch (error) {
+    console.error('Reject registration error:', error);
+    res.status(500).json({ error: 'Could not reject registration' });
+  }
+});
+
 
 // GET /api/admin/overview
 router.get('/admin/overview', async (req, res) => {
@@ -1618,7 +1887,10 @@ router.get('/admin/overview', async (req, res) => {
         )::int AS disabled_student_assistants,
         COUNT(*) FILTER (
           WHERE role = 'supervisor' AND account_status = 'disabled'
-        )::int AS disabled_supervisors
+        )::int AS disabled_supervisors,
+        COUNT(*) FILTER (
+          WHERE role IN ('student', 'supervisor') AND registration_status = 'pending'
+        )::int AS pending_registrations
       FROM public.profiles
       WHERE role IN ('student', 'supervisor')
     `;
@@ -1637,7 +1909,8 @@ router.get('/admin/overview', async (req, res) => {
         activeStudentAssistants: totals[0].active_student_assistants,
         activeSupervisors: totals[0].active_supervisors,
         disabledStudentAssistants: totals[0].disabled_student_assistants,
-        disabledSupervisors: totals[0].disabled_supervisors
+        disabledSupervisors: totals[0].disabled_supervisors,
+        pendingRegistrations: totals[0].pending_registrations
       }
     });
 
@@ -1966,7 +2239,8 @@ router.post('/admin/assistants', async (req, res) => {
           student_email,
           cell_number,
           personal_email,
-          role
+          role,
+          registration_status
         )
         VALUES (
           ${newUserId},
@@ -1978,7 +2252,8 @@ router.post('/admin/assistants', async (req, res) => {
           ${student_email},
           ${cell_number || null},
           ${personal_email || null},
-          'student'
+          'student',
+          'approved'
         )
         ON CONFLICT (id)
         DO UPDATE SET
@@ -1990,7 +2265,8 @@ router.post('/admin/assistants', async (req, res) => {
           student_email = EXCLUDED.student_email,
           cell_number = EXCLUDED.cell_number,
           personal_email = EXCLUDED.personal_email,
-          role = 'student'
+          role = 'student',
+          registration_status = 'approved'
         RETURNING
           id,
           first_name,
@@ -2002,6 +2278,7 @@ router.post('/admin/assistants', async (req, res) => {
           cell_number,
           personal_email,
           role,
+          registration_status,
           created_at
       `;
 
@@ -2242,7 +2519,8 @@ router.post('/admin/supervisors', async (req, res) => {
           student_email,
           cell_number,
           personal_email,
-          role
+          role,
+          registration_status
         )
         VALUES (
           ${newUserId},
@@ -2251,7 +2529,8 @@ router.post('/admin/supervisors', async (req, res) => {
           ${student_email},
           ${cell_number || null},
           ${personal_email || null},
-          'supervisor'
+          'supervisor',
+          'approved'
         )
         ON CONFLICT (id)
         DO UPDATE SET
@@ -2260,7 +2539,8 @@ router.post('/admin/supervisors', async (req, res) => {
           student_email = EXCLUDED.student_email,
           cell_number = EXCLUDED.cell_number,
           personal_email = EXCLUDED.personal_email,
-          role = 'supervisor'
+          role = 'supervisor',
+          registration_status = 'approved'
         RETURNING
           id,
           first_name,
@@ -2269,6 +2549,7 @@ router.post('/admin/supervisors', async (req, res) => {
           cell_number,
           personal_email,
           role,
+          registration_status,
           created_at
       `;
 

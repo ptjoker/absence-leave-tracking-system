@@ -27,3 +27,10 @@ the six-digit token. If the code is not received, the client can call
 `POST /api/auth/resend-signup-otp` with the registration email to request a
 new code. Registration is complete only when verification returns
 `registrationComplete: true`; unverified users cannot log in.
+
+Self-registered users remain pending after OTP verification until an admin
+approves them. Admins can review them with `GET
+/api/admin/registration-requests`, approve with `PATCH
+/api/admin/registration-requests/:id/approve`, or reject with `PATCH
+/api/admin/registration-requests/:id/reject` and a required `reason`.
+Admin-created student and supervisor accounts are marked approved immediately.

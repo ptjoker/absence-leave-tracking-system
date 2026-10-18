@@ -35,6 +35,31 @@ async function startServer() {
         last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
+    await sql`
+      ALTER TABLE public.profiles
+      ADD COLUMN IF NOT EXISTS registration_status TEXT NOT NULL DEFAULT 'approved'
+    `;
+    await sql`
+      ALTER TABLE public.profiles
+      ADD COLUMN IF NOT EXISTS registration_rejection_reason TEXT
+    `;
+    await sql`
+      ALTER TABLE public.profiles
+      ADD COLUMN IF NOT EXISTS registration_reviewed_by UUID REFERENCES public.profiles(id)
+    `;
+    await sql`
+      ALTER TABLE public.profiles
+      ADD COLUMN IF NOT EXISTS registration_reviewed_at TIMESTAMPTZ
+    `;
+    await sql`
+      ALTER TABLE public.profiles
+      ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ
+    `;
+    await sql`
+      UPDATE public.profiles
+      SET registration_status = 'approved'
+      WHERE registration_status IS NULL
+    `;
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
