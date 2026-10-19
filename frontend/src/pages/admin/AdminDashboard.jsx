@@ -4,7 +4,7 @@ import { useLocation } from 'wouter';
 import { format, subDays } from 'date-fns';
 import { apiFetch } from '@/lib/api';
 import { clearSession, getSession } from '@/lib/session';
-import { PortalBrand } from '@/components/portal/PortalComponents';
+import { PortalBrand, ModeToggle } from '@/components/portal/PortalComponents';
 import AdminRequest from '@/pages/admin/AdminRequest';
 import Analytics from '@/pages/admin/Analytics';
 import UserManagement from '@/pages/admin/UserManagement';
@@ -391,8 +391,8 @@ export default function AdminDashboard() {
   const maxDailyRequestCount = Math.max(1, ...analyticsRequestActivity.map((day) => day.count));
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] text-[#202a34]">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[#e1e5e9] bg-[#eceef0] px-4 py-5 lg:flex">
+    <div className="admin-console min-h-screen bg-[#f4f5f7] text-[#202a34]">
+      <aside className="admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[#e1e5e9] bg-[#eceef0] px-4 py-5 lg:flex">
         <div className="border-b border-[#dce1e5] px-2 pb-5">
           <PortalBrand />
         </div>
@@ -411,6 +411,7 @@ export default function AdminDashboard() {
       <div className="lg:pl-60">
         <header className="sticky top-0 z-20 flex min-h-[62px] items-center justify-between gap-4 border-b border-[#e1e5e9] bg-white/95 px-5 backdrop-blur sm:px-8">
           <div className="ml-auto flex items-center gap-3">
+            <ModeToggle size="compact" />
             <span className="hidden text-xs text-[#697582] sm:inline">Signed in as <strong className="text-[#344252]">{firstName}</strong></span>
             <button type="button" onClick={() => {
               if (activeSection === 'requests') loadRequests(requestFilters);
