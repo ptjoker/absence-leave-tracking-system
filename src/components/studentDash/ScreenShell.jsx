@@ -22,8 +22,8 @@ import {
 import { useStudent } from '../../hooks/useStudent';
 import StudentNavBar from './StudentNavBar';
 
+import libraryImg from '@/assets/images/library.jpg';
 import logoImg from '@/assets/images/logo.png';
-import APP_BACKGROUND from '../../constants/appBackground';
 
 /* Shared screen frame: top bar (logo, bell, logout, theme toggle),
    library background, page heading, scrolling body and the nav bar. */
@@ -111,12 +111,10 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
             <Text style={[styles.modeText, { color: c.amber }]}>· {mode === 'dark' ? 'Light' : 'Dark'}</Text>
           </Pressable>
           <View style={{ alignItems: 'flex-end' }}>
-          <View style={{ alignItems: 'flex-end' }}>
             <Text style={[styles.userName, { color: c.text }]}>{USER?.name || 'Loading...'}</Text>
             <Text style={[styles.userRole, { color: c.muted }]}>
               {USER?.position || ''}
             </Text>
-          </View>
           </View>
         </View>
       </View>
@@ -130,7 +128,7 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
       >
         <View style={styles.flex}>
           <ImageBackground
-            source={APP_BACKGROUND}
+            source={libraryImg}
             style={styles.flex}
             resizeMode="cover"
             blurRadius={1}
