@@ -34,6 +34,7 @@ import {
 } from '../constants/studData';
 import { useStudTheme } from '../constants/studTheme';
 import { useShifts } from '../hooks/useShifts';
+import { apiFetch } from '../lib/api';
 
 const CELL_H = 64;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -128,7 +129,7 @@ function SelectedDayBody({ date, c, shifts }) {
     return (
       <View style={[styles.notice, { backgroundColor: '#fbe4e1' }]}>
         <Text style={[styles.noticeTitle, { color: '#b42318' }]}>{info.label}</Text>
-        <Text style={{ color: '#475569', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
+        <Text style={{ color: '#1F2937', fontSize: 13, marginTop: 4, lineHeight: 18 }}>
           This date is unavailable because an institutional closure was declared.
         </Text>
       </View>
@@ -355,12 +356,37 @@ export default function StudSchedule() {
   /* Timetable state:
      - timetable: the selected file ({ name, uri, size, mimeType }) or null
      - submitting: true while the submit request is running
-     - timetableSubmitted: true once the current file was submitted successfully.
-       TODO(ATTENDANCE): use `timetableSubmitted` to enable your Confirm Attendance
-       action (it should only be allowed after a timetable has been submitted). */
+     - timetableSubmitted: true once the current file was submitted successfully. */
   const [timetable, setTimetable] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [timetableSubmitted, setTimetableSubmitted] = useState(false);
+
+  // On mount, ask the backend whether this student already has a timetable.
+  // If they do, restore the "Submitted" state so it survives a refresh.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/timetables');
+        if (!res.ok) return;
+        const list = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(list) && list.length > 0) {
+          const latest = list[0]; // backend orders by uploaded_at DESC
+          setTimetable({
+            name: latest.fileName,
+            uri: null,
+            size: latest.fileSize,
+            mimeType: latest.contentType,
+          });
+          setTimetableSubmitted(true);
+        }
+      } catch {
+        // ignore — fresh student with no upload yet, or offline
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const size = Math.floor((width - 32 - 24) / 7);
   const weeks = useMemo(() => buildMonthGrid(view.y, view.m), [view]);
@@ -400,24 +426,72 @@ export default function StudSchedule() {
   };
 
   const submitTimetable = async () => {
+    console.log('>>> STEP 1 entered. timetable=', timetable);
     if (submitting) return;
     if (!timetable) {
       Alert.alert('No file selected', 'Please choose your timetable (PDF or image) before submitting.');
       return;
     }
+    if (!timetable.uri) {
+      // Already on the server — nothing to upload again.
+      Alert.alert('Already submitted', 'Your current timetable is already saved on the server. Choose a different file if you want to replace it.');
+      return;
+    }
     setSubmitting(true);
     try {
-      // TODO(API): POST /student/timetable (multipart/form-data) with `file`.
-      // Example:
-      //   const form = new FormData();
-      //   form.append('file', { uri: timetable.uri, name: timetable.name, type: timetable.mimeType || 'application/octet-stream' });
-      //   const res = await fetch(`${API_URL}/student/timetable`, { method: 'POST', body: form, headers: { Authorization: `Bearer ${token}` } });
-      //   if (!res.ok) throw new Error('Upload failed');
-      // Placeholder delay so the loading state is visible until the API is connected:
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      console.log('>>> STEP 2 fetching file uri:', timetable.uri);
+      const fileRes = await fetch(timetable.uri);
+      console.log('>>> STEP 3 fileRes.status:', fileRes.status);
+      const blob = await fileRes.blob();
+      console.log('>>> STEP 4 blob.size:', blob.size, 'blob.type:', blob.type);
+
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = String(reader.result || '');
+          const comma = result.indexOf(',');
+          resolve(comma === -1 ? '' : result.slice(comma + 1));
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      console.log('>>> STEP 5 base64 length:', base64.length);
+
+      if (!base64) throw new Error('Could not read the selected file');
+
+      const contentType =
+        timetable.mimeType ||
+        (timetable.name.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : 'application/octet-stream');
+
+      const payload = {
+        fileName: timetable.name,
+        contentType,
+        dataUrl: `data:${contentType};base64,${base64}`,
+      };
+      console.log('>>> STEP 6 posting, contentType=', contentType, 'size bytes~', base64.length);
+
+      const uploadRes = await apiFetch('/api/timetables', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      console.log('>>> STEP 7 uploadRes.status:', uploadRes.status);
+
+      if (!uploadRes.ok) {
+        let msg = `Server returned ${uploadRes.status}`;
+        try {
+          const data = await uploadRes.json();
+          if (data?.error) msg = data.error;
+        } catch {}
+        throw new Error(msg);
+      }
+
       setTimetableSubmitted(true);
+      console.log('>>> STEP 8 done');
     } catch (e) {
-      Alert.alert('Submission failed', 'Your timetable could not be submitted. Please check your connection and try again.');
+      console.log('>>> CATCH:', e && e.message);
+      Alert.alert('Submission failed', e?.message || 'Please check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -440,7 +514,7 @@ export default function StudSchedule() {
       <ActiveShiftBanner records={records} selectedKey={selectedKey} onView={viewDay} c={c} />
 
       <Card style={{ padding: 12 }}>
-      {shiftsLoading ? (
+        {shiftsLoading ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
             <ActivityIndicator size="small" color={c.primary} />
             <Text style={{ color: c.muted, fontSize: 12, marginLeft: 8 }}>Loading shifts…</Text>
@@ -562,8 +636,8 @@ export default function StudSchedule() {
           </View>
         ) : null}
 
-        {/* Submit button: only shown once a timetable has been selected. */}
-        {timetable && !timetableSubmitted ? (
+        {/* Submit button: only shown once a new (not yet submitted) file has been selected. */}
+        {timetable && !timetableSubmitted && timetable.uri ? (
           <View style={styles.submitRow}>
             {submitting ? <ActivityIndicator color={c.primary} style={{ marginRight: 10 }} /> : null}
             <AppButton

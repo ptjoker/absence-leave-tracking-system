@@ -1,9 +1,11 @@
 // src/app/supReport.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
+  Alert,
   Image,
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -18,6 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LogoImg from '@/assets/images/logo.png';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import APP_BACKGROUND from '@/constants/appBackground';
+import { exportReportCsv } from '@/lib/reportExport';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -41,7 +45,50 @@ const COLORS = {
   staffCardBorder: '#BFDBFE',
 };
 
-// ✅ Hard-coded NAV paths remain (routing config, not data)
+const PERIOD_FILTERS = [
+  { label: 'Today', value: 'today' },
+  { label: 'Last 7 Days', value: '7days' },
+  { label: 'Last 30 Days', value: '30days' },
+  { label: 'This Month', value: 'month' },
+  { label: 'All Time', value: 'all' },
+];
+
+const STATUS_FILTERS = ['All', 'Pending', 'Approved', 'Rejected'];
+
+function parseReportDate(value) {
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (isoDate) {
+    return new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
+  }
+
+  const textDate = /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/.exec(value);
+  if (!textDate) return null;
+
+  const month = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    .indexOf(textDate[1].toLowerCase());
+  return month < 0
+    ? null
+    : new Date(Number(textDate[3]), month, Number(textDate[2]));
+}
+
+function getRequestDateRange(value) {
+  const dates = String(value).split(/\s+[–—-]\s*/).map(parseReportDate).filter(Boolean);
+  return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : null;
+}
+
+function formatReportDate(date) {
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function escapeCsv(value) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
@@ -88,6 +135,11 @@ export default function PerformanceReports() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [periodFilter, setPeriodFilter] = useState('7days');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [openFilter, setOpenFilter] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const { isDarkMode, toggleTheme, theme } = useSupervisorTheme();
   const styles = useSupervisorStyles(baseStyles);
@@ -99,41 +151,88 @@ export default function PerformanceReports() {
   const [shiftData] = useState([]);      // [{ id, name, position, date, time, duration }]
   const [requestData] = useState([]);    // [{ id, name, request, date, status }]
   const [staffData] = useState([]);      // [{ id, initials, name, hours, requests, location, days }]
+  const [dateRange] = useState({ start: null, end: null });
 
-  // ---------------------------------------------------------------------------
-  // Period / filter selection — no more hard-coded "Last 7 Days" or date range.
-  // ---------------------------------------------------------------------------
-  const [periodLabel, setPeriodLabel] = useState(null); // e.g. "Last 7 Days"
-  const [dateRange, setDateRange] = useState({ start: null, end: null });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const periodStart = new Date(today);
+  if (periodFilter === '7days') periodStart.setDate(periodStart.getDate() - 6);
+  if (periodFilter === '30days') periodStart.setDate(periodStart.getDate() - 29);
+  if (periodFilter === 'month') periodStart.setDate(1);
+  const selectedStart = periodFilter === 'all' ? null : periodStart;
+  const searchTerm = searchQuery.trim().toLowerCase();
 
-  // ---------------------------------------------------------------------------
-  // Derived stats (replaces the hard-coded 4.0h / 2 / 2)
-  // ---------------------------------------------------------------------------
-  const totalHours = useMemo(
-    () =>
-      shiftData.reduce((sum, shift) => sum + parseHours(shift.duration), 0),
-    [shiftData]
+  const isInPeriod = (start, end = start) =>
+    (!selectedStart || end >= selectedStart) && (periodFilter === 'all' || start <= today);
+  const filteredShifts = shiftData.filter((item) => {
+    const date = parseReportDate(item.date);
+    const matchesSearch = `${item.name} ${item.position}`.toLowerCase().includes(searchTerm);
+    return date && isInPeriod(date) && matchesSearch;
+  });
+  const filteredRequests = requestData.filter((item) => {
+    const range = getRequestDateRange(item.date);
+    const matchesSearch = `${item.name} ${item.request} ${item.status}`.toLowerCase().includes(searchTerm);
+    const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+    return range && isInPeriod(range.start, range.end) && matchesSearch && matchesStatus;
+  });
+  const filteredStaff = staffData.filter((item) =>
+    `${item.name} ${item.location}`.toLowerCase().includes(searchTerm),
   );
-
-  const requestCount = requestData.length;
-
-  const assistantsWithRequests = useMemo(
-    () => new Set(requestData.map((r) => r.name)).size,
-    [requestData]
+  const totalHours = filteredShifts.reduce(
+    (total, item) => total + parseHours(item.duration),
+    0,
   );
+  const requestCount = filteredRequests.length;
+  const assistantsWithRequests = new Set(filteredRequests.map((item) => item.name)).size;
 
+  const allReportDates = [
+    ...shiftData.map((item) => parseReportDate(item.date)).filter(Boolean),
+    ...requestData.flatMap((item) => {
+      const range = getRequestDateRange(item.date);
+      return range ? [range.start, range.end] : [];
+    }),
+  ].sort((first, second) => first - second);
+  const dateRangeLabel = selectedStart
+    ? `${formatReportDate(selectedStart)} – ${formatReportDate(today)}`
+    : allReportDates.length
+      ? `${formatReportDate(allReportDates[0])} – ${formatReportDate(allReportDates[allReportDates.length - 1])}`
+      : 'No report dates available';
+  const periodLabel = PERIOD_FILTERS.find((option) => option.value === periodFilter)?.label || 'Last 7 Days';
   const hasDateRange = Boolean(dateRange.start && dateRange.end);
+
+  const handleExport = async () => {
+    const rows = [
+      ['Type', 'Name', 'Role or request', 'Date', 'Time', 'Duration', 'Status'],
+      ...filteredShifts.map((item) => [
+        'Shift', item.name, item.position, item.date, item.time, item.duration, '',
+      ]),
+      ...filteredRequests.map((item) => [
+        'Request', item.name, item.request, item.date, '', '', item.status,
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\r\n');
+    const filename = `performance-report-${periodFilter}-${today.toISOString().slice(0, 10)}.csv`;
+
+    setIsExporting(true);
+    try {
+      await exportReportCsv(csv, filename);
+    } catch (error) {
+      console.error('Failed to export the performance report:', error);
+      Alert.alert('Export failed', 'The report could not be exported. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <View style={styles.pageContainer}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* --- HEADER --- */}
+      <ImageBackground source={APP_BACKGROUND} style={styles.background} resizeMode="cover">
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.overlay }]} />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+          {/* --- NEW HEADER --- */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -177,16 +276,50 @@ export default function PerformanceReports() {
             </Text>
 
             <View style={styles.actionButtonsRow}>
-              <TouchableOpacity style={styles.exportButton}>
+              <TouchableOpacity
+                style={[styles.exportButton, isExporting && styles.disabledButton]}
+                onPress={handleExport}
+                disabled={isExporting}
+                accessibilityRole="button"
+              >
                 <Feather name="download" size={14} color={COLORS.textMain} />
-                <Text style={styles.exportText}>Export CSV</Text>
+                <Text style={styles.exportText}>{isExporting ? 'Exporting…' : 'Export CSV'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.generateButton}>
+              <TouchableOpacity
+                style={styles.generateButton}
+                onPress={() => setOpenFilter(openFilter === 'generate' ? null : 'generate')}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: openFilter === 'generate' }}
+              >
                 <Feather name="file-text" size={14} color="#FFF" />
                 <Text style={styles.generateText}>Generate New Report</Text>
-                <Feather name="chevron-down" size={14} color="#FFF" />
+                <Feather
+                  name={openFilter === 'generate' ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  color="#FFF"
+                />
               </TouchableOpacity>
             </View>
+            {openFilter === 'generate' && (
+              <View style={styles.generateOptions}>
+                <Text style={styles.generateOptionsTitle}>Generate report for</Text>
+                {PERIOD_FILTERS.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={styles.filterOption}
+                    onPress={() => {
+                      setPeriodFilter(option.value);
+                      setOpenFilter(null);
+                    }}
+                  >
+                    <Text style={[styles.filterOptionText, periodFilter === option.value && styles.filterOptionSelected]}>
+                      {option.label}
+                    </Text>
+                    {periodFilter === option.value && <Feather name="check" size={14} color={COLORS.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           {/* --- STATS ROW (computed from data) --- */}
@@ -236,29 +369,91 @@ export default function PerformanceReports() {
                 style={styles.searchInput}
                 placeholder="Filter by student name or role..."
                 placeholderTextColor="#9CA3AF"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                accessibilityLabel="Filter report by student name or role"
               />
             </View>
             <View style={styles.filterActions}>
-              <TouchableOpacity style={[styles.filterButton, { marginRight: 8 }]}>
+              <TouchableOpacity
+                style={[styles.filterButton, { marginRight: 8 }]}
+                onPress={() => setOpenFilter(openFilter === 'status' ? null : 'status')}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: openFilter === 'status' }}
+              >
                 <Feather name="filter" size={12} color={COLORS.textMain} />
-                <Text style={styles.filterText}>Filters</Text>
+                <Text style={styles.filterText}>
+                  {statusFilter === 'All' ? 'Filters' : `Filters · ${statusFilter}`}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton}>
+              <TouchableOpacity
+                style={styles.filterButton}
+                onPress={() => setOpenFilter(openFilter === 'period' ? null : 'period')}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: openFilter === 'period' }}
+              >
                 <Feather name="calendar" size={12} color={COLORS.textMain} />
-                <Text style={styles.filterText}>{periodLabel || 'Select period'}</Text>
-                <Feather name="chevron-down" size={12} color={COLORS.textMain} />
+                <Text style={styles.filterText}>{periodLabel}</Text>
+                <Feather
+                  name={openFilter === 'period' ? 'chevron-up' : 'chevron-down'}
+                  size={12}
+                  color={COLORS.textMain}
+                />
               </TouchableOpacity>
             </View>
+            {openFilter === 'status' && (
+              <View style={styles.filterOptions}>
+                {STATUS_FILTERS.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={styles.filterOption}
+                    onPress={() => {
+                      setStatusFilter(option);
+                      setOpenFilter(null);
+                    }}
+                  >
+                    <Text style={[styles.filterOptionText, statusFilter === option && styles.filterOptionSelected]}>
+                      {option === 'All' ? 'All request statuses' : option}
+                    </Text>
+                    {statusFilter === option && <Feather name="check" size={14} color={COLORS.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {openFilter === 'period' && (
+              <View style={styles.filterOptions}>
+                {PERIOD_FILTERS.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={styles.filterOption}
+                    onPress={() => {
+                      setPeriodFilter(option.value);
+                      setOpenFilter(null);
+                    }}
+                  >
+                    <Text style={[styles.filterOptionText, periodFilter === option.value && styles.filterOptionSelected]}>
+                      {option.label}
+                    </Text>
+                    {periodFilter === option.value && <Feather name="check" size={14} color={COLORS.primary} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
-          {/* Date Range Info — only shown when a real range is selected */}
-          {hasDateRange && (
+          {hasDateRange ? (
             <View style={styles.dateRangeContainer}>
               <Text style={styles.dateRangeText}>
                 Report details for:{' '}
                 <Text style={styles.dateRangeHighlight}>
                   {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
                 </Text>
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.dateRangeContainer}>
+              <Text style={styles.dateRangeText}>
+                Report details for: <Text style={styles.dateRangeHighlight}>{dateRangeLabel}</Text>
               </Text>
             </View>
           )}
@@ -270,10 +465,10 @@ export default function PerformanceReports() {
               Every scheduled shift contributes its duration to the report totals.
             </Text>
 
-            {shiftData.length === 0 ? (
+            {filteredShifts.length === 0 ? (
               <Text style={styles.emptyText}>No shifts recorded in this period.</Text>
             ) : (
-              shiftData.map((item) => (
+              filteredShifts.map((item) => (
                 <View key={item.id} style={styles.tableCard}>
                   <View style={styles.tableRow}>
                     <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
@@ -315,10 +510,10 @@ export default function PerformanceReports() {
               period.
             </Text>
 
-            {requestData.length === 0 ? (
+            {filteredRequests.length === 0 ? (
               <Text style={styles.emptyText}>No requests in this period.</Text>
             ) : (
-              requestData.map((item) => {
+              filteredRequests.map((item) => {
                 const statusColors = getStatusColors(item.status);
                 return (
                   <View key={item.id} style={styles.tableCard}>
@@ -356,13 +551,13 @@ export default function PerformanceReports() {
           </View>
 
           {/* --- STAFF GRID --- */}
-          {staffData.length === 0 ? (
+          {filteredStaff.length === 0 ? (
             <View style={styles.sectionCard}>
               <Text style={styles.emptyText}>No staff data available.</Text>
             </View>
           ) : (
             <View style={styles.staffGrid}>
-              {staffData.map((staff) => (
+              {filteredStaff.map((staff) => (
                 <View key={staff.id} style={styles.staffCard}>
                   <View style={styles.staffHeader}>
                     <View style={styles.staffAvatar}>
@@ -435,7 +630,7 @@ export default function PerformanceReports() {
             );
           })}
         </View>
-      </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
@@ -443,7 +638,7 @@ export default function PerformanceReports() {
 // --- Styles ---
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  pageContainer: { flex: 1, width: '100%', height: '100%' },
+  background: { flex: 1, width: '100%', height: '100%', alignSelf: 'stretch' },
   scrollContent: { padding: 16 },
 
   // Header
@@ -523,6 +718,24 @@ const baseStyles = StyleSheet.create({
     color: '#FFF',
     marginHorizontal: 6,
   },
+  disabledButton: { opacity: 0.6 },
+  generateOptions: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    marginTop: 4,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    overflow: 'hidden',
+  },
+  generateOptionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+    paddingVertical: 8,
+  },
 
   // Stats Row
   statsRow: { flexDirection: 'row', marginBottom: 16 },
@@ -591,6 +804,26 @@ const baseStyles = StyleSheet.create({
     color: COLORS.textMain,
     marginHorizontal: 6,
   },
+  filterOptions: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  filterOption: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  filterOptionText: { fontSize: 12, color: COLORS.textMain },
+  filterOptionSelected: { color: COLORS.primary, fontWeight: '600' },
+  emptyState: { fontSize: 12, color: COLORS.textMuted, paddingVertical: 10 },
 
   // Date Range
   dateRangeContainer: {

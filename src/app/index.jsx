@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
+  ImageBackground,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,13 +20,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 
 // --- Theme Colors ---
 const COLORS = {
   primary: '#1E3A8A',
   accent: '#2563EB',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   bgAlt: '#F3F4F6',
   footerBg: '#DBEAFE',
@@ -43,8 +45,10 @@ export default function LandingPage() {
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   return (
-    <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <ImageBackground source={APP_BACKGROUND} style={styles.background} resizeMode="cover">
+      <View pointerEvents="none" style={[styles.overlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)' }]} />
+      <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
+        <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* --- STANDARD HEADER (only Theme Toggle) --- */}
         <View style={[styles.header, isDarkMode && styles.headerDark]}>
@@ -312,17 +316,20 @@ export default function LandingPage() {
           </View>
         </View>
 
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 // --- Styles ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  containerDark: { backgroundColor: '#111827' },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  background: { flex: 1 },
+  overlay: { ...StyleSheet.absoluteFillObject },
+  containerDark: { backgroundColor: 'transparent' },
   textDark: { color: '#F9FAFB' },
-  textDarkMuted: { color: '#9CA3AF' },
+  textDarkMuted: { color: '#E2E8F0' },
 
   // --- STANDARD HEADER STYLES ---
   header: {

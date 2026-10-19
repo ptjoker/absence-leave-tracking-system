@@ -1,6 +1,8 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router'; // Assuming you are using Expo Router
+import { useRouter } from 'expo-router';
+import APP_BACKGROUND from '@/constants/appBackground';
 import {
+  ImageBackground,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -9,17 +11,16 @@ import {
   View,
 } from 'react-native';
 
-// --- Theme Colors ---
 const COLORS = {
-  primary: '#2563EB', // Blue button
-  darkBlue: '#1E3A8A', // Heading text
+  primary: '#2563EB',
+  darkBlue: '#1E3A8A',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   border: '#E5E7EB',
-  successBg: '#D1FAE5', // Light green background for icon
-  successText: '#059669', // Green icon color
-  red: '#EF4444', // "TSHWANE UNIVERSITY..." text
+  successBg: '#D1FAE5',
+  successText: '#059669',
+  red: '#EF4444',
 };
 
 export default function LogoutSuccessScreen() {
@@ -28,56 +29,56 @@ export default function LogoutSuccessScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      
+
       <View style={styles.pageContainer}>
-        {/* --- HEADER --- */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="school" size={16} color={COLORS.primary} />
-            </View>
-            <View>
-              <Text style={styles.logoText}>iCenter</Text>
-              <Text style={styles.logoSubtext}>ABSENCE AND LEAVE TRACKER</Text>
+        <ImageBackground
+          source={APP_BACKGROUND}
+          style={styles.backgroundImage}
+          imageStyle={styles.backgroundImageStyle}
+          blurRadius={8}
+        >
+          <View style={styles.overlay} />
+
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoIcon}>
+                <Ionicons name="school" size={16} color={COLORS.primary} />
+              </View>
+              <View>
+                <Text style={styles.logoText}>iCenter</Text>
+                <Text style={styles.logoSubtext}>ABSENCE AND LEAVE TRACKER</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* --- MAIN CONTENT (Centered Card) --- */}
-        <View style={styles.mainContent}>
-          <View style={styles.card}>
-            {/* Success Icon */}
-            <View style={styles.iconContainer}>
-              <Feather name="check" size={24} color={COLORS.successText} />
+          <View style={styles.mainContent}>
+            <View style={styles.card}>
+              <View style={styles.iconContainer}>
+                <Feather name="check" size={24} color={COLORS.successText} />
+              </View>
+
+              <Text style={styles.universityText}>TSHWANE UNIVERSITY OF TECHNOLOGY</Text>
+
+              <Text style={styles.headingText}>You have been logged out.</Text>
+
+              <Text style={styles.subtitleText}>
+                Your iCenter session has ended. Please sign in again to access the portal.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.signInButton}
+                onPress={() => router.push('/logIn')}
+              >
+                <Text style={styles.signInButtonText}>Sign in again</Text>
+              </TouchableOpacity>
             </View>
-
-            {/* University Name */}
-            <Text style={styles.universityText}>TSHWANE UNIVERSITY OF TECHNOLOGY</Text>
-
-            {/* Main Heading */}
-            <Text style={styles.headingText}>You have been logged out.</Text>
-
-            {/* Subtitle */}
-            <Text style={styles.subtitleText}>
-              Your iCenter session has ended. Please sign in again to access the portal.
-            </Text>
-
-            {/* Sign In Button */}
-            <TouchableOpacity 
-              style={styles.signInButton}
-              onPress={() => router.push('/logIn')} // Navigate to your login page
-            >
-              <Text style={styles.signInButtonText}>Sign in again</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-
+        </ImageBackground>
       </View>
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -88,7 +89,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  // Header
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+  },
+  backgroundImageStyle: {
+    resizeMode: 'cover',
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 10,
@@ -117,16 +130,12 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     letterSpacing: 1,
   },
-
-  // Main Content (Centering the card)
   mainContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
   },
-
-  // Card
   card: {
     backgroundColor: COLORS.bg,
     borderRadius: 16,

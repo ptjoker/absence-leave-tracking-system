@@ -1,7 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import APP_BACKGROUND from '@/constants/appBackground';
 import {
+  ImageBackground,
   Modal,
   StyleSheet,
   Text,
@@ -34,7 +36,12 @@ export default function LogoutModal({ visible = true, onClose, onConfirm }) {
       visible={visible}
       onRequestClose={handleCancel}
     >
-      <View style={styles.modalOverlay}>
+      <ImageBackground
+        source={APP_BACKGROUND}
+        style={styles.modalOverlay}
+        imageStyle={styles.modalBackgroundImage}
+        resizeMode="cover"
+      >
         <View style={styles.modalContainer}>
           <View style={styles.modalIconContainer}>
             <Feather name="log-out" size={24} color="#EF4444" />
@@ -61,7 +68,7 @@ export default function LogoutModal({ visible = true, onClose, onConfirm }) {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </ImageBackground>
     </Modal>
   );
 }
@@ -69,10 +76,13 @@ export default function LogoutModal({ visible = true, onClose, onConfirm }) {
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  modalBackgroundImage: {
+    opacity: 1,
   },
   modalContainer: {
     backgroundColor: '#FFFFFF',
@@ -105,7 +115,7 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#1F2937',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,

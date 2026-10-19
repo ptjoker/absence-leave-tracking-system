@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,6 +32,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '../../assets/images/logo.png';
+import DashboardBackground from '@/constants/appBackground';
 
 // --- Theme Definitions ---
 const THEME = {
@@ -38,7 +40,7 @@ const THEME = {
     primary: '#2563EB',
     darkBlue: '#1E3A8A',
     textMain: '#111827',
-    textMuted: '#6B7280',
+    textMuted: '#1F2937',
     bg: '#F8FAFC',
     card: '#FFFFFF',
     border: '#E5E7EB',
@@ -54,6 +56,7 @@ const THEME = {
     navActive: '#2563EB',
     navInactive: '#A0AEC0',
     navText: '#6B7280',
+    overlay: 'rgba(255, 255, 255, 0.5)',
     workflowBg: '#EFF6FF',
     filterBg: '#F3F4F6',
     logApprovedBg: '#DCFCE7',
@@ -82,7 +85,7 @@ const THEME = {
     primary: '#3B82F6',
     darkBlue: '#93C5FD',
     textMain: '#F9FAFB',
-    textMuted: '#9CA3AF',
+    textMuted: '#E2E8F0',
     bg: '#0F172A',
     card: '#1E293B',
     border: '#334155',
@@ -98,6 +101,7 @@ const THEME = {
     navActive: '#60A5FA',
     navInactive: '#64748B',
     navText: '#94A3B8',
+    overlay: 'rgba(15, 23, 42, 0.5)',
     workflowBg: '#1E3A8A',
     filterBg: '#334155',
     logApprovedBg: '#064E3B',
@@ -646,7 +650,13 @@ export default function SupervisorDashboard() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <View style={styles.pageContainer}>
+      <ImageBackground
+        source={DashboardBackground}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 1 }}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
         {/* HEADER */}
         <View style={styles.header}>
@@ -912,7 +922,7 @@ export default function SupervisorDashboard() {
             );
           })}
         </View>
-      </View>
+      </ImageBackground>
 
       {/* ALL ACTIVITY LOGS MODAL */}
       <Modal
@@ -1456,7 +1466,11 @@ export default function SupervisorDashboard() {
 const getStyles = (theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.bg },
-    pageContainer: { flex: 1, width: '100%', height: '100%' },
+    backgroundImage: { flex: 1, width: '100%', height: '100%' },
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.overlay,
+    },
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',

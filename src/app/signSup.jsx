@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   Image,
+  ImageBackground,
   Modal,
   Pressable,
   SafeAreaView,
@@ -17,13 +18,14 @@ import {
 } from 'react-native';
 
 import LogoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { apiFetch } from '@/lib/api';
 
 const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   card: '#FFFFFF',
   border: '#E5E7EB',
@@ -174,7 +176,12 @@ export default function SupervisorSignUpScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.pageContainer}>
+      <ImageBackground
+        source={APP_BACKGROUND}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -400,7 +407,7 @@ export default function SupervisorSignUpScreen() {
           </View>
 
         </ScrollView>
-      </View>
+      </ImageBackground>
 
       <Modal
         animationType="fade"
@@ -480,7 +487,11 @@ export default function SupervisorSignUpScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  pageContainer: { flex: 1, width: '100%', height: '100%' },
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(219, 234, 254, 0.5)',
+  },
   scrollContent: {
     flexGrow: 1,
     padding: 20,

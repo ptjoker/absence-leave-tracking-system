@@ -5,22 +5,22 @@ const LIGHT_THEME = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#F8FAFC',
   card: '#FFFFFF',
   border: '#E5E7EB',
-  overlay: 'rgba(255, 255, 255, 0.7)',
+  overlay: 'rgba(255, 255, 255, 0.5)',
 };
 
 const DARK_THEME = {
   primary: '#60A5FA',
   darkBlue: '#93C5FD',
   textMain: '#F9FAFB',
-  textMuted: '#9CA3AF',
+  textMuted: '#E2E8F0',
   bg: '#0F172A',
   card: '#1E293B',
   border: '#334155',
-  overlay: 'rgba(15, 23, 42, 0.85)',
+  overlay: 'rgba(15, 23, 42, 0.5)',
 };
 
 const SupervisorThemeContext = createContext(null);
@@ -76,9 +76,13 @@ const DARK_TEXT = {
   '#374151': '#E5E7EB',
   '#4A5568': '#CBD5E1',
   '#4B5563': '#CBD5E1',
-  '#6B7280': '#9CA3AF',
-  '#718096': '#9CA3AF',
-  '#A0AEC0': '#94A3B8',
+  '#6B7280': '#E2E8F0',
+  '#718096': '#E2E8F0',
+  '#9CA3AF': '#E2E8F0',
+  '#A0AEC0': '#CBD5E1',
+  '#475569': '#CBD5E1',
+  '#4B5563': '#CBD5E1',
+  '#64748B': '#CBD5E1',
   '#059669': '#6EE7B7',
   '#16A34A': '#4ADE80',
   '#DC2626': '#FCA5A5',
@@ -89,7 +93,18 @@ const DARK_TEXT = {
   '#4F46E5': '#A5B4FC',
 };
 
-function themeStyle(style, theme) {
+const MUTED_TEXT_COLORS = new Set([
+  '#475569',
+  '#4B5563',
+  '#64748B',
+  '#6B7280',
+  '#718096',
+  '#94A3B8',
+  '#9CA3AF',
+  '#A0AEC0',
+]);
+
+function themeStyle(style, theme, isDarkMode) {
   const flattened = StyleSheet.flatten(style) || {};
   return Object.fromEntries(
     Object.entries(flattened).map(([key, value]) => {
@@ -97,14 +112,17 @@ function themeStyle(style, theme) {
 
       const normalized = value.toUpperCase();
       if (key.toLowerCase().includes('backgroundcolor')) {
+        if (!isDarkMode) return [key, value];
         if (normalized.startsWith('RGBA(255, 255, 255')) return [key, theme.overlay];
         return [key, DARK_SURFACES[normalized] || value];
       }
       if (key.toLowerCase().includes('color')) {
         if (key.toLowerCase().includes('border')) {
+          if (!isDarkMode) return [key, value];
           return [key, ['#E2E8F0', '#E5E7EB', '#CBD5E0'].includes(normalized) ? theme.border : value];
         }
-        return [key, DARK_TEXT[normalized] || value];
+        if (MUTED_TEXT_COLORS.has(normalized)) return [key, theme.textMuted];
+        return [key, isDarkMode ? DARK_TEXT[normalized] || value : value];
       }
       return [key, value];
     })
@@ -114,9 +132,8 @@ function themeStyle(style, theme) {
 export function useSupervisorStyles(baseStyles) {
   const { isDarkMode, theme } = useSupervisorTheme();
   return useMemo(() => {
-    if (!isDarkMode) return baseStyles;
     return Object.fromEntries(
-      Object.entries(baseStyles).map(([name, style]) => [name, themeStyle(style, theme)])
+      Object.entries(baseStyles).map(([name, style]) => [name, themeStyle(style, theme, isDarkMode)])
     );
   }, [baseStyles, isDarkMode, theme]);
 }

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +17,7 @@ import {
   View,
 } from 'react-native';
 
+import APP_BACKGROUND from '@/constants/appBackground';
 import LogoImg from '@/assets/images/logo.png';
 import { apiFetch, saveSession } from '@/lib/api';
 
@@ -23,7 +25,7 @@ const COLORS = {
   primary: '#2563EB',
   darkBlue: '#1E3A8A',
   textMain: '#111827',
-  textMuted: '#6B7280',
+  textMuted: '#1F2937',
   bg: '#FFFFFF',
   card: '#FFFFFF',
   border: '#E5E7EB',
@@ -114,7 +116,13 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      <View style={styles.pageContainer}>
+      <ImageBackground
+        source={APP_BACKGROUND}
+        style={styles.backgroundImage}
+        blurRadius={4}
+        imageStyle={{ opacity: 1 }}
+      >
+        <View style={styles.overlay} />
 
         {/* KeyboardAvoidingView pushes the form up when the keyboard opens.
             behavior='padding' works best on iOS, 'height' on Android. */}
@@ -299,7 +307,7 @@ export default function LoginScreen() {
 
           </ScrollView>
         </KeyboardAvoidingView>
-      </View>
+      </ImageBackground>
 
       {/* --- FORGOT PASSWORD MODAL (keyboard-aware) --- */}
       <Modal
@@ -392,7 +400,11 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  pageContainer: { flex: 1, width: '100%', height: '100%' },
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
   keyboardAvoidingView: { flex: 1 },
   scrollContent: {
     flexGrow: 1,

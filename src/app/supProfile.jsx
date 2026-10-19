@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  ImageBackground,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -20,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch, getSession } from '@/lib/api';
 
@@ -29,7 +31,7 @@ const THEME = {
     primary: '#2563EB',
     darkBlue: '#1E3A8A',
     textMain: '#111827',
-    textMuted: '#6B7280',
+    textMuted: '#1F2937',
     bg: '#F8FAFC',
     card: '#FFFFFF',
     border: '#E5E7EB',
@@ -41,6 +43,7 @@ const THEME = {
     activeText: '#059669',
     studentBadgeBg: '#DBEAFE',
     studentBadgeText: '#2563EB',
+    overlay: 'rgba(255, 255, 255, 0.5)',
     inputBg: '#F9FAFB',
     inputBorder: '#E5E7EB',
     inputText: '#111827',
@@ -52,7 +55,7 @@ const THEME = {
     primary: '#3B82F6',
     darkBlue: '#93C5FD',
     textMain: '#F9FAFB',
-    textMuted: '#9CA3AF',
+    textMuted: '#E2E8F0',
     bg: '#0F172A',
     card: '#1E293B',
     border: '#334155',
@@ -64,6 +67,7 @@ const THEME = {
     activeText: '#6EE7B7',
     studentBadgeBg: '#1E3A8A',
     studentBadgeText: '#93C5FD',
+    overlay: 'rgba(15, 23, 42, 0.5)',
     inputBg: '#0F172A',
     inputBorder: '#334155',
     inputText: '#F9FAFB',
@@ -257,7 +261,13 @@ export default function SupervisorProfileScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <View style={styles.pageContainer}>
+      <ImageBackground
+        source={APP_BACKGROUND}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 1 }}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -559,7 +569,7 @@ export default function SupervisorProfileScreen() {
             );
           })}
         </View>
-      </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
@@ -567,7 +577,11 @@ export default function SupervisorProfileScreen() {
 const getStyles = (theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.bg },
-    pageContainer: { flex: 1, width: '100%', height: '100%' },
+    backgroundImage: { flex: 1, width: '100%', height: '100%' },
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.overlay,
+    },
 
     // --- STANDARD HEADER ---
     header: {

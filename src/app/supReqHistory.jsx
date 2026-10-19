@@ -3,6 +3,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import {
   Image,
+  ImageBackground,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
@@ -65,7 +67,14 @@ export default function SupervisorRequestHistory() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <View style={styles.pageContainer}>
+      {/* Background Image with 70% White Overlay */}
+      <ImageBackground
+        source={APP_BACKGROUND}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 1 }}
+        resizeMode="cover"
+      >
+        <View style={styles.overlay} />
 
         {/* --- STANDARD HEADER --- */}
         <View style={styles.header}>
@@ -190,7 +199,7 @@ export default function SupervisorRequestHistory() {
             );
           })}
         </View>
-      </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
@@ -200,10 +209,10 @@ const baseStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-  pageContainer: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
 
   // --- STANDARD HEADER STYLES ---

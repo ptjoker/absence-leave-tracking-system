@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import {
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -22,6 +23,7 @@ import { useStudent } from '../../hooks/useStudent';
 import StudentNavBar from './StudentNavBar';
 
 import logoImg from '@/assets/images/logo.png';
+import APP_BACKGROUND from '../../constants/appBackground';
 
 /* Shared screen frame: top bar (logo, bell, logout, theme toggle),
    page heading, scrolling body and the nav bar. */
@@ -127,7 +129,19 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.flex}>
-          <View style={[styles.flex, { backgroundColor: c.bgFallback }]}>{body}</View>
+          <ImageBackground
+            source={APP_BACKGROUND}
+            style={styles.flex}
+            resizeMode="cover"
+            blurRadius={1}
+            imageStyle={[
+              { opacity: 1 },
+              Platform.OS === 'web' ? { filter: 'blur(1px)' } : null,
+            ]}
+          >
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay, opacity: 0.6 }]} />
+            {body}
+          </ImageBackground>
         </View>
         {navBottom ? <StudentNavBar active={active} /> : null}
       </KeyboardAvoidingView>
