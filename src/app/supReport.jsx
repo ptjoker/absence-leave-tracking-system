@@ -1,10 +1,9 @@
 // src/app/supReport.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Image,
-  ImageBackground,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -17,8 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
-import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -33,51 +32,16 @@ const COLORS = {
   success: '#10B981',
   rejectedBg: '#FEE2E2',
   rejectedText: '#EF4444',
+  approvedBg: '#D1FAE5',
+  approvedText: '#059669',
+  pendingBg: '#FEF3C7',
+  pendingText: '#D97706',
+  neutralBg: '#F3F4F6',
   staffCardBg: '#DBEAFE',
   staffCardBorder: '#BFDBFE',
 };
 
-// --- Mock Data ---
-const shiftData = [
-  {
-    id: '1',
-    name: 'Peter Thomas',
-    position: 'Library Assistant',
-    date: '2026-09-30',
-    time: '08:00 AM - 04:00 PM',
-    duration: '4 hours',
-  },
-];
-
-const requestData = [
-  {
-    id: '1',
-    name: 'Nothando Nkosi',
-    request: 'Sick Leave',
-    date: 'Oct 5, 2026 – Oct 5, 2026',
-    status: 'Rejected',
-  },
-  {
-    id: '2',
-    name: 'Peter Thomas',
-    request: 'Day-off Request',
-    date: 'Sep 30, 2026 – Sep 30, 2026',
-    status: 'Rejected',
-  },
-];
-
-const staffData = [
-  { id: '1', initials: 'SM', name: 'Simphiwe Masanabo', hours: '0.0h', requests: '0', location: 'CIRCULAR 2', days: '0 days' },
-  { id: '2', initials: 'SL', name: 'Segomoto Lencwe', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '3', initials: 'ST', name: 'Shoba Thabiso', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '4', initials: 'MS', name: 'Mawelela Sibusiso', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '5', initials: 'MB', name: 'Mashabela Basetsana', hours: '0.0h', requests: '0', location: 'ICENTER2', days: '0 days' },
-  { id: '6', initials: 'JD', name: 'Jiyane Duduzile', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '7', initials: 'PT', name: 'Peter Thomas', hours: '4.0h', requests: '1', location: 'LIBRARY ASSISTANT', days: '1 days' },
-  { id: '8', initials: 'NN', name: 'Nothando Nkosi', hours: '0.0h', requests: '1', location: '—', days: '0 days' },
-];
-
-// ✅ UPDATED: Added Profile item
+// ✅ Hard-coded NAV paths remain (routing config, not data)
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
@@ -86,6 +50,39 @@ const NAV_ITEMS = [
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
   { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
 ];
+
+// --- Helper: derive status pill colors from a status string ---
+const getStatusColors = (status) => {
+  switch ((status || '').toLowerCase()) {
+    case 'rejected':
+      return { bg: COLORS.rejectedBg, text: COLORS.rejectedText };
+    case 'approved':
+      return { bg: COLORS.approvedBg, text: COLORS.approvedText };
+    case 'pending':
+      return { bg: COLORS.pendingBg, text: COLORS.pendingText };
+    default:
+      return { bg: COLORS.neutralBg, text: COLORS.textMuted };
+  }
+};
+
+// --- Helper: parse "4 hours" / "1.5h" → number of hours ---
+const parseHours = (duration) => {
+  if (!duration) return 0;
+  const match = String(duration).match(/(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[1]) : 0;
+};
+
+// --- Helper: format a JS Date → "DD MMM YYYY" ---
+const formatDate = (value) => {
+  if (!value) return '—';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 export default function PerformanceReports() {
   const router = useRouter();
@@ -96,28 +93,53 @@ export default function PerformanceReports() {
   const styles = useSupervisorStyles(baseStyles);
   const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
 
+  // ---------------------------------------------------------------------------
+  // Report data — populate these via your API / route params / props.
+  // ---------------------------------------------------------------------------
+  const [shiftData] = useState([]);      // [{ id, name, position, date, time, duration }]
+  const [requestData] = useState([]);    // [{ id, name, request, date, status }]
+  const [staffData] = useState([]);      // [{ id, initials, name, hours, requests, location, days }]
+
+  // ---------------------------------------------------------------------------
+  // Period / filter selection — no more hard-coded "Last 7 Days" or date range.
+  // ---------------------------------------------------------------------------
+  const [periodLabel, setPeriodLabel] = useState(null); // e.g. "Last 7 Days"
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
+
+  // ---------------------------------------------------------------------------
+  // Derived stats (replaces the hard-coded 4.0h / 2 / 2)
+  // ---------------------------------------------------------------------------
+  const totalHours = useMemo(
+    () =>
+      shiftData.reduce((sum, shift) => sum + parseHours(shift.duration), 0),
+    [shiftData]
+  );
+
+  const requestCount = requestData.length;
+
+  const assistantsWithRequests = useMemo(
+    () => new Set(requestData.map((r) => r.name)).size,
+    [requestData]
+  );
+
+  const hasDateRange = Boolean(dateRange.start && dateRange.end);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* Background Image with 70% White Overlay */}
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-          {/* --- NEW HEADER --- */}
+      <View style={styles.pageContainer}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* --- HEADER --- */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
               <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>iCenter</Text>
-                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+                <Text style={styles.headerTitle}>Library Log</Text>
+                <Text style={styles.headerSubtitle}>supervisor portal</Text>
               </View>
             </View>
 
@@ -136,10 +158,9 @@ export default function PerformanceReports() {
                 <Ionicons name="notifications-outline" size={22} color={theme.primary} />
                 <CountBadge count={unreadNotificationCount} />
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={styles.iconButton}
-                onPress={() => router.push('/logOut')} 
+                onPress={() => router.push('/logOut')}
               >
                 <Ionicons name="log-out-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
@@ -150,7 +171,9 @@ export default function PerformanceReports() {
           <View style={styles.titleSection}>
             <Text style={styles.pageTitle}>Performance Reports</Text>
             <Text style={styles.pageSubtitle}>
-              Review and analyze student activity and work efficiency metrics. Use the period filter to generate details for today, the current month, the last 7 days, or a specific date range.
+              Review and analyze student activity and work efficiency metrics. Use the
+              period filter to generate details for today, the current month, the last 7
+              days, or a specific date range.
             </Text>
 
             <View style={styles.actionButtonsRow}>
@@ -166,29 +189,49 @@ export default function PerformanceReports() {
             </View>
           </View>
 
-          {/* --- STATS ROW --- */}
+          {/* --- STATS ROW (computed from data) --- */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>TOTAL HOURS</Text>
-              <Text style={styles.statValue}>4.0h</Text>
-              <Feather name="bar-chart-2" size={14} color={COLORS.primary} style={styles.statIcon} />
+              <Text style={styles.statValue}>{totalHours.toFixed(1)}h</Text>
+              <Feather
+                name="bar-chart-2"
+                size={14}
+                color={COLORS.primary}
+                style={styles.statIcon}
+              />
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>REQUESTS IN PERIOD</Text>
-              <Text style={styles.statValue}>2</Text>
-              <Feather name="file-text" size={14} color={COLORS.primary} style={styles.statIcon} />
+              <Text style={styles.statValue}>{requestCount}</Text>
+              <Feather
+                name="file-text"
+                size={14}
+                color={COLORS.primary}
+                style={styles.statIcon}
+              />
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>ASSISTANTS WITH REQUESTS</Text>
-              <Text style={styles.statValue}>2</Text>
-              <Feather name="users" size={14} color={COLORS.primary} style={styles.statIcon} />
+              <Text style={styles.statValue}>{assistantsWithRequests}</Text>
+              <Feather
+                name="users"
+                size={14}
+                color={COLORS.primary}
+                style={styles.statIcon}
+              />
             </View>
           </View>
 
           {/* --- FILTER BAR --- */}
           <View style={styles.filterContainer}>
             <View style={styles.searchContainer}>
-              <Feather name="search" size={16} color={COLORS.textMuted} style={styles.searchIcon} />
+              <Feather
+                name="search"
+                size={16}
+                color={COLORS.textMuted}
+                style={styles.searchIcon}
+              />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Filter by student name or role..."
@@ -202,109 +245,158 @@ export default function PerformanceReports() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.filterButton}>
                 <Feather name="calendar" size={12} color={COLORS.textMain} />
-                <Text style={styles.filterText}>Last 7 Days</Text>
+                <Text style={styles.filterText}>{periodLabel || 'Select period'}</Text>
                 <Feather name="chevron-down" size={12} color={COLORS.textMain} />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Date Range Info */}
-          <View style={styles.dateRangeContainer}>
-            <Text style={styles.dateRangeText}>
-              Report details for: <Text style={styles.dateRangeHighlight}>30 Sep 2026 – 06 Oct 2026</Text>
-            </Text>
-          </View>
+          {/* Date Range Info — only shown when a real range is selected */}
+          {hasDateRange && (
+            <View style={styles.dateRangeContainer}>
+              <Text style={styles.dateRangeText}>
+                Report details for:{' '}
+                <Text style={styles.dateRangeHighlight}>
+                  {formatDate(dateRange.start)} – {formatDate(dateRange.end)}
+                </Text>
+              </Text>
+            </View>
+          )}
 
           {/* --- SHIFT DETAILS --- */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Shift details in selected period</Text>
-            <Text style={styles.sectionSubtitle}>Every scheduled shift contributes its duration to the report totals.</Text>
+            <Text style={styles.sectionSubtitle}>
+              Every scheduled shift contributes its duration to the report totals.
+            </Text>
 
-            {shiftData.map((item) => (
-              <View key={item.id} style={styles.tableCard}>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
-                  <Text style={styles.tableValue}>{item.name}</Text>
+            {shiftData.length === 0 ? (
+              <Text style={styles.emptyText}>No shifts recorded in this period.</Text>
+            ) : (
+              shiftData.map((item) => (
+                <View key={item.id} style={styles.tableCard}>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
+                    <Text style={styles.tableValue}>{item.name}</Text>
+                  </View>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>POSITION</Text>
+                    <Text style={styles.tableValue}>{item.position}</Text>
+                  </View>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>DATE</Text>
+                    <Text style={styles.tableValue}>{item.date}</Text>
+                  </View>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>SHIFT TIME</Text>
+                    <Text style={styles.tableValue}>{item.time}</Text>
+                  </View>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>DURATION</Text>
+                    <Text
+                      style={[
+                        styles.tableValue,
+                        { fontWeight: 'bold', color: COLORS.darkBlue },
+                      ]}
+                    >
+                      {item.duration}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>POSITION</Text>
-                  <Text style={styles.tableValue}>{item.position}</Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>DATE</Text>
-                  <Text style={styles.tableValue}>{item.date}</Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>SHIFT TIME</Text>
-                  <Text style={styles.tableValue}>{item.time}</Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>DURATION</Text>
-                  <Text style={[styles.tableValue, { fontWeight: 'bold', color: COLORS.darkBlue }]}>{item.duration}</Text>
-                </View>
-              </View>
-            ))}
+              ))
+            )}
           </View>
 
           {/* --- REQUEST DETAILS --- */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Request details in selected period</Text>
-            <Text style={styles.sectionSubtitle}>These requests match the active date filter and are included in the report period.</Text>
+            <Text style={styles.sectionSubtitle}>
+              These requests match the active date filter and are included in the report
+              period.
+            </Text>
 
-            {requestData.map((item) => (
-              <View key={item.id} style={styles.tableCard}>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
-                  <Text style={styles.tableValue}>{item.name}</Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>REQUEST</Text>
-                  <Text style={styles.tableValue}>{item.request}</Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>DATE</Text>
-                  <Text style={styles.tableValue}>{item.date}</Text>
-                </View>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableLabel}>STATUS</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: COLORS.rejectedBg }]}>
-                    <Text style={[styles.statusText, { color: COLORS.rejectedText }]}>{item.status}</Text>
+            {requestData.length === 0 ? (
+              <Text style={styles.emptyText}>No requests in this period.</Text>
+            ) : (
+              requestData.map((item) => {
+                const statusColors = getStatusColors(item.status);
+                return (
+                  <View key={item.id} style={styles.tableCard}>
+                    <View style={styles.tableRow}>
+                      <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
+                      <Text style={styles.tableValue}>{item.name}</Text>
+                    </View>
+                    <View style={styles.tableRow}>
+                      <Text style={styles.tableLabel}>REQUEST</Text>
+                      <Text style={styles.tableValue}>{item.request}</Text>
+                    </View>
+                    <View style={styles.tableRow}>
+                      <Text style={styles.tableLabel}>DATE</Text>
+                      <Text style={styles.tableValue}>{item.date}</Text>
+                    </View>
+                    <View style={styles.tableRow}>
+                      <Text style={styles.tableLabel}>STATUS</Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: statusColors.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.statusText, { color: statusColors.text }]}
+                        >
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            ))}
+                );
+              })
+            )}
           </View>
 
           {/* --- STAFF GRID --- */}
-          <View style={styles.staffGrid}>
-            {staffData.map((staff) => (
-              <View key={staff.id} style={styles.staffCard}>
-                <View style={styles.staffHeader}>
-                  <View style={styles.staffAvatar}>
-                    <Text style={styles.staffAvatarText}>{staff.initials}</Text>
+          {staffData.length === 0 ? (
+            <View style={styles.sectionCard}>
+              <Text style={styles.emptyText}>No staff data available.</Text>
+            </View>
+          ) : (
+            <View style={styles.staffGrid}>
+              {staffData.map((staff) => (
+                <View key={staff.id} style={styles.staffCard}>
+                  <View style={styles.staffHeader}>
+                    <View style={styles.staffAvatar}>
+                      <Text style={styles.staffAvatarText}>{staff.initials}</Text>
+                    </View>
+                    <Text style={styles.staffName} numberOfLines={1}>
+                      {staff.name}
+                    </Text>
+                    <Feather
+                      name="more-horizontal"
+                      size={16}
+                      color={COLORS.textMuted}
+                    />
                   </View>
-                  <Text style={styles.staffName} numberOfLines={1}>{staff.name}</Text>
-                  <Feather name="more-horizontal" size={16} color={COLORS.textMuted} />
-                </View>
 
-                <View style={styles.staffStatsRow}>
-                  <View>
-                    <Text style={styles.staffStatLabel}>HOURS WORKED</Text>
-                    <Text style={styles.staffStatValue}>{staff.hours}</Text>
+                  <View style={styles.staffStatsRow}>
+                    <View>
+                      <Text style={styles.staffStatLabel}>HOURS WORKED</Text>
+                      <Text style={styles.staffStatValue}>{staff.hours}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.staffStatLabel}>REQUESTS</Text>
+                      <Text style={styles.staffStatValue}>{staff.requests}</Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.staffStatLabel}>REQUESTS</Text>
-                    <Text style={styles.staffStatValue}>{staff.requests}</Text>
-                  </View>
-                </View>
 
-                <View style={styles.staffFooter}>
-                  <Text style={styles.staffLocation}>{staff.location}</Text>
-                  <Text style={styles.staffDays}>{staff.days}</Text>
+                  <View style={styles.staffFooter}>
+                    <Text style={styles.staffLocation}>{staff.location}</Text>
+                    <Text style={styles.staffDays}>{staff.days}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          )}
 
           {/* Padding for bottom nav */}
           <View style={{ height: 100 }} />
@@ -319,7 +411,6 @@ export default function PerformanceReports() {
         >
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
-
             return (
               <TouchableOpacity
                 key={item.name}
@@ -333,7 +424,9 @@ export default function PerformanceReports() {
                     size={22}
                     color={isActive ? theme.primary : theme.textMuted}
                   />
-                  {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
+                  {item.name === 'Requests' && (
+                    <CountBadge count={pendingRequestCount} />
+                  )}
                 </View>
                 <Text style={[styles.navText, isActive && styles.navTextActive]}>
                   {item.name}
@@ -342,7 +435,7 @@ export default function PerformanceReports() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
@@ -350,14 +443,10 @@ export default function PerformanceReports() {
 // --- Styles ---
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  },
+  pageContainer: { flex: 1, width: '100%', height: '100%' },
   scrollContent: { padding: 16 },
 
-  // --- NEW HEADER STYLES ---
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -387,99 +476,253 @@ const baseStyles = StyleSheet.create({
 
   // Title Section
   titleSection: { marginBottom: 16 },
-  pageTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.darkBlue, fontFamily: 'serif', marginBottom: 8 },
-  pageSubtitle: { fontSize: 13, color: COLORS.textMuted, lineHeight: 18, marginBottom: 12 },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.darkBlue,
+    fontFamily: 'serif',
+    marginBottom: 8,
+  },
+  pageSubtitle: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
   actionButtonsRow: { flexDirection: 'row', flexWrap: 'wrap' },
   exportButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
-    borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 6, marginRight: 8, marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  exportText: { fontSize: 12, fontWeight: '600', color: COLORS.textMain, marginLeft: 6 },
+  exportText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMain,
+    marginLeft: 6,
+  },
   generateButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginBottom: 8,
   },
-  generateText: { fontSize: 12, fontWeight: '600', color: '#FFF', marginHorizontal: 6 },
+  generateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFF',
+    marginHorizontal: 6,
+  },
 
   // Stats Row
   statsRow: { flexDirection: 'row', marginBottom: 16 },
   statCard: {
-    flex: 1, backgroundColor: COLORS.card, padding: 12, borderRadius: 8,
-    borderWidth: 1, borderColor: COLORS.border, position: 'relative',
+    flex: 1,
+    backgroundColor: COLORS.card,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    position: 'relative',
     marginHorizontal: 4,
   },
-  statLabel: { fontSize: 8, fontWeight: 'bold', color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 4, height: 20, maxWidth: '80%' },
+  statLabel: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: COLORS.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+    height: 20,
+    maxWidth: '80%',
+  },
   statValue: { fontSize: 18, fontWeight: 'bold', color: COLORS.darkBlue },
   statIcon: { position: 'absolute', top: 10, right: 10 },
 
   // Filter Section
   filterContainer: {
-    backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, padding: 12, marginBottom: 8,
+    backgroundColor: COLORS.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    marginBottom: 8,
   },
   searchContainer: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
-    borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, paddingHorizontal: 12, marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 13, color: COLORS.textMain },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: COLORS.textMain,
+  },
   filterActions: { flexDirection: 'row' },
   filterButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
-    borderWidth: 1, borderColor: COLORS.border, borderRadius: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  filterText: { fontSize: 11, fontWeight: '600', color: COLORS.textMain, marginHorizontal: 6 },
+  filterText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.textMain,
+    marginHorizontal: 6,
+  },
 
   // Date Range
   dateRangeContainer: {
-    backgroundColor: '#EFF6FF', padding: 12, borderRadius: 6, marginBottom: 16,
-    borderWidth: 1, borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
   dateRangeText: { fontSize: 12, color: COLORS.textMain },
   dateRangeHighlight: { fontWeight: 'bold', color: COLORS.primary },
 
   // Section Cards
   sectionCard: {
-    backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border,
-    padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sectionTitle: { fontSize: 15, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
-  sectionSubtitle: { fontSize: 11, color: COLORS.textMuted, marginBottom: 12, lineHeight: 16 },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: COLORS.textMain,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginBottom: 12,
+    lineHeight: 16,
+  },
+  emptyText: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
 
   // Table Card
   tableCard: {
-    backgroundColor: '#F8FAFC', borderRadius: 8, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  tableRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  tableLabel: { fontSize: 9, fontWeight: 'bold', color: COLORS.textMuted, letterSpacing: 0.5 },
-  tableValue: { fontSize: 12, color: COLORS.textMain, textAlign: 'right', flex: 1, paddingLeft: 16 },
+  tableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  tableLabel: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: COLORS.textMuted,
+    letterSpacing: 0.5,
+  },
+  tableValue: {
+    fontSize: 12,
+    color: COLORS.textMain,
+    textAlign: 'right',
+    flex: 1,
+    paddingLeft: 16,
+  },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
   statusText: { fontSize: 10, fontWeight: 'bold' },
 
   // Staff Grid
-  staffGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 16 },
+  staffGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   staffCard: {
-    width: '48%', backgroundColor: COLORS.staffCardBg, borderRadius: 8,
-    borderWidth: 1, borderColor: COLORS.staffCardBorder, padding: 12, marginBottom: 12,
+    width: '48%',
+    backgroundColor: COLORS.staffCardBg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.staffCardBorder,
+    padding: 12,
+    marginBottom: 12,
   },
   staffHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   staffAvatar: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: '#FFF',
-    justifyContent: 'center', alignItems: 'center', marginRight: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
   },
   staffAvatarText: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain },
-  staffName: { flex: 1, fontSize: 11, fontWeight: 'bold', color: COLORS.textMain },
-  staffStatsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  staffStatLabel: { fontSize: 8, fontWeight: 'bold', color: COLORS.textMuted, marginBottom: 2 },
+  staffName: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: COLORS.textMain,
+  },
+  staffStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  staffStatLabel: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: COLORS.textMuted,
+    marginBottom: 2,
+  },
   staffStatValue: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
-  staffFooter: { borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 6 },
+  staffFooter: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingTop: 6,
+  },
   staffLocation: { fontSize: 10, color: COLORS.textMuted, marginBottom: 2 },
   staffDays: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain },
 
-  // ✅ UPDATED: Bottom Navigation Bar for 6 items
+  // Bottom Navigation Bar
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -517,18 +760,7 @@ const baseStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  navBadgeText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  navText: {
-    fontSize: 9,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  },
-  navTextActive: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
+  navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+  navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
+  navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 });

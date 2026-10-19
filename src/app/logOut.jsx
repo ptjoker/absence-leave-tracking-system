@@ -2,7 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import {
-  ImageBackground,
   Modal,
   StyleSheet,
   Text,
@@ -35,12 +34,7 @@ export default function LogoutModal({ visible = true, onClose, onConfirm }) {
       visible={visible}
       onRequestClose={handleCancel}
     >
-      <ImageBackground
-        source={require('../../assets/images/library.jpg')}
-        style={styles.modalOverlay}
-        imageStyle={styles.modalBackgroundImage}
-        resizeMode="cover"
-      >
+      <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalIconContainer}>
             <Feather name="log-out" size={24} color="#EF4444" />
@@ -67,7 +61,7 @@ export default function LogoutModal({ visible = true, onClose, onConfirm }) {
             </TouchableOpacity>
           </View>
         </View>
-      </ImageBackground>
+      </View>
     </Modal>
   );
 }
@@ -79,9 +73,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-  },
-  modalBackgroundImage: {
-    opacity: 0.7,
   },
   modalContainer: {
     backgroundColor: '#FFFFFF',

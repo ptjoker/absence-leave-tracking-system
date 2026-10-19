@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  ImageBackground,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -20,9 +19,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
+import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch, getSession } from '@/lib/api';
-import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 
 // --- Theme Definitions ---
 const THEME = {
@@ -42,7 +41,6 @@ const THEME = {
     activeText: '#059669',
     studentBadgeBg: '#DBEAFE',
     studentBadgeText: '#2563EB',
-    overlay: 'rgba(255, 255, 255, 0.7)',
     inputBg: '#F9FAFB',
     inputBorder: '#E5E7EB',
     inputText: '#111827',
@@ -66,7 +64,6 @@ const THEME = {
     activeText: '#6EE7B7',
     studentBadgeBg: '#1E3A8A',
     studentBadgeText: '#93C5FD',
-    overlay: 'rgba(15, 23, 42, 0.75)',
     inputBg: '#0F172A',
     inputBorder: '#334155',
     inputText: '#F9FAFB',
@@ -260,13 +257,7 @@ export default function SupervisorProfileScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -278,8 +269,8 @@ export default function SupervisorProfileScreen() {
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
               <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>iCenter</Text>
-                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+                <Text style={styles.headerTitle}>Library Log</Text>
+                <Text style={styles.headerSubtitle}>supervisor portal</Text>
               </View>
             </View>
 
@@ -568,7 +559,7 @@ export default function SupervisorProfileScreen() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
@@ -576,11 +567,7 @@ export default function SupervisorProfileScreen() {
 const getStyles = (theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.bg },
-    backgroundImage: { flex: 1, width: '100%', height: '100%' },
-    overlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: theme.overlay,
-    },
+    pageContainer: { flex: 1, width: '100%', height: '100%' },
 
     // --- STANDARD HEADER ---
     header: {

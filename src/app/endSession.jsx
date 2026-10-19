@@ -1,7 +1,6 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router'; // Assuming you are using Expo Router
 import {
-  ImageBackground,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -30,15 +29,7 @@ export default function LogoutSuccessScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
       
-      {/* Background Image with Blur and Overlay */}
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        blurRadius={8}
-      >
-        {/* White overlay to lighten the blurred background */}
-        <View style={styles.overlay} />
-
+      <View style={styles.pageContainer}>
         {/* --- HEADER --- */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
@@ -81,7 +72,7 @@ export default function LogoutSuccessScreen() {
           </View>
         </View>
 
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
@@ -92,16 +83,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-  backgroundImage: {
+  pageContainer: {
     flex: 1,
     width: '100%',
     height: '100%',
   },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)', // Light overlay to fade the blurred image
-  },
-  
   // Header
   header: {
     paddingHorizontal: 20,

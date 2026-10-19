@@ -5,7 +5,6 @@ import { useRef, useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   Keyboard,
   Modal,
   Pressable,
@@ -194,12 +193,7 @@ export default function SignUpScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -490,7 +484,7 @@ export default function SignUpScreen() {
           </View>
 
         </ScrollView>
-      </ImageBackground>
+      </View>
 
       {/* ============================================= */}
       {/* 8-DIGIT VERIFICATION CODE MODAL               */}
@@ -579,11 +573,7 @@ export default function SignUpScreen() {
 // --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(219, 234, 254, 0.75)',
-  },
+  pageContainer: { flex: 1, width: '100%', height: '100%' },
   scrollContent: {
     flexGrow: 1,
     padding: 20,

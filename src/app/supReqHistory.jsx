@@ -1,10 +1,8 @@
 // src/app/supRequestHistory.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
-import { useState } from 'react';
 import {
   Image,
-  ImageBackground,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,8 +13,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
-import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -67,22 +65,15 @@ export default function SupervisorRequestHistory() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* Background Image with 70% White Overlay */}
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         {/* --- STANDARD HEADER --- */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+              <Text style={styles.headerTitle}>Library Log</Text>
+              <Text style={styles.headerSubtitle}>supervisor portal</Text>
             </View>
           </View>
 
@@ -199,7 +190,7 @@ export default function SupervisorRequestHistory() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
@@ -209,14 +200,10 @@ const baseStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.bg,
   },
-  backgroundImage: {
+  pageContainer: {
     flex: 1,
     width: '100%',
     height: '100%',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
 
   // --- STANDARD HEADER STYLES ---

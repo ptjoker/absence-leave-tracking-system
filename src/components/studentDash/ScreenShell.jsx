@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import {
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -24,12 +23,8 @@ import StudentNavBar from './StudentNavBar';
 
 import logoImg from '@/assets/images/logo.png';
 
-// IMPORTANT: Save your provided image to `assets/images/library.jpg`
-// If you saved it with a different name, change 'library.jpg' below to match.
-const LIBRARY_BG = require('@/assets/images/library.jpg');
-
 /* Shared screen frame: top bar (logo, bell, logout, theme toggle),
-   library background, page heading, scrolling body and the nav bar. */
+   page heading, scrolling body and the nav bar. */
 export default function ScreenShell({ active, pill, title, subtitle, back, headerRight, children }) {
   const router = useRouter();
   const { c, mode, toggle } = useStudTheme();
@@ -132,19 +127,7 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.flex}>
-          {LIBRARY_BG ? (
-            <ImageBackground
-              source={LIBRARY_BG}
-              style={styles.flex}
-              resizeMode="cover"
-              imageStyle={{ opacity: 0.7 }} // <-- 70% opacity as requested
-            >
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: c.overlay }]} />
-              {body}
-            </ImageBackground>
-          ) : (
-            <View style={[styles.flex, { backgroundColor: c.bgFallback }]}>{body}</View>
-          )}
+          <View style={[styles.flex, { backgroundColor: c.bgFallback }]}>{body}</View>
         </View>
         {navBottom ? <StudentNavBar active={active} /> : null}
       </KeyboardAvoidingView>

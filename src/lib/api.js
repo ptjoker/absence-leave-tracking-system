@@ -5,6 +5,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const API_BASE = 'https://absence-tracker-backend.onrender.com';
 
 const SESSION_KEY = 'session';
+const sessionListeners = new Set();
+
+export function subscribeSession(listener) {
+  sessionListeners.add(listener);
+  return () => sessionListeners.delete(listener);
+}
+
+function notifySessionListeners(session) {
+  sessionListeners.forEach((listener) => listener(session));
+}
 
 export async function getSession() {
   try {
@@ -15,12 +25,14 @@ export async function getSession() {
   }
 }
 
-export async function saveSession(session) {
+export async function saveSession(session, { notify = true } = {}) {
   await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  if (notify) notifySessionListeners(session);
 }
 
 export async function clearSession() {
   await AsyncStorage.removeItem(SESSION_KEY);
+  notifySessionListeners(null);
 }
 
 function isExpiringSoon(session) {
@@ -54,7 +66,7 @@ async function refreshSession() {
       refresh_token: data.refresh_token,
       expires_at: data.expires_at,
     };
-    await saveSession(updated);
+    await saveSession(updated, { notify: false });
     return updated;
   })().finally(() => {
     refreshPromise = null;
@@ -81,7 +93,7 @@ export async function apiFetch(path, options = {}) {
       session = await refreshSession();
     } catch {
       await clearSession();
-      session = null;
+      throw new Error('Session expired. Please log in again.');
     }
   }
 

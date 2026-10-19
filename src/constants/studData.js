@@ -1,4 +1,4 @@
-import { apiFetch } from '@/lib/api'; // Ensure this matches your alias! (The top of your file had '@libapi', but your code uses '@/lib/api')
+import { apiFetch, getSession, subscribeSession } from '@/lib/api';
 import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 
@@ -486,6 +486,14 @@ export function RequestsProvider({ children }) {
   const [error, setError] = useState(null);
 
   const refresh = useCallback(async () => {
+    const session = await getSession();
+    if (!session?.access_token) {
+      setRequests([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -506,7 +514,31 @@ export function RequestsProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let active = true;
+    let sessionChanged = false;
+    const syncRequests = (session) => {
+      if (!active) return;
+      if (session?.access_token) {
+        refresh();
+      } else {
+        setRequests([]);
+        setError(null);
+        setLoading(false);
+      }
+    };
+    const unsubscribe = subscribeSession((session) => {
+      sessionChanged = true;
+      syncRequests(session);
+    });
+
+    getSession().then((session) => {
+      if (active && !sessionChanged) syncRequests(session);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [refresh]);
 
   const cancelRequest = async (id) => {

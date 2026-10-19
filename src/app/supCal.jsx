@@ -10,7 +10,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -1139,13 +1138,7 @@ export default function MasterSchedule() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -1157,8 +1150,8 @@ export default function MasterSchedule() {
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
               <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>iCenter</Text>
-                <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+                <Text style={styles.headerTitle}>Library Log</Text>
+                <Text style={styles.headerSubtitle}>supervisor portal</Text>
               </View>
             </View>
             <View style={styles.headerRight}>
@@ -1537,7 +1530,7 @@ export default function MasterSchedule() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
 
       {/* ACTIVITY POP-UP MODAL */}
       <Modal
@@ -2509,11 +2502,7 @@ export default function MasterSchedule() {
 // --- Styles ---
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  },
+  pageContainer: { flex: 1, width: '100%', height: '100%' },
   scrollContent: { padding: 16 },
 
   modalKavContainer: { flex: 1, width: '100%' },

@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,7 +16,6 @@ import {
   View,
 } from 'react-native';
 
-import backImg from '@/assets/images/library.jpg';
 import LogoImg from '@/assets/images/logo.png';
 import { apiFetch, saveSession } from '@/lib/api';
 
@@ -116,13 +114,7 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      <ImageBackground
-        source={backImg}
-        style={styles.backgroundImage}
-        blurRadius={4}
-        imageStyle={{ opacity: 0.45 }}
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         {/* KeyboardAvoidingView pushes the form up when the keyboard opens.
             behavior='padding' works best on iOS, 'height' on Android. */}
@@ -307,7 +299,7 @@ export default function LoginScreen() {
 
           </ScrollView>
         </KeyboardAvoidingView>
-      </ImageBackground>
+      </View>
 
       {/* --- FORGOT PASSWORD MODAL (keyboard-aware) --- */}
       <Modal
@@ -400,12 +392,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  pageContainer: { flex: 1, width: '100%', height: '100%' },
   keyboardAvoidingView: { flex: 1 },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(219, 234, 254, 0.5)',
-  },
   scrollContent: {
     flexGrow: 1,
     padding: 20,

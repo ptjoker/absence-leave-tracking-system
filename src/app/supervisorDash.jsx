@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -55,7 +54,6 @@ const THEME = {
     navActive: '#2563EB',
     navInactive: '#A0AEC0',
     navText: '#6B7280',
-    overlay: 'rgba(255, 255, 255, 0.55)',
     workflowBg: '#EFF6FF',
     filterBg: '#F3F4F6',
     logApprovedBg: '#DCFCE7',
@@ -100,7 +98,6 @@ const THEME = {
     navActive: '#60A5FA',
     navInactive: '#64748B',
     navText: '#94A3B8',
-    overlay: 'rgba(15, 23, 42, 0.55)',
     workflowBg: '#1E3A8A',
     filterBg: '#334155',
     logApprovedBg: '#064E3B',
@@ -649,23 +646,15 @@ export default function SupervisorDashboard() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={{
-          uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop',
-        }}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+              <Text style={styles.headerTitle}>Library Log</Text>
+              <Text style={styles.headerSubtitle}>supervisor portal</Text>
             </View>
           </View>
 
@@ -923,7 +912,7 @@ export default function SupervisorDashboard() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
 
       {/* ALL ACTIVITY LOGS MODAL */}
       <Modal
@@ -1467,11 +1456,7 @@ export default function SupervisorDashboard() {
 const getStyles = (theme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.bg },
-    backgroundImage: { flex: 1, width: '100%', height: '100%' },
-    overlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: theme.overlay,
-    },
+    pageContainer: { flex: 1, width: '100%', height: '100%' },
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',

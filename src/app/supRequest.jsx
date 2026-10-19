@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -18,9 +17,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import logoImg from '@/assets/images/logo.png';
-import { apiFetch } from '@/lib/api';
-import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { apiFetch } from '@/lib/api';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -221,21 +220,15 @@ export default function SupervisorRequests() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1590&auto=format&fit=crop' }}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageContainer}>
 
         {/* --- STANDARD HEADER --- */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image source={logoImg} style={styles.iconContainer} resizeMode="contain" />
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>iCenter</Text>
-              <Text style={styles.headerSubtitle}>ABSENCE & LEAVE TRACKER</Text>
+              <Text style={styles.headerTitle}>Library Log</Text>
+              <Text style={styles.headerSubtitle}>supervisor portal</Text>
             </View>
           </View>
 
@@ -364,7 +357,7 @@ export default function SupervisorRequests() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
@@ -372,11 +365,7 @@ export default function SupervisorRequests() {
 // --- Styles ---
 const baseStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)', // 70% white overlay
-  },
+  pageContainer: { flex: 1, width: '100%', height: '100%' },
 
   // Header
   header: {
