@@ -34,3 +34,24 @@ approves them. Admins can review them with `GET
 /api/admin/registration-requests/:id/approve`, or reject with `PATCH
 /api/admin/registration-requests/:id/reject` and a required `reason`.
 Admin-created student and supervisor accounts are marked approved immediately.
+
+## Notifications
+
+Authenticated users can retrieve only their own database-backed notifications:
+
+- `GET /api/notifications` supports `unreadOnly=true` and a bounded `limit`
+- `GET /api/notifications/unread-count`
+- `PATCH /api/notifications/:id/read`
+- `PATCH /api/notifications/read-all`
+
+The backend creates notifications after successful workflow operations. Pending
+self-registrations notify active admins; leave submissions and supervisor
+decisions notify the relevant students and supervisors; and shift-swap
+submissions, colleague decisions, and supervisor decisions notify the relevant
+participants. Notification creation is idempotent for the same recipient,
+type, title, and message.
+
+The existing notification table is `public.notifications` with the columns
+`id`, `user_id`, `type`, `title`, `message`, `is_read`, and `created_at`.
+Account-support notifications are not wired because the backend does not yet
+have an account-support workflow.
