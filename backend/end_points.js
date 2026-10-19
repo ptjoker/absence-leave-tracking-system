@@ -1300,7 +1300,7 @@ router.patch('/profile', async (req, res) => {
 // Supervisor endpoints
 // ============================================
 
-// GET /api/assistants â€” list all student assistants with request stats (supervisors only)
+// GET /api/assistants — list all student assistants with request stats (supervisors only)
 router.get('/assistants', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -1327,6 +1327,8 @@ router.get('/assistants', async (req, res) => {
         p.level_of_study,
         p.cell_number,
         p.created_at,
+        p.registration_status,
+        p.registration_rejection_reason,
         COALESCE(COUNT(r.id), 0)::int AS total_requests,
         COALESCE(SUM(CASE WHEN r.status = 'Approved' THEN 1 ELSE 0 END), 0)::int AS approved_requests,
         COALESCE(SUM(CASE WHEN r.status = 'Pending' THEN 1 ELSE 0 END), 0)::int AS pending_requests,
@@ -1335,7 +1337,7 @@ router.get('/assistants', async (req, res) => {
       LEFT JOIN public.absence_requests r ON r.user_id = p.id
       WHERE p.role = 'student'
       GROUP BY p.id
-      ORDER BY p.first_name ASC, p.last_name ASC
+      ORDER BY p.registration_status ASC, p.first_name ASC, p.last_name ASC
     `;
 
     const formatted = rows.map((row) => ({
@@ -1355,7 +1357,11 @@ router.get('/assistants', async (req, res) => {
       approvedRequests: row.approved_requests,
       pendingRequests: row.pending_requests,
       rejectedRequests: row.rejected_requests,
-      status: row.pending_requests > 0 ? 'Active' : 'Active',
+      // Send the real registration status so the frontend knows whether to show Approve/Decline buttons
+      status: row.registration_status === 'approved' ? 'active' 
+            : row.registration_status === 'rejected' ? 'declined' 
+            : 'pending',
+      rejectionReason: row.registration_rejection_reason || null,
     }));
 
     res.json(formatted);
@@ -4117,6 +4123,101 @@ router.patch(
     }
   }
 );
+
+// ============================================
+// Closure endpoints
+// ============================================
+
+// GET /api/closures — list all closures
+router.get('/closures', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const rows = await sql`
+      SELECT
+        TO_CHAR(date, 'YYYY-MM-DD') AS date,
+        type,
+        note,
+        affected_shifts,
+        declared_by,
+        declared_at
+      FROM public.closures
+      ORDER BY date ASC
+    `;
+
+    const formatted = rows.map((row) => ({
+      date: row.date,
+      type: row.type,
+      note: row.note,
+      affectedShifts: row.affected_shifts,
+      declaredBy: row.declared_by,
+      declaredAt: row.declared_at,
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('List closures error:', err);
+    res.status(500).json({ error: 'Could not load closures' });
+  }
+});
+
+// POST /api/closures — declare a new closure (supervisors only)
+router.post('/closures', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only supervisors can declare closures' });
+    }
+
+    const { date, type, note, affectedShifts } = req.body;
+
+    if (!date || !type) {
+      return res.status(400).json({ error: 'Date and type are required' });
+    }
+
+    const rows = await sql`
+      INSERT INTO public.closures (date, type, note, affected_shifts, declared_by)
+      VALUES (${date}, ${type}, ${note || null}, ${affectedShifts || 0}, ${user.id})
+      ON CONFLICT (date) DO UPDATE SET
+        type = EXCLUDED.type,
+        note = EXCLUDED.note,
+        affected_shifts = EXCLUDED.affected_shifts,
+        declared_by = EXCLUDED.declared_by,
+        declared_at = NOW()
+      RETURNING
+        TO_CHAR(date, 'YYYY-MM-DD') AS date,
+        type,
+        note,
+        affected_shifts,
+        declared_by,
+        declared_at
+    `;
+
+    const row = rows[0];
+
+    res.status(201).json({
+      date: row.date,
+      type: row.type,
+      note: row.note,
+      affectedShifts: row.affected_shifts,
+      declaredBy: row.declared_by,
+      declaredAt: row.declared_at,
+    });
+  } catch (err) {
+    console.error('Create closure error:', err);
+    res.status(500).json({ error: 'Could not create closure' });
+  }
+});
+
+// ============================================
+// End of Closure endpoints
+// ============================================
 
 
 export default router;

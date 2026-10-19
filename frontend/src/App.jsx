@@ -43,7 +43,7 @@ function Brand({ light = false }) {
   return (<Link href="/" className="focus-ring flex items-center gap-3" data-testid="link-brand">
     <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-10 rounded-[5px] object-contain shadow-sm" />
     <span className="leading-none">
-      <strong className={`block text-[15px] font-bold tracking-[-.02em] ${light ? 'text-white' : 'text-[#162c4d]'}`}>iCenter</strong>
+      <strong className={`block text-[15px] font-bold tracking-[-.02em] ${light ? 'text-white' : 'text-[#162c4d]'}`}>Library Log</strong>
       <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.18em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
     </span>
   </Link>);
@@ -57,7 +57,7 @@ function Header() {
       <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
         <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">
-          <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">iCenter</strong>
+          <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">Library Log</strong>
           <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">ABSENCE AND LEAVE TRACKER</span>
         </span>
       </Link>
@@ -126,7 +126,7 @@ function Home() {
       <section className="mx-auto grid max-w-[1180px] items-center gap-12 px-8 pb-24 pt-20 sm:px-12 lg:grid-cols-[.95fr_1.05fr] lg:gap-20 lg:pb-32 lg:pt-24">
         <div className="animate-rise">
           <p className="homepage-eyebrow mb-5 inline-flex rounded-full bg-[#b7d7eb] px-3 py-1 text-[8px] font-semibold text-[#286ee5]">University Portal</p>
-          <h1 className="serif max-w-[570px] text-[47px] leading-[.91] tracking-[-.045em] text-[#10253f] sm:text-[62px]">Student<br />Assistant <span className="text-[#286ee5]">Absence &amp; Leave</span><br />Tracking system</h1>
+          <h1 className="serif max-w-[570px] text-[47px] leading-[.91] tracking-[-.045em] text-[#10253f] sm:text-[62px]">iCenter<br/> <span className="text-[#286ee5]">Absence &amp; Leave</span><br />Tracking system</h1>
           <p className="mt-6 max-w-[430px] text-[11px] leading-5 text-[#52708b]">A centralized platform for managing attendance, absences, and leave requests, making work easier for everyone.</p>
           <div className="mt-8 flex gap-4">
             <Link href="/login" className="homepage-primary-button focus-ring rounded-[2px] bg-[#286ee5] px-8 py-3 text-[10px] font-bold text-white shadow-[0_3px_5px_rgba(31,88,183,.3)] transition-transform hover:-translate-y-0.5" data-testid="link-hero-signin">Login <ArrowRight className="ml-1 inline" size={11} /></Link>
@@ -400,7 +400,7 @@ function Sidebar() {
       <div>
         <Link href="/" className="focus-ring mb-8 flex items-center gap-2 px-2" data-testid="link-sidebar-brand">
           <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-9 rounded-lg object-contain" />
-          <span className="text-[15px] font-bold text-[#162c4d]">iCenter</span>
+          <span className="text-[15px] font-bold text-[#162c4d]">Library Log</span>
         </Link>
         <nav className="flex flex-col gap-1">
           {navItems.map((item) => (
@@ -595,7 +595,7 @@ function DashboardPage() {
       <div className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
+            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Library Log</p>
             <h1 className="serif text-4xl text-[#10253f]">Welcome back, {fullName}</h1>
             <p className="mt-2 max-w-lg text-sm text-[#52708b]">Manage your leave requests and track your departmental attendance.</p>
           </div>
@@ -758,7 +758,7 @@ function RequestPage() {
       <div className="flex-1">
         <PortalTopBar />
         <main className="px-8 py-8">
-          <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
+          <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Library Log</p>
           <h1 className="serif text-4xl text-[#10253f]">Submit a Request</h1>
           <p className="mt-2 max-w-xl text-sm text-[#52708b]">Please provide the details for your absence or scheduling change. Requests are typically reviewed by the department head within 24–48 hours.</p>
 

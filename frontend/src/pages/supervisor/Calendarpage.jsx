@@ -85,6 +85,24 @@ function minutesToTime(value) {
   return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
 }
 
+function shiftTimeRangeError(dateValue, startTime, duration) {
+  if (!dateValue || !startTime || !duration) return '';
+  const durationHours = Number(duration);
+  if (!Number.isFinite(durationHours) || durationHours <= 0) return '';
+  const window = shiftWindowForDate(dateValue);
+  const startMinutes = timeToMinutes(startTime);
+  const openingMinutes = timeToMinutes(window.opening);
+  const closingMinutes = timeToMinutes(window.closing);
+  const endMinutes = startMinutes + durationHours * 60;
+  if (startMinutes < openingMinutes) {
+    return `The starting time must be at or after ${window.opening} on ${window.label} days.`;
+  }
+  if (endMinutes > closingMinutes) {
+    return `This shift would end at ${minutesToTime(endMinutes)}, after the ${window.label} closing time of ${window.closing}. Choose a shorter duration or an earlier starting time.`;
+  }
+  return '';
+}
+
 function buildCalendarGrid(monthDate) {
   const year = monthDate.getFullYear();
   const month = monthDate.getMonth();
@@ -275,15 +293,6 @@ export default function CalendarPage() {
 
   const closeForm = () => {
     setShowForm(false);
-    const selectedStudent = students.find((student) => student.id === form.user_id);
-    recordActivity({
-      type: 'shift_assigned',
-      title: 'Shift assigned',
-      description: `${selectedStudent?.name || 'Student assistant'} was assigned a shift on ${form.shift_date}.`,
-      student: selectedStudent?.name || 'Student assistant',
-      date: form.shift_date,
-      details: `${form.duration || 'Unspecified duration'} · ${form.role}`,
-    });
     setFormError('');
   };
 
@@ -303,15 +312,17 @@ export default function CalendarPage() {
     if (isPublicHoliday(selected)) return setFormError('Shifts cannot be assigned on public holidays.');
     if (strikeDays[form.shift_date]) return setFormError('Closure on this date');
     if ((shiftsByDate[form.shift_date] || []).some((shift) => shift.userId === form.user_id)) return setFormError('This student already has a shift assigned on that date.');
-    const window = shiftWindowForDate(selected);
     const durationMinutes = Number(form.duration) * 60;
     const startMinutes = timeToMinutes(form.start_time);
     const endMinutes = startMinutes + durationMinutes;
-    if (startMinutes < timeToMinutes(window.opening) || endMinutes > timeToMinutes(window.closing)) {
-      return setFormError(`${window.label} shifts must fall between ${window.opening} and ${window.closing}.`);
-    }
+    const timeRangeError = shiftTimeRangeError(selected, form.start_time, form.duration);
+    if (timeRangeError) return setFormError(timeRangeError);
     const start_time = form.start_time;
     const end_time = minutesToTime(endMinutes);
+    const selectedStudent = students.find((student) => student.id === form.user_id);
+    const studentName = selectedStudent?.name || 'Student assistant';
+    const studentNumber = selectedStudent?.studentNumber || 'Not available';
+    const shiftDay = selected.toLocaleDateString('en-ZA', { weekday: 'long' });
 
     setSaving(true);
     try {
@@ -333,9 +344,19 @@ export default function CalendarPage() {
         setFormError(data.error || 'Could not create shift');
         return;
       }
+      recordActivity({
+        type: 'shift_assigned',
+        title: 'Shift assigned',
+        description: `${studentName} (student number: ${studentNumber}) was assigned a new ${form.role || 'shift'} on ${shiftDay}, ${form.shift_date} from ${start_time} to ${end_time}.`,
+        student: studentName,
+        studentNumber,
+        date: form.shift_date,
+        details: `Student number: ${studentNumber} · Shift type: ${form.role || 'Shift'} · Day: ${shiftDay} · Date: ${form.shift_date} · Time: ${start_time}–${end_time}`,
+      });
       setShowForm(false);
       // Refresh shifts so the new one appears immediately.
       await loadShifts();
+      window.dispatchEvent(new Event('shifts:updated'));
       // Auto-navigate to the month of the newly created shift.
       const [y, m] = form.shift_date.split('-').map(Number);
       setMonthDate(new Date(y, m - 1, 1));
@@ -434,6 +455,7 @@ export default function CalendarPage() {
   const currentYear = new Date().getFullYear();
   const formDateValue = form.shift_date ? new Date(`${form.shift_date}T00:00:00`) : null;
   const formWindow = formDateValue && !Number.isNaN(formDateValue.getTime()) ? shiftWindowForDate(formDateValue) : null;
+  const durationTimeError = shiftTimeRangeError(formDateValue, form.start_time, form.duration);
 
   const prevMonth = () => setMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1));
   const nextMonth = () => {
@@ -659,11 +681,6 @@ export default function CalendarPage() {
                     {s.name}
                   </span>
                 ))}
-                {new Set(shifts.map((s) => s.userId)).size > 6 && (
-                  <span className="text-xs italic text-[#8ca0b2]">
-                    +{new Set(shifts.map((s) => s.userId)).size - 6} more students
-                  </span>
-                )}
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-4 border-t border-[#e2eaf1] pt-4 text-xs font-semibold text-black"><span><span className="mr-1 inline-block size-3 rounded bg-[#d9f3e3]"/>Green box - Holiday</span><span><span className="mr-1 inline-block size-3 rounded bg-[#d05b48]"/>Red box - Institutional closure</span><span><span className="mr-1 inline-block size-3 rounded bg-[#d9dde2]"/>Grey box - date swapped to</span><span><span className="mr-1 inline-block size-3 rounded border border-[#2b67c9] bg-[#dce9ff]"/>Blue box - date swapped from</span></div>
@@ -1033,11 +1050,19 @@ export default function CalendarPage() {
                         max={formWindow ? (timeToMinutes(formWindow.closing) - timeToMinutes(formWindow.opening)) / 60 : 13}
                         step="0.5"
                         value={form.duration}
-                        onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+                        onChange={(e) => {
+                          const duration = e.target.value;
+                          setForm((f) => ({ ...f, duration }));
+                        }}
                         placeholder="e.g. 4 hours"
                         className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
                       />
                     </div>
+                    {durationTimeError && (
+                      <p className="mt-1.5 text-[11px] font-semibold leading-4 text-[#d05b48]" role="alert">
+                        {durationTimeError}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-xs font-bold text-[#385570]">Starting time <em className="not-italic text-[#d05b48]">*</em></label>
@@ -1046,7 +1071,10 @@ export default function CalendarPage() {
                       value={form.start_time}
                       min={formWindow?.opening || '08:00'}
                       max={formWindow && form.duration ? minutesToTime(timeToMinutes(formWindow.closing) - Number(form.duration) * 60) : formWindow?.closing || '21:00'}
-                      onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
+                      onChange={(e) => {
+                        const start_time = e.target.value;
+                        setForm((f) => ({ ...f, start_time }));
+                      }}
                       className="focus-ring w-full rounded-lg border border-[#cfdee9] bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none focus:border-[#1f70d0]"
                     />
                     {formWindow && (

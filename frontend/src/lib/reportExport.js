@@ -216,6 +216,131 @@ export function exportPerformanceReport(format, rows, title = 'Performance Repor
   }
 }
 
+function requestDetails(request) {
+  const details = request.details || {};
+  if (request.requestType === 'Shift Swap') {
+    const original = details.originalShift || {};
+    const proposed = details.proposedShift || {};
+    return [
+      `Original shift: ${original.date || '—'} ${original.start || ''}-${original.end || ''}`,
+      `Proposed shift: ${proposed.date || '—'} ${proposed.start || ''}-${proposed.end || ''}`,
+      `Replacement: ${details.replacementStudentAssistant || '—'}`,
+      details.replacementResponse ? `Replacement response: ${details.replacementResponse}` : '',
+    ].filter(Boolean).join(' | ');
+  }
+  return [
+    details.leaveType ? `Leave type: ${details.leaveType}` : '',
+    details.dates ? `Dates: ${details.dates}` : '',
+    details.replacement ? `Replacement: ${details.replacement}` : '',
+  ].filter(Boolean).join(' | ');
+}
+
+function makeRequestPdf(requests, filters) {
+  const clean = (value) => String(value ?? '').normalize('NFKD').replace(/[^\x20-\x7E]/g, '?');
+  const wrap = (value, width = 92) => {
+    const words = clean(value).split(/\s+/);
+    const lines = [];
+    let line = '';
+    words.forEach((word) => {
+      if (line && `${line} ${word}`.length > width) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
+  const filterSummary = [
+    filters.type && `Type: ${filters.type}`,
+    filters.status && `Status: ${filters.status}`,
+    filters.from && `From: ${filters.from}`,
+    filters.to && `To: ${filters.to}`,
+    filters.q && `Search: ${filters.q}`,
+  ].filter(Boolean).join(' | ') || 'All request records';
+  const lines = [
+    'iCenter Admin Request Report',
+    `Generated: ${new Date().toLocaleString('en-GB')}`,
+    `Filters: ${filterSummary}`,
+    `Requests: ${requests.length}`,
+    '',
+    ...requests.flatMap((request) => [
+      ...wrap(`${request.id} | ${request.requestType} | ${request.status} | Submitted ${request.requestDate || '—'}`),
+      ...wrap(`Assistant: ${request.studentAssistant?.name || 'Unknown'} | ${request.studentAssistant?.studentNumber || 'No student number'} | ${request.studentAssistant?.email || 'No email'}`),
+      ...wrap(`Requested date: ${request.requestedDate || '—'} | Reason: ${request.reason || '—'}`),
+      ...wrap(`Details: ${requestDetails(request) || '—'}`),
+      ...wrap(`Supervisor decision: ${request.supervisorDecision?.decision || 'Pending'}${request.supervisorDecision?.comments ? ` - ${request.supervisorDecision.comments}` : ''}`),
+      '',
+    ]),
+  ];
+  const pages = [];
+  for (let index = 0; index < lines.length; index += 38) pages.push(lines.slice(index, index + 38));
+
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+  ];
+  const pageNumbers = pages.map((_, index) => 5 + index * 2);
+  objects.push(`<< /Type /Pages /Kids [${pageNumbers.map((number) => `${number} 0 R`).join(' ')}] /Count ${pages.length} >>`);
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  objects.push('<< /Producer (iCenter) >>');
+  pages.forEach((pageLines, pageIndex) => {
+    const pageNumber = pageNumbers[pageIndex];
+    const commands = ['BT', '/F1 9 Tf', '40 760 Td'];
+    pageLines.forEach((line, lineIndex) => {
+      if (pageIndex === 0 && lineIndex === 0) commands.push('/F1 16 Tf');
+      else if (pageIndex === 0 && lineIndex === 1) commands.push('/F1 9 Tf');
+      commands.push(`(${pdfEscape(line)}) Tj`, '0 -18 Td');
+    });
+    commands.push('ET');
+    const stream = commands.join('\n');
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageNumber + 1} 0 R >>`);
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  });
+
+  const chunks = ['%PDF-1.4\n%PDF\n'];
+  const offsets = [0];
+  let position = chunks[0].length;
+  objects.forEach((object, index) => {
+    offsets[index + 1] = position;
+    const chunk = `${index + 1} 0 obj\n${object}\nendobj\n`;
+    chunks.push(chunk);
+    position += chunk.length;
+  });
+  const xrefOffset = position;
+  const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}`;
+  chunks.push(xref, `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+  return new TextEncoder().encode(chunks.join(''));
+}
+
+export function exportAdminRequestsReport(format, requests, filters = {}) {
+  const safeDate = new Date().toISOString().slice(0, 10);
+  if (format === 'csv') {
+    const headers = ['Request ID', 'Type', 'Status', 'Student Assistant', 'Student Number', 'Email', 'Submitted', 'Requested Date', 'Reason', 'Details', 'Supervisor Decision', 'Approval History'];
+    const rows = requests.map((request) => [
+      request.id,
+      request.requestType,
+      request.status,
+      request.studentAssistant?.name,
+      request.studentAssistant?.studentNumber,
+      request.studentAssistant?.email,
+      request.requestDate,
+      request.requestedDate,
+      request.reason,
+      requestDetails(request),
+      request.supervisorDecision?.decision,
+      (request.approvalHistory || []).map((item) => `${item.status} (${item.date})`).join(' | '),
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    downloadBlob(`\uFEFF${csv}`, `icenter-admin-requests-${safeDate}.csv`, 'text/csv;charset=utf-8');
+    return;
+  }
+  if (format === 'pdf') {
+    const bytes = makeRequestPdf(requests, filters);
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }), `icenter-admin-requests-${safeDate}.pdf`, 'application/pdf');
+  }
+}
+
 export function exportActivityLogPdf(rows, periodLabel, studentShifts = []) {
   const safeDate = new Date().toISOString().slice(0, 10);
   const lines = [
