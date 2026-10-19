@@ -1138,7 +1138,7 @@ router.patch('/profile', async (req, res) => {
 // Supervisor endpoints
 // ============================================
 
-// GET /api/assistants â€” list all student assistants with request stats (supervisors only)
+// GET /api/assistants — list all student assistants with request stats (supervisors only)
 router.get('/assistants', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -1165,6 +1165,8 @@ router.get('/assistants', async (req, res) => {
         p.level_of_study,
         p.cell_number,
         p.created_at,
+        p.registration_status,
+        p.registration_rejection_reason,
         COALESCE(COUNT(r.id), 0)::int AS total_requests,
         COALESCE(SUM(CASE WHEN r.status = 'Approved' THEN 1 ELSE 0 END), 0)::int AS approved_requests,
         COALESCE(SUM(CASE WHEN r.status = 'Pending' THEN 1 ELSE 0 END), 0)::int AS pending_requests,
@@ -1173,7 +1175,7 @@ router.get('/assistants', async (req, res) => {
       LEFT JOIN public.absence_requests r ON r.user_id = p.id
       WHERE p.role = 'student'
       GROUP BY p.id
-      ORDER BY p.first_name ASC, p.last_name ASC
+      ORDER BY p.registration_status ASC, p.first_name ASC, p.last_name ASC
     `;
 
     const formatted = rows.map((row) => ({
@@ -1193,7 +1195,11 @@ router.get('/assistants', async (req, res) => {
       approvedRequests: row.approved_requests,
       pendingRequests: row.pending_requests,
       rejectedRequests: row.rejected_requests,
-      status: row.pending_requests > 0 ? 'Active' : 'Active',
+      // Send the real registration status so the frontend knows whether to show Approve/Decline buttons
+      status: row.registration_status === 'approved' ? 'active' 
+            : row.registration_status === 'rejected' ? 'declined' 
+            : 'pending',
+      rejectionReason: row.registration_rejection_reason || null,
     }));
 
     res.json(formatted);
