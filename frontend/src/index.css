@@ -320,17 +320,14 @@
   color: #f3bd32 !important;
 }
 /* ============================================================ */
-/* Global photo backdrop (visible at ~75% in both themes)        */
+/* Global page backdrop                                       */
 /* ============================================================ */
 .app-photo-backdrop {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: url('/assets/tut-library-watermark.jpg');
-  background-size: cover;
-  background-position: center;
-  opacity: .75;
+  background-color: #fff;
 }
 .app-content-layer { position: relative; z-index: 10; }
 
@@ -339,7 +336,7 @@
 [class~="bg-[#eef6fb]"] { background-color: rgba(238,246,251,.6) !important; }
 .dark [class~="bg-[#90bddb]"] { background-color: rgba(8,28,49,.8) !important; }
 .dark [class~="bg-[#eef6fb]"] { background-color: rgba(8,28,49,.84) !important; }
-html.dark body { background-color: #08182b; }
+html.dark body { background-color: #fff; }
 
 /* ============================================================ */
 /* Dark-mode overrides for portal, request, and auth pages       */
@@ -815,7 +812,12 @@ select option { background: #ffffff; color: #000000; }
 .dark [class~="text-[#9bb0c1]"] { color: #f1f5f9 !important; }
 
 /* Explicit black text also needs to switch to a readable light value on dark page surfaces. */
-.dark .portal-page .text-black,
+/* Use black outlines for bordered page containers while preserving control styling. */
+:where(div, section, article, aside, form, header).border {
+  border-color: #000 !important;
+}
+
+.dark .portal-page .text-black, 
 .dark .portal-sidebar .text-black,
 .dark .portal-topbar .text-black { color: #f1f5f9 !important; }
 

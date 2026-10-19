@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { addDays, endOfDay, format, isAfter, isBefore, isSameDay, startOfDay, startOfMonth, startOfWeek, endOfWeek } from 'date-fns';
-import { BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, FileText, Filter, Grid2X2, List, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { addDays, endOfDay, format, isAfter, isBefore, startOfDay, startOfMonth, startOfWeek, endOfWeek } from 'date-fns';
+import { BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, FileText, Grid2X2, List, Search } from 'lucide-react';
 import { PortalShell } from '@/components/portal/PortalComponents';
 import { useRequests } from '@/context/RequestsContext';
 import { parseDateRangeKeys } from '@/lib/schedule';
@@ -53,18 +53,57 @@ function requestMatchesPeriod(request, period) {
 
 
 function shiftMatchesPeriod(shift, period) { const d = dateFromInput(shift?.shiftDate); return d && !isBefore(endOfDay(d), period.start) && !isAfter(startOfDay(d), period.end); }
-function shiftHours(shift) { const value = Number(shift?.durationHours); return Number.isFinite(value) && value > 0 ? value : 4; }
+function shiftHours(shift) {
+  const storedDuration = Number(shift?.durationHours);
+  if (Number.isFinite(storedDuration) && storedDuration > 0) return storedDuration;
+  const start = String(shift?.startTime || '').match(/^(\d{1,2}):(\d{2})/);
+  const end = String(shift?.endTime || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!start || !end) return 0;
+  const startMinutes = Number(start[1]) * 60 + Number(start[2]);
+  const endMinutes = Number(end[1]) * 60 + Number(end[2]);
+  const durationMinutes = endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 24 * 60 - startMinutes;
+  return durationMinutes / 60;
+}
 function requestDays(request) { return Math.max(parseDateRangeKeys(request?.dateRange).length, 1); }
 
 export default function ReportsPage() {
   const { requests } = useRequests();
   const [shifts, setShifts] = useState([]);
-  useEffect(() => { (async () => { try { const session = getSession(); if (!session?.access_token) return; const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts`, { headers: { Authorization: `Bearer ${session.access_token}` } }); const data = await res.json(); if (res.ok) setShifts(Array.isArray(data) ? data : []); } catch (e) { console.error('Load report shifts error:', e); } })(); }, []);
+  const loadShifts = useCallback(async () => {
+    try {
+      const session = getSession();
+      if (!session?.access_token) return;
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/shifts`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load report shifts.');
+      setShifts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Load report shifts error:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadShifts();
+
+    const refreshShifts = () => loadShifts();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') loadShifts();
+    };
+    window.addEventListener('shifts:updated', refreshShifts);
+    window.addEventListener('focus', refreshShifts);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('shifts:updated', refreshShifts);
+      window.removeEventListener('focus', refreshShifts);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [loadShifts]);
   const [search, setSearch] = useState('');
   const [range, setRange] = useState('Last 7 Days');
   const [rangeFrom, setRangeFrom] = useState(inputDate(new Date()));
   const [rangeTo, setRangeTo] = useState(inputDate(new Date()));
-  const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState('grid');
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -87,6 +126,9 @@ export default function ReportsPage() {
   }, [periodRequests, periodShifts]);
 
   const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return rows.filter((row) => !q || row.name.toLowerCase().includes(q) || String(row.site || '').toLowerCase().includes(q)); }, [rows, search]);
+  const searchTerm = search.trim().toLowerCase();
+  const visiblePeriodShifts = useMemo(() => periodShifts.filter((shift) => !searchTerm || `${shift.studentName || ''} ${shift.role || ''} ${shift.location || ''}`.toLowerCase().includes(searchTerm)), [periodShifts, searchTerm]);
+  const visiblePeriodRequests = useMemo(() => periodRequests.filter((request) => !searchTerm || `${request.name || ''} ${request.type || ''}`.toLowerCase().includes(searchTerm)), [periodRequests, searchTerm]);
   const totalHours = useMemo(() => filtered.reduce((sum, row) => sum + Number.parseFloat(row.hours), 0), [filtered]);
   const totalRequests = useMemo(() => filtered.reduce((sum, row) => sum + row.requests, 0), [filtered]);
   const activeReports = filtered.filter((row) => row.requests > 0 || row.shifts > 0).length;
@@ -120,21 +162,19 @@ export default function ReportsPage() {
         <div className="mt-5 rounded-xl border border-[#1f70d0] bg-white p-3">
           <div className="flex flex-wrap items-center gap-3">
             <label className="relative min-w-[250px] flex-1" htmlFor="report-search"><Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black"/><input id="report-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by student name or role..." className="w-full rounded-lg border border-[#d0e0ea] bg-white py-2.5 pl-10 pr-3 text-sm font-semibold text-black outline-none"/></label>
-            <button type="button" onClick={() => setShowFilters((v) => !v)} className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold ${showFilters ? 'border-[#286ee5] bg-[#e7f1fa] text-[#286ee5]' : 'border-[#d0e0ea] bg-white text-black'}`}><Filter size={16}/>Filters</button>
             <label htmlFor="report-range" className="sr-only">Report date period</label>
             <div className="flex items-center gap-2 rounded-lg border border-[#d0e0ea] bg-white px-3"><CalendarDays size={16} className="text-black"/><select id="report-range" value={range} onChange={selectRange} className="portal-dropdown min-w-[145px] bg-transparent py-2.5 text-sm font-bold text-black outline-none"><option value="Last 7 Days">Last 7 Days</option><option value="Today">Today</option><option value="This Week">This Week</option><option value="This Month">This Month</option><option value="Range Dates">Range Dates</option></select><ChevronDown size={14} className="pointer-events-none text-black"/></div>
             <div className="ml-auto flex rounded-lg border border-[#d0e0ea] bg-white p-1"><button type="button" onClick={() => setView('grid')} className={`rounded p-2 ${view === 'grid' ? 'bg-[#eef4fb] text-[#1f70d0]' : 'text-black'}`} aria-label="Grid view"><Grid2X2 size={17}/></button><button type="button" onClick={() => setView('list')} className={`rounded p-2 ${view === 'list' ? 'bg-[#eef4fb] text-[#1f70d0]' : 'text-black'}`} aria-label="List view"><List size={17}/></button></div>
           </div>
           {range === 'Range Dates' && <div className="mt-3 grid gap-3 rounded-lg bg-[#f4f8fb] p-3 md:grid-cols-2"><label className="text-sm font-bold text-black">From<input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#cfdee9] bg-white px-3 py-2.5 text-sm font-semibold text-black"/></label><label className="text-sm font-bold text-black">To<input type="date" value={rangeTo} min={rangeFrom} onChange={(e) => setRangeTo(e.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#cfdee9] bg-white px-3 py-2.5 text-sm font-semibold text-black"/></label></div>}
-          {showFilters && <div className="mt-3 rounded-lg bg-[#f4f8fb] p-3 text-sm font-semibold text-black">Active report period: <strong>{period.label}</strong>. Student-name search is also active. Generate/export uses the currently filtered results.</div>}
           <div className="mt-3 rounded-lg border border-[#d0e0ea] bg-[#f8fbfd] px-3 py-2.5 text-sm font-bold text-black">Report details for: <span className="text-[#1f70d0]">{period.label}</span></div>
         </div>
 
-        {periodShifts.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white"><div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Shift details in selected period</h2><p className="mt-1 text-sm text-black">Every scheduled shift contributes its duration to the report totals.</p></div><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Position</th><th className="p-4">Date</th><th className="p-4">Shift Time</th><th className="p-4">Duration</th></tr></thead><tbody>{periodShifts.map((shift) => <tr key={shift.id} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{shift.studentName}</td><td className="p-4">{shift.position || shift.role || '—'}</td><td className="p-4">{shift.shiftDate}</td><td className="p-4">{shift.startTime} - {shift.endTime}</td><td className="p-4 font-bold">{shiftHours(shift)} hours</td></tr>)}</tbody></table></div>}
+        {visiblePeriodShifts.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white"><div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Shift details in selected period</h2><p className="mt-1 text-sm text-black">Every scheduled shift contributes its duration to the report totals.</p></div><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Position</th><th className="p-4">Date</th><th className="p-4">Shift Time</th><th className="p-4">Duration</th></tr></thead><tbody>{visiblePeriodShifts.map((shift) => <tr key={shift.id} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{shift.studentName}</td><td className="p-4">{shift.position || shift.role || '—'}</td><td className="p-4">{shift.shiftDate}</td><td className="p-4">{shift.startTime} - {shift.endTime}</td><td className="p-4 font-bold">{shiftHours(shift)} hours</td></tr>)}</tbody></table></div>}
 
-        {periodRequests.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white">
+        {visiblePeriodRequests.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white">
           <div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Request details in selected period</h2><p className="mt-1 text-sm text-black">These requests match the active date filter and are included in the report period.</p></div>
-          <table className="w-full min-w-[850px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Request</th><th className="p-4">Date</th><th className="p-4">Status</th></tr></thead><tbody>{periodRequests.map((request) => <tr key={request.rawId || request.id || `${request.name}-${request.dateRange}-${request.type}`} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{request.name || 'Student Assistant'}</td><td className="p-4">{request.type || 'Request'}</td><td className="p-4">{request.dateRange || 'Date not provided'}</td><td className="p-4 font-bold">{request.status || 'Pending'}</td></tr>)}</tbody></table>
+          <table className="w-full min-w-[850px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Request</th><th className="p-4">Date</th><th className="p-4">Status</th></tr></thead><tbody>{visiblePeriodRequests.map((request) => <tr key={request.rawId || request.id || `${request.name}-${request.dateRange}-${request.type}`} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{request.name || 'Student Assistant'}</td><td className="p-4">{request.type || 'Request'}</td><td className="p-4">{request.dateRange || 'Date not provided'}</td><td className="p-4 font-bold">{request.status || 'Pending'}</td></tr>)}</tbody></table>
         </div>}
 
 

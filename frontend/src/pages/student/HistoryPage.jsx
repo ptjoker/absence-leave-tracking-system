@@ -63,7 +63,7 @@ export default function HistoryPage() {
       <main className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">iCenter</p>
+            <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Library Log</p>
             <h1 className="serif text-4xl text-[#10253f]">{fullName}&rsquo;s History</h1>
             <p className="mt-2 max-w-lg text-sm text-[#52708b]">View requests you made and shift swap offers sent to you.</p>
           </div>

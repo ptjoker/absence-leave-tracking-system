@@ -1,23 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart3, ChevronLeft, ChevronRight, Clock3, Download, Eye, Filter, Grid2X2, LockKeyhole, LogOut, MapPin, Monitor, Pencil, Plus, RefreshCw, Search, ShieldCheck, Smartphone, Trash2, TrendingUp, Users, UserRound, UserRoundCog, X } from 'lucide-react';
+import { BarChart3, Clock3, FileText, Grid2X2, LogOut, Monitor, RefreshCw, ShieldCheck, Users, UserRound, UserRoundCog } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { format, subDays } from 'date-fns';
 import { apiFetch } from '@/lib/api';
 import { clearSession, getSession } from '@/lib/session';
 import { PortalBrand } from '@/components/portal/PortalComponents';
+import AdminRequest from '@/pages/admin/AdminRequest';
+import Analytics from '@/pages/admin/Analytics';
+import UserManagement from '@/pages/admin/UserManagement';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Grid2X2 },
   { id: 'user-management', label: 'User Management', icon: Users },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-];
-
-const sampleSessions = [
-  { name: 'Hlongwane Jan', device: 'Chrome on macOS', ip: '192.168.1.42', location: 'eMalahleni, SA', status: 'Current', icon: Monitor },
-  { name: 'Mathebula Nicholas', device: 'Safari on iPhone 15', ip: '172.26.25.1', location: 'eMalahleni, SA', status: 'Active', icon: Smartphone },
-  { name: 'Jiyane Duduzile', device: 'Firefox on Windows 11', ip: '10.0.0.5', location: 'eMalahleni, SA', status: 'Active', icon: Monitor },
-  { name: 'Segomotso Lencwe', device: 'Edge on Windows 10', ip: '192.168.1.102', location: 'eMalahleni, SA', status: 'Active', icon: Monitor },
-  { name: 'Shoba Thabiso', device: 'Chrome on Android', ip: '172.29.10.4', location: 'eMalahleni, SA', status: 'Active', icon: Smartphone },
+  { id: 'requests', label: 'Requests', icon: FileText },
 ];
 
 const sampleActivity = [
@@ -27,18 +23,6 @@ const sampleActivity = [
   { title: 'Leave request submitted', detail: 'Exam leave · Pending review', user: 'By: Mathebula Nicholas · Student assistant', time: '4 hours ago', severity: 'Info' },
   { title: 'Strike recorded', detail: 'Attendance policy · Review required', user: 'By: Supervisor account', time: '6 hours ago', severity: 'High' },
 ];
-
-const sampleTraffic = [
-  { day: 'Mon', requests: 4500, errors: 90 },
-  { day: 'Tue', requests: 5200, errors: 140 },
-  { day: 'Wed', requests: 4800, errors: 110 },
-  { day: 'Thu', requests: 6300, errors: 210 },
-  { day: 'Fri', requests: 6500, errors: 170 },
-  { day: 'Sat', requests: 3200, errors: 70 },
-  { day: 'Sun', requests: 2800, errors: 55 },
-];
-
-const trafficScale = [8000, 6000, 4000, 2000, 0];
 
 function readAdminSession() {
   return getSession();
@@ -65,6 +49,12 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? 'Date unavailable' : format(date, 'd MMM yyyy');
 }
 
+function formatLastSeen(value) {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : format(date, 'd MMM yyyy, HH:mm');
+}
+
 function escapeCsv(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`;
 }
@@ -86,29 +76,23 @@ function accountEndpoint(account, suffix = '') {
   return `/api/admin/${role === 'student' ? 'assistants' : 'supervisors'}${account.id ? `/${encodeURIComponent(account.id)}` : ''}${suffix}`;
 }
 
-function AccountField({ label, name, value, onChange, type = 'text', required = false, readOnly = false, autoComplete }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-[#526171]">{label}</span>
-      <input
-        name={name}
-        type={type}
-        value={value}
-        onChange={onChange}
-        required={required}
-        readOnly={readOnly}
-        autoComplete={autoComplete}
-        className={`focus-ring w-full rounded-md border border-[#d7dde3] px-3 py-2.5 text-sm text-[#344252] outline-none focus:border-[#1473e6] ${readOnly ? 'bg-[#f4f6f8] text-[#82909d]' : 'bg-white'}`}
-      />
-    </label>
-  );
-}
-
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const [session, setSession] = useState(readAdminSession);
   const [overview, setOverview] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [analyticsRequests, setAnalyticsRequests] = useState([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
+  const [requests, setRequests] = useState([]);
+  const [requestSearch, setRequestSearch] = useState('');
+  const [requestStatus, setRequestStatus] = useState('');
+  const [requestType, setRequestType] = useState('');
+  const [requestFrom, setRequestFrom] = useState('');
+  const [requestTo, setRequestTo] = useState('');
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsError, setRequestsError] = useState('');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [page, setPage] = useState(1);
@@ -135,7 +119,7 @@ export default function AdminDashboard() {
     else setLoading(true);
     setError('');
     try {
-      const paths = ['/api/admin/overview', '/api/admin/assistants', '/api/admin/supervisors'];
+      const paths = ['/api/admin/overview', '/api/admin/assistants', '/api/admin/supervisors', '/api/admin/active-users'];
       const responses = await Promise.all(paths.map((path) => apiFetch(path)));
       const data = await Promise.all(responses.map(async (response) => {
         const body = await response.json().catch(() => ({}));
@@ -146,6 +130,7 @@ export default function AdminDashboard() {
       const assistants = (data[1].assistants || []).map((account) => ({ ...account, apiRole: 'student', role: 'Student assistant', email: account.studentEmail }));
       const supervisors = (data[2].supervisors || []).map((account) => ({ ...account, apiRole: 'supervisor', role: 'Supervisor', email: account.studentEmail }));
       setAccounts([...assistants, ...supervisors].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))));
+      setActiveUsers(data[3].users || []);
     } catch (requestError) {
       console.error('Load administrator dashboard error:', requestError);
       setError(requestError.message || 'Could not load administrator dashboard data.');
@@ -155,9 +140,71 @@ export default function AdminDashboard() {
     }
   }, [session]);
 
+  const loadRequests = useCallback(async (filters) => {
+    if (!session?.access_token || session.user?.role !== 'admin') return;
+    setRequestsLoading(true);
+    setRequestsError('');
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+      });
+      const queryString = params.toString();
+      const response = await apiFetch(`/api/admin/requests${queryString ? `?${queryString}` : ''}`);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not load requests (${response.status}).`);
+      setRequests(Array.isArray(body.requests) ? body.requests : []);
+    } catch (requestError) {
+      console.error('Load administrator requests error:', requestError);
+      setRequestsError(requestError.message || 'Could not load administrator requests.');
+    } finally {
+      setRequestsLoading(false);
+    }
+  }, [session]);
+
+  const loadAnalyticsRequests = useCallback(async () => {
+    if (!session?.access_token || session.user?.role !== 'admin') return;
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+    const today = new Date();
+    const params = new URLSearchParams({
+      from: format(subDays(today, 6), 'yyyy-MM-dd'),
+      to: format(today, 'yyyy-MM-dd'),
+    });
+    try {
+      const response = await apiFetch(`/api/admin/requests?${params.toString()}`);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not load analytics requests (${response.status}).`);
+      setAnalyticsRequests(Array.isArray(body.requests) ? body.requests : []);
+    } catch (requestError) {
+      console.error('Load administrator analytics requests error:', requestError);
+      setAnalyticsError(requestError.message || 'Could not load request analytics.');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [session]);
+
   useEffect(() => {
     if (session?.access_token && session.user?.role === 'admin') loadDashboard();
   }, [loadDashboard, session]);
+
+  useEffect(() => {
+    if (activeSection !== 'requests') return undefined;
+    const timer = window.setTimeout(() => {
+      loadRequests({
+        q: requestSearch.trim(),
+        status: requestStatus,
+        type: requestType,
+        from: requestFrom,
+        to: requestTo,
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [activeSection, loadRequests, requestFrom, requestSearch, requestStatus, requestTo, requestType]);
+
+  useEffect(() => {
+    if (activeSection === 'analytics') loadAnalyticsRequests();
+  }, [activeSection, loadAnalyticsRequests]);
 
   const filteredAccounts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -176,6 +223,7 @@ export default function AdminDashboard() {
   const pageSize = 8;
   const pageCount = Math.max(1, Math.ceil(filteredAccounts.length / pageSize));
   const visibleAccounts = filteredAccounts.slice((page - 1) * pageSize, page * pageSize);
+  const onlineUserCount = activeUsers.filter((user) => user.online).length;
 
   useEffect(() => {
     setPage(1);
@@ -292,6 +340,14 @@ export default function AdminDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const requestFilters = {
+    q: requestSearch.trim(),
+    status: requestStatus,
+    type: requestType,
+    from: requestFrom,
+    to: requestTo,
+  };
+
   const accountActivity = useMemo(() => {
     const now = new Date();
     const days = Array.from({ length: 7 }, (_, index) => {
@@ -301,6 +357,19 @@ export default function AdminDashboard() {
     });
     return days;
   }, [accounts]);
+
+  const analyticsRequestActivity = useMemo(() => {
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = subDays(today, 6 - index);
+      const key = format(day, 'yyyy-MM-dd');
+      return {
+        key,
+        label: format(day, 'EEE'),
+        count: analyticsRequests.filter((request) => request.requestDate && format(new Date(request.requestDate), 'yyyy-MM-dd') === key).length,
+      };
+    });
+  }, [analyticsRequests]);
 
   const handleLogout = () => {
     clearSession();
@@ -319,14 +388,7 @@ export default function AdminDashboard() {
   const totalUsers = (overview?.totalStudentAssistants || 0) + (overview?.totalSupervisors || 0);
   const maxDailyCount = Math.max(1, ...accountActivity.map((day) => day.count));
   const firstName = session.user.first_name || 'Administrator';
-  const trafficPoints = sampleTraffic.map((item, index) => ({
-    x: 62 + index * 100,
-    requestY: 222 - (item.requests / 8000) * 190,
-    errorY: 222 - (item.errors / 8000) * 190,
-  }));
-  const requestLine = trafficPoints.map(({ x, requestY }) => `${x},${requestY}`).join(' ');
-  const errorLine = trafficPoints.map(({ x, errorY }) => `${x},${errorY}`).join(' ');
-  const requestArea = `62,222 ${requestLine} 662,222`;
+  const maxDailyRequestCount = Math.max(1, ...analyticsRequestActivity.map((day) => day.count));
 
   return (
     <div className="min-h-screen bg-[#f4f5f7] text-[#202a34]">
@@ -350,11 +412,14 @@ export default function AdminDashboard() {
         <header className="sticky top-0 z-20 flex min-h-[62px] items-center justify-between gap-4 border-b border-[#e1e5e9] bg-white/95 px-5 backdrop-blur sm:px-8">
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-xs text-[#697582] sm:inline">Signed in as <strong className="text-[#344252]">{firstName}</strong></span>
-            <button type="button" onClick={() => loadDashboard(true)} disabled={refreshing || loading} className="focus-ring inline-flex items-center gap-2 rounded-md border border-[#d7dde3] bg-white px-3 py-2 text-xs font-semibold text-[#3f4b58] hover:bg-[#f6f8fa] disabled:opacity-60">
-              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />{refreshing ? 'Refreshing…' : 'Refresh data'}
-            </button>
-            <button type="button" onClick={handleExport} disabled={!accounts.length} className="focus-ring inline-flex items-center gap-2 rounded-md bg-[#1473e6] px-3 py-2 text-xs font-bold text-white hover:bg-[#095fc5] disabled:cursor-not-allowed disabled:opacity-50">
-              <Download size={14} />Export report
+            <button type="button" onClick={() => {
+              if (activeSection === 'requests') loadRequests(requestFilters);
+              else if (activeSection === 'analytics') {
+                loadDashboard(true);
+                loadAnalyticsRequests();
+              } else loadDashboard(true);
+            }} disabled={activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing || loading : refreshing || loading} className="focus-ring inline-flex items-center gap-2 rounded-md border border-[#d7dde3] bg-white px-3 py-2 text-xs font-semibold text-[#3f4b58] hover:bg-[#f6f8fa] disabled:opacity-60">
+              <RefreshCw size={14} className={(activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing : refreshing) ? 'animate-spin' : ''} />{(activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing : refreshing) ? 'Refreshing…' : 'Refresh data'}
             </button>
           </div>
         </header>
@@ -383,29 +448,30 @@ export default function AdminDashboard() {
               </div>
             )}
             <div className="mt-5">
-              <p className="mb-4 inline-flex items-center rounded-md border border-[#f2d9a6] bg-[#fff8e8] px-2.5 py-1.5 text-xs font-semibold text-[#946200]">UI preview · Sample data only, not live system activity</p>
               <div className="grid gap-5 xl:grid-cols-[1.3fr_.9fr]">
                 <article className="rounded-xl border border-[#e6eaee] bg-white shadow-[0_2px_8px_rgba(30,48,66,.04)]">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f2] px-5 py-4">
-                    <div><h2 className="text-base font-bold text-[#202a34]">Active user sessions</h2><p className="mt-1 text-xs text-[#82909d]">A preview of signed-in accounts and devices</p></div>
-                    <span className="rounded-md bg-[#eef5ff] px-2.5 py-1 text-[10px] font-bold text-[#1473e6]">12 sessions · sample</span>
+                    <div><h2 className="text-base font-bold text-[#202a34]">Active user sessions</h2><p className="mt-1 text-xs text-[#82909d]">Recent activity from student assistants and supervisors</p></div>
+                    <span className="rounded-md bg-[#eef5ff] px-2.5 py-1 text-[10px] font-bold text-[#1473e6]">{onlineUserCount} online · {activeUsers.length} active accounts</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[620px] text-left">
-                      <thead><tr className="border-b border-[#edf0f2] text-[10px] font-bold uppercase tracking-wide text-[#82909d]"><th className="px-5 py-3">User</th><th className="px-3 py-3">Device / IP</th><th className="px-3 py-3">Location</th><th className="px-3 py-3">Status</th></tr></thead>
+                      <thead><tr className="border-b border-[#edf0f2] text-[10px] font-bold uppercase tracking-wide text-[#82909d]"><th className="px-5 py-3">User</th><th className="px-3 py-3">Device / IP</th><th className="px-3 py-3">Last seen</th><th className="px-3 py-3">Status</th></tr></thead>
                       <tbody>
-                        {sampleSessions.map(({ name, device, ip, location, status, icon: DeviceIcon }) => (
-                          <tr key={name} className="border-b border-[#f0f2f4] last:border-0">
-                            <td className="px-5 py-3 text-xs font-semibold text-[#344252]">{name}</td>
-                            <td className="px-3 py-3"><span className="flex items-center gap-1.5 text-xs text-[#526171]"><DeviceIcon size={13} />{device}</span><span className="mt-1 block font-mono text-[10px] text-[#929daa]">{ip}</span></td>
-                            <td className="px-3 py-3 text-xs text-[#687583]"><span className="flex items-center gap-1"><MapPin size={12} />{location}</span></td>
-                            <td className="px-3 py-3"><span className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${status === 'Current' ? 'bg-[#eaf3ff] text-[#1473e6]' : 'bg-[#e8f8f0] text-[#18875f]'}`}>{status}</span></td>
+                        {activeUsers.length ? activeUsers.map((user) => (
+                          <tr key={user.id} className="border-b border-[#f0f2f4] last:border-0">
+                            <td className="px-5 py-3 text-xs font-semibold text-[#344252]">{user.name}</td>
+                            <td className="px-3 py-3"><span className="flex items-center gap-1.5 text-xs text-[#526171]"><Monitor size={13} />{user.userAgent || 'Unknown device'}</span><span className="mt-1 block font-mono text-[10px] text-[#929daa]">{user.ipAddress || 'IP unavailable'}</span></td>
+                            <td className="px-3 py-3 text-xs text-[#687583]">{formatLastSeen(user.lastSeenAt)}</td>
+                            <td className="px-3 py-3"><span className={`rounded px-2 py-1 text-[9px] font-bold uppercase ${user.online ? 'bg-[#e8f8f0] text-[#18875f]' : 'bg-[#f1f3f5] text-[#687583]'}`}>{user.online ? 'Online' : 'Offline'}</span></td>
                           </tr>
-                        ))}
+                        )) : (
+                          <tr><td colSpan={4} className="px-5 py-8 text-center text-xs text-[#82909d]">No active accounts found.</td></tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
-                  <div className="border-t border-[#edf0f2] px-5 py-3 text-center text-xs font-semibold text-[#82909d]">Session management will be available when connected to the reporting service.</div>
+                  <div className="border-t border-[#edf0f2] px-5 py-3 text-center text-xs font-semibold text-[#82909d]">Online means the account has made an authenticated request in the last five minutes.</div>
                 </article>
                 <article className="rounded-xl border border-[#e6eaee] bg-white shadow-[0_2px_8px_rgba(30,48,66,.04)]">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f2] px-5 py-4">
@@ -436,153 +502,64 @@ export default function AdminDashboard() {
             </div>
           </section>}
 
-          {activeSection === 'analytics' && <section id="analytics" className="space-y-5">
-            <div>
-              <p className="text-xs font-semibold text-[#75808c]">Dashboard　›　Analytics</p>
-              <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">System Analytics</h1>
-              <p className="mt-1 text-sm text-[#77828e]">Usage overview and system traffic for the past seven days.</p>
-              <p className="mt-3 inline-flex items-center rounded-md border border-[#f2d9a6] bg-[#fff8e8] px-2.5 py-1.5 text-xs font-semibold text-[#946200]">UI preview · All analytics figures below are sample data</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {[
-                { label: 'Total users', value: '12,482', change: '+12.5%', note: 'Accounts across platform', icon: Users, tint: 'bg-[#eaf3ff] text-[#1473e6]' },
-                { label: 'Active sessions', value: '1,204', change: '+3.2%', note: 'Users currently authenticated', icon: Activity, tint: 'bg-[#e8f8f0] text-[#15966a]' },
-                { label: 'Pending approvals', value: '48', change: 'Needs review', note: 'Requests awaiting review', icon: Clock3, tint: 'bg-[#fff5e5] text-[#c17a13]' },
-              ].map(({ label, value, change, note, icon: Icon, tint }) => (
-                <article key={label} className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)]">
-                  <div className="flex items-start justify-between gap-3">
-                    <span className={`grid size-9 place-items-center rounded-lg ${tint}`}><Icon size={17} /></span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f8f0] px-2 py-1 text-[10px] font-bold text-[#18875f]">{label === 'Pending approvals' ? null : <TrendingUp size={11} />}{change}</span>
-                  </div>
-                  <p className="mt-4 text-[11px] font-bold uppercase tracking-[.08em] text-[#75808c]">{label}</p>
-                  <p className="mt-1 text-2xl font-bold tracking-tight text-[#202a34]">{value}</p>
-                  <p className="mt-1 text-xs text-[#8b96a1]">{note}</p>
-                </article>
-              ))}
-            </div>
-            <article className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h2 className="text-base font-bold text-[#202a34]">System traffic analysis</h2><p className="mt-1 text-xs text-[#82909d]">Network requests and error rates over the last seven days</p></div>
-                <div className="flex gap-2 text-[10px] font-bold uppercase tracking-wide">
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#eef5ff] px-2.5 py-1.5 text-[#526171]"><span className="size-2 rounded-full bg-[#2585f5]" />Requests</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#fff1f0] px-2.5 py-1.5 text-[#526171]"><span className="size-2 rounded-full bg-[#e35b58]" />Errors</span>
-                </div>
-              </div>
-              <div className="mt-5 h-64 w-full" role="img" aria-label="Sample line chart showing system requests and errors over seven days">
-                <svg viewBox="0 0 720 270" preserveAspectRatio="none" className="h-full w-full" aria-hidden="true">
-                  {trafficScale.map((value) => {
-                    const y = 222 - (value / 8000) * 190;
-                    return (
-                      <g key={value}>
-                        <text x="48" y={y + 4} textAnchor="end" fill="#82909d" fontSize="10">{value.toLocaleString()}</text>
-                        <line x1="58" x2="690" y1={y} y2={y} stroke="#e9edf1" strokeDasharray="3 4" />
-                      </g>
-                    );
-                  })}
-                  <polygon points={requestArea} fill="#2585f5" fillOpacity=".06" />
-                  <polyline points={requestLine} fill="none" stroke="#2585f5" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round">
-                    <title>Requests: weekly sample traffic</title>
-                  </polyline>
-                  <polyline points={errorLine} fill="none" stroke="#e35b58" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round">
-                    <title>Errors: weekly sample traffic</title>
-                  </polyline>
-                  {sampleTraffic.map(({ day }, index) => (
-                    <text key={day} x={trafficPoints[index].x} y="250" textAnchor="middle" fill="#82909d" fontSize="11">{day}</text>
-                  ))}
-                </svg>
-              </div>
-            </article>
-            <div className="grid gap-5 xl:grid-cols-[1.35fr_.85fr]">
-            <article className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h2 className="text-base font-bold text-[#202a34]">Account creation activity</h2><p className="mt-1 text-xs text-[#82909d]">New accounts created over the last seven days</p></div>
-                <span className="rounded-md bg-[#eef5ff] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#1473e6]">Accounts</span>
-              </div>
-              <div className="mt-7 flex h-48 items-end gap-3 border-b border-l border-[#e7ebef] px-3">
-                {accountActivity.map((day) => (
-                  <div key={day.key} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                    <span className="text-[10px] font-semibold text-[#768391]">{day.count}</span>
-                    <div className="flex w-full max-w-12 items-end" style={{ height: '72%' }}>
-                      <div className="w-full rounded-t bg-[#4a9af4] transition-all" style={{ height: `${Math.max(day.count ? 12 : 4, (day.count / maxDailyCount) * 100)}%` }} title={`${day.count} account${day.count === 1 ? '' : 's'}`} />
-                    </div>
-                    <span className="pb-2 text-[10px] text-[#8793a0]">{day.label}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
+          {activeSection === 'analytics' && <Analytics
+            overview={overview}
+            totalUsers={totalUsers}
+            onlineUserCount={onlineUserCount}
+            analyticsRequests={analyticsRequests}
+            analyticsLoading={analyticsLoading}
+            analyticsError={analyticsError}
+            analyticsRequestActivity={analyticsRequestActivity}
+            accountActivity={accountActivity}
+            maxDailyCount={maxDailyCount}
+            maxDailyRequestCount={maxDailyRequestCount}
+          />}
 
-            <article className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">
-              <div className="flex items-center justify-between gap-3"><div><h2 className="text-base font-bold text-[#202a34]">Account health</h2><p className="mt-1 text-xs text-[#82909d]">Active and disabled account totals</p></div><LockKeyhole size={18} className="text-[#1473e6]" /></div>
-              <div className="mt-6 space-y-5">
-                <div>
-                  <div className="mb-2 flex justify-between text-xs"><span className="font-semibold text-[#526171]">Active</span><span className="font-bold text-[#202a34]">{(overview?.activeAccounts || 0).toLocaleString()}</span></div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-[#edf0f3]"><div className="h-full rounded-full bg-[#27ae7b]" style={{ width: `${totalUsers ? (overview.activeAccounts / totalUsers) * 100 : 0}%` }} /></div>
-                </div>
-                <div>
-                  <div className="mb-2 flex justify-between text-xs"><span className="font-semibold text-[#526171]">Disabled</span><span className="font-bold text-[#202a34]">{(overview?.disabledAccounts || 0).toLocaleString()}</span></div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-[#edf0f3]"><div className="h-full rounded-full bg-[#e27369]" style={{ width: `${totalUsers ? (overview.disabledAccounts / totalUsers) * 100 : 0}%` }} /></div>
-                </div>
-                <p className="rounded-lg bg-[#f6f8fa] p-3 text-xs leading-5 text-[#687583]">Account totals are loaded from the administrator reporting service.</p>
-              </div>
-            </article>
-            </div>
-          </section>}
+          {activeSection === 'user-management' && <UserManagement
+            loading={loading}
+            error={error}
+            accounts={accounts}
+            filteredAccounts={filteredAccounts}
+            visibleAccounts={visibleAccounts}
+            search={search}
+            setSearch={setSearch}
+            roleFilter={roleFilter}
+            setRoleFilter={setRoleFilter}
+            page={page}
+            pageSize={pageSize}
+            pageCount={pageCount}
+            accountNotice={accountNotice}
+            accountDialog={accountDialog}
+            accountForm={accountForm}
+            accountError={accountError}
+            accountBusy={accountBusy}
+            onRefresh={() => loadDashboard(true)}
+            onOpenAccount={openAccountDialog}
+            onDeleteAccount={handleDeleteAccount}
+            onSaveAccount={handleSaveAccount}
+            onFormChange={handleAccountFormChange}
+            onCloseDialog={() => setAccountDialog(null)}
+            onRoleChange={(role) => setAccountDialog((current) => ({ ...current, role }))}
+            onPageChange={setPage}
+            onExport={handleExport}
+          />}
 
-          {activeSection === 'user-management' && <section id="user-management" className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div><h2 className="text-xl font-bold text-[#202a34]">User management</h2><p className="mt-1 text-sm text-[#82909d]">Create, review, edit, and delete user accounts.</p></div>
-              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                <button type="button" onClick={() => loadDashboard(true)} disabled={refreshing} className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-[#d7dde3] px-3 py-2 text-xs font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:opacity-60"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />Sync records</button>
-                <button type="button" onClick={() => openAccountDialog('create')} className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-[#1473e6] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#095fc5]"><Plus size={15} />Add new user</button>
-              </div>
-            </div>
-            {accountNotice && <p role="status" className="mt-4 rounded-md border border-[#bce4cf] bg-[#effaf4] px-3 py-2.5 text-sm font-semibold text-[#18794e]">{accountNotice}</p>}
-            <div className="mt-5 flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-              <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-md bg-[#f1f3f5] p-1">
-                {[['all', 'All users'], ['student', 'Student assistants'], ['supervisor', 'Supervisors']].map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => setRoleFilter(value)} className={`focus-ring shrink-0 rounded px-3 py-2 text-xs font-semibold transition-colors ${roleFilter === value ? 'bg-white text-[#202a34] shadow-sm' : 'text-[#687583] hover:text-[#202a34]'}`}>{label}</button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <label className="relative min-w-0 flex-1 sm:w-64" htmlFor="admin-account-search">
-                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8b96a1]" />
-                  <input id="admin-account-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, email, or ID…" className="focus-ring w-full rounded-md border border-[#d7dde3] py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#1473e6]" />
-                </label>
-                <button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); }} className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-[#d7dde3] px-3 py-2 text-xs font-semibold text-[#526171] hover:bg-[#f6f8fa]"><Filter size={13} />Reset</button>
-              </div>
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
-                <thead><tr className="border-y border-[#e8ecef] bg-[#f7f8f9] text-[10px] font-bold uppercase tracking-[.08em] text-[#82909d]"><th className="px-3 py-3">User profile</th><th className="px-3 py-3">Administrative role</th><th className="px-3 py-3">Department / course</th><th className="px-3 py-3">Created</th><th className="px-3 py-3 text-right">Actions</th></tr></thead>
-                <tbody>
-                  {visibleAccounts.map((account) => (
-                    <tr key={`${account.apiRole}-${account.id}`} className="border-b border-[#edf0f2] last:border-0 hover:bg-[#fafbfc]">
-                      <td className="px-3 py-3 font-semibold text-[#344252]">{account.name || 'Unnamed account'}<span className="mt-0.5 block text-[11px] font-normal text-[#82909d]">{account.email || 'Email unavailable'}{account.studentNumber ? ` · ${account.studentNumber}` : ''}</span></td>
-                      <td className="px-3 py-3"><span className="rounded bg-[#f0f4f8] px-2 py-1 text-[10px] font-bold text-[#526171]">{account.role}</span></td>
-                      <td className="px-3 py-3 text-xs text-[#687583]">{account.course ? `${account.course}${account.levelOfStudy ? ` · Level ${account.levelOfStudy}` : ''}` : '—'}</td>
-                      <td className="px-3 py-3 text-xs text-[#82909d]">{formatDate(account.createdAt)}</td>
-                      <td className="px-3 py-3">
-                        <div className="flex justify-end gap-1">
-                          <button type="button" onClick={() => openAccountDialog('view', account)} aria-label={`View ${account.name || 'user'}`} title="View details" className="focus-ring rounded p-2 text-[#526171] hover:bg-[#eaf3ff] hover:text-[#1473e6]"><Eye size={15} /></button>
-                          <button type="button" onClick={() => openAccountDialog('edit', account)} aria-label={`Edit ${account.name || 'user'}`} title="Edit account" className="focus-ring rounded p-2 text-[#526171] hover:bg-[#eaf3ff] hover:text-[#1473e6]"><Pencil size={15} /></button>
-                          <button type="button" onClick={() => openAccountDialog('delete', account)} aria-label={`Delete ${account.name || 'user'}`} title="Delete account" className="focus-ring rounded p-2 text-[#cb3f43] hover:bg-[#fff1f0]"><Trash2 size={15} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!loading && !visibleAccounts.length && <tr><td colSpan={5} className="py-10 text-center text-sm text-[#82909d]">{error ? 'User list could not be loaded.' : search ? 'No matching accounts.' : 'No accounts to display.'}</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f2] pt-3">
-              <p className="text-xs text-[#82909d]">Showing {filteredAccounts.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filteredAccounts.length)} of {filteredAccounts.length} accounts</p>
-              <div className="flex items-center gap-2">
-                <button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="focus-ring inline-flex items-center gap-1 rounded-md border border-[#d7dde3] px-2.5 py-1.5 text-xs font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:cursor-not-allowed disabled:opacity-45"><ChevronLeft size={14} />Previous</button>
-                <span className="rounded-md bg-[#eaf3ff] px-3 py-1.5 text-xs font-bold text-[#1473e6]">{page} / {pageCount}</span>
-                <button type="button" disabled={page >= pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} className="focus-ring inline-flex items-center gap-1 rounded-md border border-[#d7dde3] px-2.5 py-1.5 text-xs font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:cursor-not-allowed disabled:opacity-45">Next<ChevronRight size={14} /></button>
-              </div>
-            </div>
-          </section>}
+          {activeSection === 'requests' && <AdminRequest
+            requests={requests}
+            loading={requestsLoading}
+            error={requestsError}
+            search={requestSearch}
+            setSearch={setRequestSearch}
+            status={requestStatus}
+            setStatus={setRequestStatus}
+            type={requestType}
+            setType={setRequestType}
+            from={requestFrom}
+            setFrom={setRequestFrom}
+            to={requestTo}
+            setTo={setRequestTo}
+            onRefresh={() => loadRequests(requestFilters)}
+          />}
 
           <footer className="flex flex-wrap justify-between gap-3 border-t border-[#e1e5e9] py-4 text-[10px] text-[#8793a0]"><span>© 2026 iCenter Administrative Console</span><a href="mailto:general@tut.ac.za" className="hover:text-[#1473e6]">Contact support</a></footer>
         </main>
@@ -618,102 +595,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-          {accountDialog && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#142333]/45 px-4 py-6" onMouseDown={(event) => { if (event.target === event.currentTarget && !accountBusy) setAccountDialog(null); }}>
-              <section role={accountDialog.mode === 'delete' ? 'alertdialog' : 'dialog'} aria-modal="true" aria-labelledby="admin-account-dialog-title" className="my-auto w-full max-w-2xl rounded-xl bg-white p-5 shadow-[0_18px_45px_rgba(30,48,66,.25)] sm:p-7">
-                <div className="flex items-start justify-between gap-4 border-b border-[#e8ecef] pb-4">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#1473e6]">User management</p>
-                    <h2 id="admin-account-dialog-title" className="mt-1 text-xl font-bold text-[#202a34]">
-                      {accountDialog.mode === 'create' ? 'Add new user' : accountDialog.mode === 'edit' ? 'Edit user account' : accountDialog.mode === 'delete' ? 'Delete user account' : 'User profile'}
-                    </h2>
-                    <p className="mt-1 text-xs text-[#82909d]">
-                      {accountDialog.mode === 'create' ? 'Create an account for a student assistant or supervisor.' : accountDialog.account?.name}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => setAccountDialog(null)} disabled={accountBusy} aria-label="Close dialog" className="focus-ring rounded-md p-1.5 text-[#82909d] hover:bg-[#f1f3f5] disabled:opacity-50"><X size={18} /></button>
-                </div>
-
-                {accountError && <p role="alert" className="mt-4 rounded-md border border-[#f1c6c3] bg-[#fff1f0] px-3 py-2.5 text-sm font-semibold text-[#b84233]">{accountError}</p>}
-
-                {accountDialog.mode === 'view' && (
-                  <dl className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2">
-                    {[
-                      ['First name', accountDialog.account?.firstName],
-                      ['Last name', accountDialog.account?.lastName],
-                      ['Email address', accountDialog.account?.email],
-                      ['Role', accountDialog.account?.role],
-                      ['Student number', accountDialog.account?.studentNumber],
-                      ['Course', accountDialog.account?.course],
-                      ['Level of study', accountDialog.account?.levelOfStudy],
-                      ['Cell number', accountDialog.account?.cellNumber],
-                      ['Personal email', accountDialog.account?.personalEmail],
-                      ['Created', formatDate(accountDialog.account?.createdAt)],
-                    ].filter(([, value]) => value).map(([label, value]) => (
-                      <div key={label} className="border-b border-[#edf0f2] pb-2">
-                        <dt className="text-[10px] font-bold uppercase tracking-wide text-[#82909d]">{label}</dt>
-                        <dd className="mt-1 break-words text-sm font-medium text-[#344252]">{value}</dd>
-                      </div>
-                    ))}
-                    <div className="flex justify-end gap-2 sm:col-span-2">
-                      <button type="button" onClick={() => openAccountDialog('edit', accountDialog.account)} className="focus-ring inline-flex items-center gap-2 rounded-md bg-[#1473e6] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#095fc5]"><Pencil size={14} />Edit account</button>
-                    </div>
-                  </dl>
-                )}
-
-                {accountDialog.mode === 'delete' && (
-                  <div className="mt-5">
-                    <p className="text-sm leading-6 text-[#526171]">You are about to permanently remove <strong>{accountDialog.account?.name || 'this user'}</strong> ({accountDialog.account?.email || 'no email available'}). This action cannot be undone. The server may prevent deletion if this account has existing system records.</p>
-                    <div className="mt-6 flex justify-end gap-2">
-                      <button type="button" onClick={() => setAccountDialog(null)} disabled={accountBusy} className="focus-ring rounded-md border border-[#d7dde3] px-4 py-2.5 text-xs font-bold text-[#526171] hover:bg-[#f6f8fa]">Cancel</button>
-                      <button type="button" onClick={handleDeleteAccount} disabled={accountBusy} className="focus-ring inline-flex items-center gap-2 rounded-md bg-[#d84a44] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#b93b36] disabled:cursor-wait disabled:opacity-60"><Trash2 size={14} />{accountBusy ? 'Deleting…' : 'Delete account'}</button>
-                    </div>
-                  </div>
-                )}
-
-                {(accountDialog.mode === 'create' || accountDialog.mode === 'edit') && (
-                  <form onSubmit={handleSaveAccount} className="mt-5 space-y-4">
-                    {accountDialog.mode === 'create' && (
-                      <label className="block max-w-xs">
-                        <span className="mb-1.5 block text-xs font-semibold text-[#526171]">Administrative role</span>
-                        <select value={accountDialog.role} onChange={(event) => setAccountDialog((current) => ({ ...current, role: event.target.value }))} className="focus-ring w-full rounded-md border border-[#d7dde3] bg-white px-3 py-2.5 text-sm text-[#344252] outline-none focus:border-[#1473e6]">
-                          <option value="student">Student assistant</option>
-                          <option value="supervisor">Supervisor</option>
-                        </select>
-                      </label>
-                    )}
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <AccountField label="First name" name="first_name" value={accountForm.first_name} onChange={handleAccountFormChange} required />
-                      <AccountField label="Last name" name="last_name" value={accountForm.last_name} onChange={handleAccountFormChange} required />
-                      {accountDialog.mode === 'create' ? (
-                        <>
-                          <AccountField label="Login email" name="student_email" value={accountForm.student_email} onChange={handleAccountFormChange} type="email" required autoComplete="email" />
-                          <AccountField label="Temporary password" name="password" value={accountForm.password} onChange={handleAccountFormChange} type="password" required autoComplete="new-password" />
-                        </>
-                      ) : (
-                        <AccountField label="Login email (cannot be changed here)" name="student_email" value={accountForm.student_email} readOnly />
-                      )}
-                      {((accountDialog.mode === 'create' && accountDialog.role === 'student') || (accountDialog.mode === 'edit' && accountDialog.account.apiRole === 'student')) && (
-                        <>
-                          <AccountField label="Student number" name="student_number" value={accountForm.student_number} onChange={handleAccountFormChange} required />
-                          <AccountField label="Course" name="course" value={accountForm.course} onChange={handleAccountFormChange} required />
-                          <AccountField label="Level of study" name="level_of_study" value={accountForm.level_of_study} onChange={handleAccountFormChange} required />
-                        </>
-                      )}
-                      <AccountField label="Cell number" name="cell_number" value={accountForm.cell_number} onChange={handleAccountFormChange} type="tel" autoComplete="tel" />
-                      <AccountField label="Personal email" name="personal_email" value={accountForm.personal_email} onChange={handleAccountFormChange} type="email" autoComplete="email" />
-                    </div>
-                    <p className="text-xs leading-5 text-[#82909d]">The login email and password are set at account creation. Existing account editing updates profile details supported by the administration service.</p>
-                    <div className="flex justify-end gap-2 border-t border-[#edf0f2] pt-4">
-                      <button type="button" onClick={() => setAccountDialog(null)} disabled={accountBusy} className="focus-ring rounded-md border border-[#d7dde3] px-4 py-2.5 text-xs font-bold text-[#526171] hover:bg-[#f6f8fa]">Cancel</button>
-                      <button type="submit" disabled={accountBusy} className="focus-ring rounded-md bg-[#1473e6] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#095fc5] disabled:cursor-wait disabled:opacity-60">{accountBusy ? 'Saving…' : accountDialog.mode === 'create' ? 'Create user' : 'Save changes'}</button>
-                    </div>
-                  </form>
-                )}
-              </section>
-            </div>
-          )}
-          <button type="button" onClick={handleLogout} className="focus-ring fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#cb3f43] px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-[#ad3036] lg:hidden"><LogOut size={14} />Log out</button>
+              <button type="button" onClick={handleLogout} className="focus-ring fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#cb3f43] px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-[#ad3036] lg:hidden"><LogOut size={14} />Log out</button>
     </div>
   );
 }

@@ -20,7 +20,7 @@ export function PortalBrand({ supervisor = false }) {
     <Link href="/" className="focus-ring flex items-center gap-2 px-2" data-testid="link-portal-brand">
       <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-9 rounded-lg object-contain shadow-sm" />
       <span className="leading-none">
-        <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">iCenter</strong>
+        <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">Library Log</strong>
         <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
       </span>
     </Link>
@@ -184,7 +184,7 @@ const checkAuth = () => {
 const session = getSession();
 if (!session) return null;
 
-  return <div className={`portal-shell min-h-[100dvh] bg-[#90bddb] ${className}`}><PortalSidebar supervisor={supervisor} /><div className="portal-main"><PortalTopbar supervisor={supervisor} /><main className="portal-page">{children}</main></div></div>;
+  return <div className={`portal-shell min-h-[100dvh] bg-white ${className}`}><PortalSidebar supervisor={supervisor} /><div className="portal-main"><PortalTopbar supervisor={supervisor} /><main className="portal-page">{children}</main></div></div>;
 }
 
 export function StatusBadge({ status }) {
