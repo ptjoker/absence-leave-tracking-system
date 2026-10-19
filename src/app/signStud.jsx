@@ -5,7 +5,6 @@ import { useRef, useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   Keyboard,
   Modal,
   Pressable,
@@ -20,7 +19,6 @@ import {
 } from 'react-native';
 
 import LogoImg from '@/assets/images/logo.png';
-import APP_BACKGROUND from '@/constants/appBackground';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -195,12 +193,7 @@ export default function SignUpScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      <ImageBackground
-        source={APP_BACKGROUND}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageFrame}>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -491,7 +484,7 @@ export default function SignUpScreen() {
           </View>
 
         </ScrollView>
-      </ImageBackground>
+      </View>
 
       {/* ============================================= */}
       {/* 8-DIGIT VERIFICATION CODE MODAL               */}
@@ -580,11 +573,7 @@ export default function SignUpScreen() {
 // --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(219, 234, 254, 0.5)',
-  },
+  pageFrame: { flex: 1, width: '100%', height: '100%' },
   scrollContent: {
     flexGrow: 1,
     padding: 20,

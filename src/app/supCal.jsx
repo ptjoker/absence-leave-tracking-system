@@ -10,7 +10,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -28,7 +27,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
-import APP_BACKGROUND from '@/constants/appBackground';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 console.log('>>> SUPCAL FILE LOADED');
@@ -1161,13 +1159,7 @@ export default function MasterSchedule() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={APP_BACKGROUND}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: 1 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageFrame}>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -1559,7 +1551,7 @@ export default function MasterSchedule() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
 
       {/* ACTIVITY POP-UP MODAL */}
       <Modal
@@ -2531,11 +2523,7 @@ export default function MasterSchedule() {
 // --- Styles ---
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
+  pageFrame: { flex: 1, width: '100%', height: '100%' },
   scrollContent: { padding: 16 },
 
   modalKavContainer: { flex: 1, width: '100%' },

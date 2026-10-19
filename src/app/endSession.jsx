@@ -1,8 +1,6 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import APP_BACKGROUND from '@/constants/appBackground';
 import {
-  ImageBackground,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -31,14 +29,7 @@ export default function LogoutSuccessScreen() {
       <StatusBar barStyle="dark-content" />
 
       <View style={styles.pageContainer}>
-        <ImageBackground
-          source={APP_BACKGROUND}
-          style={styles.backgroundImage}
-          imageStyle={styles.backgroundImageStyle}
-          blurRadius={8}
-        >
-          <View style={styles.overlay} />
-
+        <View style={styles.pageFrame}>
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
@@ -73,7 +64,7 @@ export default function LogoutSuccessScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </ImageBackground>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -89,18 +80,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  backgroundImage: {
+  pageFrame: {
     flex: 1,
     width: '100%',
     height: '100%',
     justifyContent: 'center',
-  },
-  backgroundImageStyle: {
-    resizeMode: 'cover',
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
   header: {
     paddingHorizontal: 20,

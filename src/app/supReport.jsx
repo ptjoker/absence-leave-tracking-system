@@ -5,7 +5,6 @@ import { useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -20,7 +19,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LogoImg from '@/assets/images/logo.png';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
-import APP_BACKGROUND from '@/constants/appBackground';
 import { exportReportCsv } from '@/lib/reportExport';
 
 // --- Theme Colors ---
@@ -228,8 +226,7 @@ export default function PerformanceReports() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground source={APP_BACKGROUND} style={styles.background} resizeMode="cover">
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.overlay }]} />
+      <View style={[styles.background, { backgroundColor: theme.bg }]}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
           {/* --- NEW HEADER --- */}
@@ -630,7 +627,7 @@ export default function PerformanceReports() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }

@@ -9,7 +9,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
-  ImageBackground,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,7 +19,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
-import APP_BACKGROUND from '@/constants/appBackground';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -45,8 +43,7 @@ export default function LandingPage() {
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   return (
-    <ImageBackground source={APP_BACKGROUND} style={styles.background} resizeMode="cover">
-      <View pointerEvents="none" style={[styles.overlay, { backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.5)' : 'rgba(255, 255, 255, 0.5)' }]} />
+    <View style={[styles.background, isDarkMode && styles.backgroundDark]}>
       <SafeAreaView style={[styles.container, isDarkMode && styles.containerDark]}>
         <ScrollView showsVerticalScrollIndicator={false}>
 
@@ -318,15 +315,15 @@ export default function LandingPage() {
 
         </ScrollView>
       </SafeAreaView>
-    </ImageBackground>
+    </View>
   );
 }
 
 // --- Styles ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  background: { flex: 1 },
-  overlay: { ...StyleSheet.absoluteFillObject },
+  background: { flex: 1, backgroundColor: COLORS.bg },
+  backgroundDark: { backgroundColor: '#0F172A' },
   containerDark: { backgroundColor: 'transparent' },
   textDark: { color: '#F9FAFB' },
   textDarkMuted: { color: '#E2E8F0' },

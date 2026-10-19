@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
@@ -22,7 +21,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
-import APP_BACKGROUND from '@/constants/appBackground';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch } from '@/lib/api';
@@ -274,13 +272,7 @@ export default function StudentAssistances() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={APP_BACKGROUND}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: isDarkMode ? 0.65 : 0.45 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageFrame}>
 
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -589,18 +581,14 @@ export default function StudentAssistances() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
 
 const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  },
+  pageFrame: { flex: 1, width: '100%', height: '100%' },
   scrollContent: { padding: 16 },
   header: {
     flexDirection: 'row',

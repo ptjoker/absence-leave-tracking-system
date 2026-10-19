@@ -9,7 +9,6 @@ const LIGHT_THEME = {
   bg: '#F8FAFC',
   card: '#FFFFFF',
   border: '#E5E7EB',
-  overlay: 'rgba(255, 255, 255, 0.5)',
 };
 
 const DARK_THEME = {
@@ -20,7 +19,6 @@ const DARK_THEME = {
   bg: '#0F172A',
   card: '#1E293B',
   border: '#334155',
-  overlay: 'rgba(15, 23, 42, 0.5)',
 };
 
 const SupervisorThemeContext = createContext(null);
@@ -113,7 +111,7 @@ function themeStyle(style, theme, isDarkMode) {
       const normalized = value.toUpperCase();
       if (key.toLowerCase().includes('backgroundcolor')) {
         if (!isDarkMode) return [key, value];
-        if (normalized.startsWith('RGBA(255, 255, 255')) return [key, theme.overlay];
+        if (normalized.startsWith('RGBA(255, 255, 255')) return [key, theme.card];
         return [key, DARK_SURFACES[normalized] || value];
       }
       if (key.toLowerCase().includes('color')) {

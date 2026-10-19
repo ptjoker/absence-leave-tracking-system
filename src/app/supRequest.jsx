@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
-  ImageBackground,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -18,7 +17,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import logoImg from '@/assets/images/logo.png';
-import APP_BACKGROUND from '@/constants/appBackground';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 import { apiFetch } from '@/lib/api';
@@ -222,13 +220,7 @@ export default function SupervisorRequests() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      <ImageBackground
-        source={APP_BACKGROUND}
-        style={styles.backgroundImage}
-        imageStyle={{ opacity: 1 }}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay} />
+      <View style={styles.pageFrame}>
 
         {/* --- STANDARD HEADER --- */}
         <View style={styles.header}>
@@ -365,7 +357,7 @@ export default function SupervisorRequests() {
             );
           })}
         </View>
-      </ImageBackground>
+      </View>
     </SafeAreaView>
   );
 }
@@ -373,11 +365,7 @@ export default function SupervisorRequests() {
 // --- Styles ---
 const baseStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.bg },
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-  },
+  pageFrame: { flex: 1, width: '100%', height: '100%' },
 
   // Header
   header: {
