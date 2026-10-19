@@ -53,6 +53,56 @@ async function recordUserPresence(userId, req) {
   }
 }
 
+async function createNotification({ userId, type, title, message }) {
+  if (!userId || !type || !title || !message) {
+    console.error('Notification creation skipped: required values are missing');
+    return null;
+  }
+
+  try {
+    const existing = await sql`
+      SELECT id
+      FROM public.notifications
+      WHERE user_id = ${userId}
+        AND type = ${type}
+        AND title = ${title}
+        AND message = ${message}
+      LIMIT 1
+    `;
+    if (existing.length > 0) return existing[0];
+
+    const rows = await sql`
+      INSERT INTO public.notifications (user_id, type, title, message, is_read)
+      VALUES (${userId}, ${type}, ${title}, ${message}, FALSE)
+      RETURNING id, user_id, type, title, message, is_read, created_at
+    `;
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Create notification error:', error);
+    return null;
+  }
+}
+
+async function notifyProfiles({ role, type, title, message }) {
+  try {
+    const recipients = await sql`
+      SELECT id
+      FROM public.profiles
+      WHERE role = ${role}
+        AND account_status = 'active'
+        AND registration_status = 'approved'
+    `;
+    await Promise.all(recipients.map(({ id }) => createNotification({
+      userId: id,
+      type,
+      title,
+      message
+    })));
+  } catch (error) {
+    console.error(`Notify ${role}s error:`, error);
+  }
+}
+
 function parseSupportingDocument(value) {
   if (!value) return { document: null, error: null };
   if (typeof value !== 'object' || typeof value.fileName !== 'string' || typeof value.dataUrl !== 'string') {
@@ -462,6 +512,12 @@ router.post('/register', async (req, res) => {
         error: 'Registration profile could not be prepared'
       });
     }
+    await notifyProfiles({
+      role: 'admin',
+      type: 'registration_pending',
+      title: 'New registration awaiting approval',
+      message: `${first_name} ${last_name} submitted a new ${signupRole} registration for review.`
+    });
 
     res.status(202).json({
       success: true,
@@ -575,6 +631,94 @@ res.status(200).json({
 // Absence request endpoints
 // ============================================
 
+router.get('/notifications', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const unreadOnly = String(req.query.unreadOnly || '').toLowerCase() === 'true';
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50;
+    const rows = await sql`
+      SELECT id, type, title, message, is_read, created_at
+      FROM public.notifications
+      WHERE user_id = ${user.id}
+        AND (${unreadOnly} = FALSE OR is_read = FALSE)
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
+
+    res.json({
+      success: true,
+      notifications: rows.map(row => ({
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        message: row.message,
+        isRead: row.is_read,
+        createdAt: row.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('List notifications error:', error);
+    res.status(500).json({ error: 'Could not load notifications' });
+  }
+});
+
+router.get('/notifications/unread-count', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const rows = await sql`
+      SELECT COUNT(*)::int AS unread_count
+      FROM public.notifications
+      WHERE user_id = ${user.id} AND is_read = FALSE
+    `;
+    res.json({ success: true, unreadCount: rows[0]?.unread_count || 0 });
+  } catch (error) {
+    console.error('Unread notification count error:', error);
+    res.status(500).json({ error: 'Could not load unread notification count' });
+  }
+});
+
+router.patch('/notifications/:id/read', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const rows = await sql`
+      UPDATE public.notifications
+      SET is_read = TRUE
+      WHERE id = ${req.params.id} AND user_id = ${user.id}
+      RETURNING id, is_read
+    `;
+    if (!rows.length) return res.status(404).json({ error: 'Notification not found' });
+    res.json({ success: true, notification: rows[0] });
+  } catch (error) {
+    console.error('Mark notification read error:', error);
+    res.status(500).json({ error: 'Could not update notification' });
+  }
+});
+
+router.patch('/notifications/read-all', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const rows = await sql`
+      UPDATE public.notifications
+      SET is_read = TRUE
+      WHERE user_id = ${user.id} AND is_read = FALSE
+      RETURNING id
+    `;
+    res.json({ success: true, updatedCount: rows.length });
+  } catch (error) {
+    console.error('Mark all notifications read error:', error);
+    res.status(500).json({ error: 'Could not update notifications' });
+  }
+});
+
 // POST /api/requests â€” create a new absence request
 router.post('/requests', async (req, res) => {
   try {
@@ -629,6 +773,18 @@ router.post('/requests', async (req, res) => {
       JOIN public.profiles p ON p.id = i.user_id
     `;
     const row = rows[0];
+    await createNotification({
+      userId: user.id,
+      type: 'leave_request_submitted',
+      title: 'Leave request submitted',
+      message: `Your ${row.type} request (${row.id}) has been submitted and is awaiting review.`
+    });
+    await notifyProfiles({
+      role: 'supervisor',
+      type: 'leave_request_pending',
+      title: 'New leave request',
+      message: `${row.first_name || 'A student'} submitted ${row.type} request ${row.id} for review.`
+    });
 
     res.status(201).json({
       id: `REQ-${String(row.id).padStart(3, '0')}`,
@@ -1058,6 +1214,12 @@ router.patch('/requests/:id/status', async (req, res) => {
     if (updated.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
+    await createNotification({
+      userId: updated[0].user_id,
+      type: `leave_request_${String(updated[0].status).toLowerCase()}`,
+      title: `Leave request ${String(updated[0].status).toLowerCase()}`,
+      message: `Your ${updated[0].type} request (${updated[0].id}) has been ${String(updated[0].status).toLowerCase()}.`
+    });
 
     res.json({
       message: 'Status updated',
@@ -1784,6 +1946,12 @@ router.patch('/admin/registration-requests/:id/approve', async (req, res) => {
       });
     }
 
+    await createNotification({
+      userId: rows[0].id,
+      type: 'registration_approved',
+      title: 'Registration approved',
+      message: 'Your registration has been approved. You can now log in.'
+    });
     res.json({
       success: true,
       message: 'Registration approved successfully',
@@ -1830,6 +1998,12 @@ router.patch('/admin/registration-requests/:id/reject', async (req, res) => {
       return res.status(409).json({ error: 'Only pending registrations can be rejected' });
     }
 
+    await createNotification({
+      userId: rows[0].id,
+      type: 'registration_rejected',
+      title: 'Registration rejected',
+      message: `Your registration was rejected: ${rows[0].registration_rejection_reason}`
+    });
     res.json({
       success: true,
       message: 'Registration rejected successfully',
@@ -3680,6 +3854,18 @@ router.post('/shift-swap-requests', async (req, res) => {
       )
       RETURNING *
     `;
+    await createNotification({
+      userId: colleague_user_id,
+      type: 'shift_swap_pending_colleague',
+      title: 'New shift-swap request',
+      message: `A colleague has asked you to accept or decline shift-swap request ${inserted[0].id}.`
+    });
+    await createNotification({
+      userId: user.id,
+      type: 'shift_swap_submitted',
+      title: 'Shift-swap request submitted',
+      message: `Your shift-swap request (${inserted[0].id}) has been sent to your colleague.`
+    });
 
     return res.status(201).json({
       message: 'Shift swap request sent to your colleague.',
@@ -3735,6 +3921,22 @@ router.patch(
       if (updated.length === 0) {
         return res.status(409).json({
           error: 'Request not found, not assigned to you, or already answered.'
+        });
+      }
+      await createNotification({
+        userId: updated[0].requester_user_id,
+        type: `shift_swap_colleague_${decision === 'accept' ? 'accepted' : 'declined'}`,
+        title: decision === 'accept' ? 'Shift swap accepted by colleague' : 'Shift swap declined by colleague',
+        message: decision === 'accept'
+          ? `Your shift swap (${updated[0].id}) is awaiting supervisor approval.`
+          : `Your colleague declined shift-swap request ${updated[0].id}.`
+      });
+      if (decision === 'accept') {
+        await notifyProfiles({
+          role: 'supervisor',
+          type: 'shift_swap_pending_supervisor',
+          title: 'Shift swap awaiting approval',
+          message: `Shift-swap request ${updated[0].id} requires supervisor review.`
         });
       }
 
@@ -3883,6 +4085,22 @@ router.patch(
           error: 'The request is no longer awaiting approval, or a shift assignment has changed.'
         });
       }
+      await createNotification({
+        userId: result.request.requester_user_id,
+        type: `shift_swap_supervisor_${decision === 'approve' ? 'approved' : 'rejected'}`,
+        title: decision === 'approve' ? 'Shift swap approved' : 'Shift swap rejected',
+        message: decision === 'approve'
+          ? `Your shift swap (${result.request.id}) was approved and the assignments were exchanged.`
+          : `Your shift swap (${result.request.id}) was rejected by the supervisor.`
+      });
+      await createNotification({
+        userId: result.request.colleague_user_id,
+        type: `shift_swap_supervisor_${decision === 'approve' ? 'approved' : 'rejected'}`,
+        title: decision === 'approve' ? 'Shift swap approved' : 'Shift swap rejected',
+        message: decision === 'approve'
+          ? `Shift swap ${result.request.id} was approved and the assignments were exchanged.`
+          : `Shift swap ${result.request.id} was rejected by the supervisor.`
+      });
 
       return res.json({
         message: decision === 'approve'
