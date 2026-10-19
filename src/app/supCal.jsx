@@ -27,8 +27,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LogoImg from '@/assets/images/logo.png';
-import APP_BACKGROUND from '@/constants/appBackground';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import APP_BACKGROUND from '@/constants/appBackground';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
 
 console.log('>>> SUPCAL FILE LOADED');
@@ -513,11 +513,19 @@ export default function MasterSchedule() {
         console.warn('Portal shift logs load failed:', e?.message || e);
       }
 
-      try {
+           try {
         const closureRes = await apiFetch('/api/closures');
         if (closureRes.ok) {
           const closureData = await closureRes.json();
-          if (Array.isArray(closureData)) setClosures(closureData);
+          if (Array.isArray(closureData)) {
+            // Normalize the data so the UI always sees `date` and `type`
+            const normalized = closureData.map((c) => ({
+              ...c,
+              date: c.date || c.closure_date,
+              type: c.type || c.closure_type || 'Closure',
+            }));
+            setClosures(normalized);
+          }
         }
       } catch (e) { /* ignore */ }
 
@@ -896,20 +904,22 @@ export default function MasterSchedule() {
     return list.filter((s) => !s.cancelled).length;
   };
 
-  const handleDeclareClosure = async () => {
+    const handleDeclareClosure = async () => {
     if (!closureDate) {
       Alert.alert('Missing date', 'Please pick a date for the closure.');
       return;
     }
     const dateKey = closureDate.replace(/\//g, '-');
     const affectedCount = getAffectedShiftCount(closureDate);
+    
     const newClosure = {
-      id: `closure-${dateKey}-${Date.now()}`,
       date: dateKey,
       type: closureType,
       note: closureNote,
       affectedShifts: affectedCount,
     };
+
+    // 1. Optimistically update the UI so it shows immediately
     setClosures((prev) => {
       const filtered = prev.filter((c) => String(c.date).slice(0, 10) !== dateKey);
       return [...filtered, newClosure];
@@ -924,15 +934,26 @@ export default function MasterSchedule() {
       }`
     );
 
+    // 2. Save to the database
     try {
-      await apiFetch('/api/closures', { method: 'POST', body: JSON.stringify(newClosure) });
+      const res = await apiFetch('/api/closures', {
+        method: 'POST',
+        body: JSON.stringify(newClosure),
+      });
+
+      if (!res.ok) {
+        console.warn('Failed to save closure to server');
+        // Optional: you could revert the state here if the save failed
+      }
     } catch (e) {
       console.warn('Closure POST failed:', e?.message || e);
     }
 
+    // 3. Close the modal
     setClosureModalVisible(false);
     setClosureDropdownOpen(false);
     setClosureNote('');
+    
     if (affectedCount > 0) {
       Alert.alert(
         'Closure declared',
@@ -940,7 +961,7 @@ export default function MasterSchedule() {
       );
     }
   };
-
+  
   const handleCreateShift = () => {
     console.log('>>> CREATE SHIFT HANDLER RAN');
     if (!selectedAssistant) {
