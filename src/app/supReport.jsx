@@ -1,7 +1,9 @@
 // src/app/supReport.jsx
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   SafeAreaView,
   ScrollView,
@@ -17,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LogoImg from '@/assets/images/logo.png';
 import { CountBadge, useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
 import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { exportReportCsv } from '@/lib/reportExport';
 
 // --- Theme Colors ---
 const COLORS = {
@@ -35,7 +38,17 @@ const COLORS = {
   staffCardBorder: '#BFDBFE',
 };
 
+// --- Report period options (shown in the dropdown) ---
+const PERIOD_OPTIONS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'Last 7 Days' },
+  { key: 'month', label: 'This Month' },
+  { key: 'custom', label: 'Custom Range' },
+  { key: 'all', label: 'All Time' },
+];
+
 // --- Mock Data ---
+// Dates are now real ISO strings (YYYY-MM-DD) so we can filter by them.
 const shiftData = [
   {
     id: '1',
@@ -43,7 +56,7 @@ const shiftData = [
     position: 'Library Assistant',
     date: '2026-09-30',
     time: '08:00 AM - 04:00 PM',
-    duration: '4 hours',
+    hours: 4,
   },
 ];
 
@@ -52,30 +65,31 @@ const requestData = [
     id: '1',
     name: 'Nothando Nkosi',
     request: 'Sick Leave',
-    date: 'Oct 5, 2026 – Oct 5, 2026',
+    startDate: '2026-10-05',
+    endDate: '2026-10-05',
     status: 'Rejected',
   },
   {
     id: '2',
     name: 'Peter Thomas',
     request: 'Day-off Request',
-    date: 'Sep 30, 2026 – Sep 30, 2026',
+    startDate: '2026-09-30',
+    endDate: '2026-09-30',
     status: 'Rejected',
   },
 ];
 
 const staffData = [
-  { id: '1', initials: 'SM', name: 'Simphiwe Masanabo', hours: '0.0h', requests: '0', location: 'CIRCULAR 2', days: '0 days' },
-  { id: '2', initials: 'SL', name: 'Segomoto Lencwe', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '3', initials: 'ST', name: 'Shoba Thabiso', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '4', initials: 'MS', name: 'Mawelela Sibusiso', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '5', initials: 'MB', name: 'Mashabela Basetsana', hours: '0.0h', requests: '0', location: 'ICENTER2', days: '0 days' },
-  { id: '6', initials: 'JD', name: 'Jiyane Duduzile', hours: '0.0h', requests: '0', location: 'ICENTER', days: '0 days' },
-  { id: '7', initials: 'PT', name: 'Peter Thomas', hours: '4.0h', requests: '1', location: 'LIBRARY ASSISTANT', days: '1 days' },
-  { id: '8', initials: 'NN', name: 'Nothando Nkosi', hours: '0.0h', requests: '1', location: '—', days: '0 days' },
+  { id: '1', initials: 'SM', name: 'Simphiwe Masanabo', location: 'CIRCULAR 2' },
+  { id: '2', initials: 'SL', name: 'Segomoto Lencwe', location: 'ICENTER' },
+  { id: '3', initials: 'ST', name: 'Shoba Thabiso', location: 'ICENTER' },
+  { id: '4', initials: 'MS', name: 'Mawelela Sibusiso', location: 'ICENTER' },
+  { id: '5', initials: 'MB', name: 'Mashabela Basetsana', location: 'ICENTER2' },
+  { id: '6', initials: 'JD', name: 'Jiyane Duduzile', location: 'ICENTER' },
+  { id: '7', initials: 'PT', name: 'Peter Thomas', location: 'LIBRARY ASSISTANT' },
+  { id: '8', initials: 'NN', name: 'Nothando Nkosi', location: '—' },
 ];
 
-// ✅ UPDATED: Added Profile item
 const NAV_ITEMS = [
   { name: 'Dashboard',   icon: 'grid-outline',          path: '/supervisorDash' },
   { name: 'Calendar',    icon: 'calendar-outline',      path: '/supCal'         },
@@ -84,6 +98,48 @@ const NAV_ITEMS = [
   { name: 'Reports',     icon: 'bar-chart-outline',     path: '/supReport'      },
   { name: 'Profile',     icon: 'person-outline',        path: '/supProfile'     },
 ];
+
+// --- Small helper functions ---
+
+// Turns "2026-09-30" into a real Date object (midnight, local time)
+const toDate = (str) => new Date(`${str}T00:00:00`);
+
+// Checks that text looks like YYYY-MM-DD and is a real date
+const isValidDateText = (str) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(str) && !isNaN(toDate(str).getTime());
+
+// Turns a Date into "30 Sep 2026"
+const formatDate = (d) =>
+  d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+// Works out the start and end date for the chosen period.
+// Returns null for "All Time" (meaning: no date filter).
+const getRange = (period, customStart, customEnd) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (period === 'today') return { start: today, end: today };
+
+  if (period === 'week') {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 6);
+    return { start, end: today };
+  }
+
+  if (period === 'month') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { start, end: today };
+  }
+
+  if (period === 'custom') {
+    return { start: toDate(customStart), end: toDate(customEnd) };
+  }
+
+  return null; // 'all'
+};
+
+// Wraps a value in quotes so commas inside it don't break the CSV
+const csvCell = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
 export default function PerformanceReports() {
   const router = useRouter();
@@ -94,16 +150,124 @@ export default function PerformanceReports() {
   const styles = useSupervisorStyles(baseStyles);
   const { pendingRequestCount, unreadNotificationCount } = useSupervisorBadges();
 
+  // --- State: things that can change on screen ---
+  const [period, setPeriod] = useState('all');       // which period is selected
+  const [menuOpen, setMenuOpen] = useState(false);   // is the dropdown showing?
+  const [search, setSearch] = useState('');          // text in the search box
+  const [customStart, setCustomStart] = useState('2026-09-30');
+  const [customEnd, setCustomEnd] = useState('2026-10-06');
+
+  const customIsValid =
+    isValidDateText(customStart) &&
+    isValidDateText(customEnd) &&
+    toDate(customStart) <= toDate(customEnd);
+
+  // --- Work out what to show (re-runs only when the inputs change) ---
+  const report = useMemo(() => {
+    const range =
+      period === 'custom' && !customIsValid
+        ? null
+        : getRange(period, customStart, customEnd);
+
+    const query = search.trim().toLowerCase();
+    const matchesSearch = (name, extra = '') =>
+      !query || `${name} ${extra}`.toLowerCase().includes(query);
+
+    // Keep only shifts inside the period (and matching the search)
+    const shifts = shiftData.filter((s) => {
+      const d = toDate(s.date);
+      const inRange = !range || (d >= range.start && d <= range.end);
+      return inRange && matchesSearch(s.name, s.position);
+    });
+
+    // Keep requests that overlap the period (and match the search)
+    const requests = requestData.filter((r) => {
+      const inRange =
+        !range || (toDate(r.startDate) <= range.end && toDate(r.endDate) >= range.start);
+      return inRange && matchesSearch(r.name, r.request);
+    });
+
+    // Build the staff cards from the filtered shifts and requests
+    const staff = staffData
+      .filter((p) => matchesSearch(p.name, p.location))
+      .map((p) => {
+        const myShifts = shifts.filter((s) => s.name === p.name);
+        const myRequests = requests.filter((r) => r.name === p.name);
+        return {
+          ...p,
+          hours: myShifts.reduce((sum, s) => sum + s.hours, 0),
+          requests: myRequests.length,
+          days: myShifts.length,
+        };
+      });
+
+    return {
+      range,
+      shifts,
+      requests,
+      staff,
+      totalHours: shifts.reduce((sum, s) => sum + s.hours, 0),
+      assistantsWithRequests: new Set(requests.map((r) => r.name)).size,
+    };
+  }, [period, customStart, customEnd, customIsValid, search]);
+
+  const periodLabel = PERIOD_OPTIONS.find((o) => o.key === period).label;
+
+  const rangeText = report.range
+    ? `${formatDate(report.range.start)} – ${formatDate(report.range.end)}`
+    : 'All time';
+
+  // --- Export CSV ---
+  const handleExport = async () => {
+    const lines = [];
+    lines.push(`Performance Report,${csvCell(rangeText)}`);
+    lines.push('');
+
+    lines.push('SHIFTS');
+    lines.push('Student Assistant,Position,Date,Shift Time,Duration (hours)');
+    report.shifts.forEach((s) =>
+      lines.push([s.name, s.position, s.date, s.time, s.hours].map(csvCell).join(','))
+    );
+    lines.push('');
+
+    lines.push('REQUESTS');
+    lines.push('Student Assistant,Request,Start Date,End Date,Status');
+    report.requests.forEach((r) =>
+      lines.push([r.name, r.request, r.startDate, r.endDate, r.status].map(csvCell).join(','))
+    );
+    lines.push('');
+
+    lines.push('STAFF SUMMARY');
+    lines.push('Name,Location,Hours Worked,Requests');
+    report.staff.forEach((p) =>
+      lines.push([p.name, p.location, p.hours.toFixed(1), p.requests].map(csvCell).join(','))
+    );
+
+    try {
+      await exportReportCsv(lines.join('\n'), 'performance-report.csv');
+    } catch (error) {
+      Alert.alert('Export failed', 'Could not export the report. Please try again.');
+    }
+  };
+
+  // --- Choosing a period from the dropdown ---
+  const handleSelectPeriod = (key) => {
+    setPeriod(key);
+    // Keep the menu open for "Custom Range" so the user can type dates
+    if (key !== 'custom') setMenuOpen(false);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* Background Image with 70% White Overlay */}
       <View style={styles.pageContainer}>
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-          {/* --- NEW HEADER --- */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* --- HEADER --- */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Image source={LogoImg} style={styles.logoImage} resizeMode="contain" />
@@ -115,11 +279,7 @@ export default function PerformanceReports() {
 
             <View style={styles.headerRight}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleTheme}>
-                <Feather
-                  name={isDarkMode ? 'sun' : 'moon'}
-                  size={22}
-                  color={theme.primary}
-                />
+                <Feather name={isDarkMode ? 'sun' : 'moon'} size={22} color={theme.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.iconButton}
@@ -128,11 +288,7 @@ export default function PerformanceReports() {
                 <Ionicons name="notifications-outline" size={22} color={theme.primary} />
                 <CountBadge count={unreadNotificationCount} />
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={() => router.push('/logOut')} 
-              >
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
                 <Ionicons name="log-out-outline" size={22} color={theme.primary} />
               </TouchableOpacity>
             </View>
@@ -142,37 +298,99 @@ export default function PerformanceReports() {
           <View style={styles.titleSection}>
             <Text style={styles.pageTitle}>Performance Reports</Text>
             <Text style={styles.pageSubtitle}>
-              Review and analyze student activity and work efficiency metrics. Use the period filter to generate details for today, the current month, the last 7 days, or a specific date range.
+              Review and analyze student activity and work efficiency metrics. Use the period
+              filter to generate details for today, the current month, the last 7 days, or a
+              specific date range.
             </Text>
 
             <View style={styles.actionButtonsRow}>
-              <TouchableOpacity style={styles.exportButton}>
+              <TouchableOpacity style={styles.exportButton} onPress={handleExport}>
                 <Feather name="download" size={14} color={COLORS.textMain} />
                 <Text style={styles.exportText}>Export CSV</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.generateButton}>
+
+              <TouchableOpacity style={styles.generateButton} onPress={() => setMenuOpen(!menuOpen)}>
                 <Feather name="file-text" size={14} color="#FFF" />
                 <Text style={styles.generateText}>Generate New Report</Text>
-                <Feather name="chevron-down" size={14} color="#FFF" />
+                <Feather name={menuOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#FFF" />
               </TouchableOpacity>
             </View>
+
+            {/* --- DROPDOWN MENU (only shows when menuOpen is true) --- */}
+            {menuOpen && (
+              <View style={styles.menu}>
+                {PERIOD_OPTIONS.map((option) => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.menuItem, period === option.key && styles.menuItemActive]}
+                    onPress={() => handleSelectPeriod(option.key)}
+                  >
+                    <Text
+                      style={[styles.menuItemText, period === option.key && styles.menuItemTextActive]}
+                    >
+                      {option.label}
+                    </Text>
+                    {period === option.key && (
+                      <Feather name="check" size={14} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+
+                {/* Date boxes for Custom Range */}
+                {period === 'custom' && (
+                  <View style={styles.customBox}>
+                    <View style={styles.customRow}>
+                      <TextInput
+                        style={styles.dateInput}
+                        value={customStart}
+                        onChangeText={setCustomStart}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#9CA3AF"
+                        maxLength={10}
+                      />
+                      <Text style={styles.customTo}>to</Text>
+                      <TextInput
+                        style={styles.dateInput}
+                        value={customEnd}
+                        onChangeText={setCustomEnd}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#9CA3AF"
+                        maxLength={10}
+                      />
+                    </View>
+                    {!customIsValid && (
+                      <Text style={styles.errorText}>
+                        Enter valid dates as YYYY-MM-DD (start must be before end).
+                      </Text>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.applyButton, !customIsValid && { opacity: 0.5 }]}
+                      disabled={!customIsValid}
+                      onPress={() => setMenuOpen(false)}
+                    >
+                      <Text style={styles.applyText}>Apply</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {/* --- STATS ROW --- */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>TOTAL HOURS</Text>
-              <Text style={styles.statValue}>4.0h</Text>
+              <Text style={styles.statValue}>{report.totalHours.toFixed(1)}h</Text>
               <Feather name="bar-chart-2" size={14} color={COLORS.primary} style={styles.statIcon} />
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>REQUESTS IN PERIOD</Text>
-              <Text style={styles.statValue}>2</Text>
+              <Text style={styles.statValue}>{report.requests.length}</Text>
               <Feather name="file-text" size={14} color={COLORS.primary} style={styles.statIcon} />
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>ASSISTANTS WITH REQUESTS</Text>
-              <Text style={styles.statValue}>2</Text>
+              <Text style={styles.statValue}>{report.assistantsWithRequests}</Text>
               <Feather name="users" size={14} color={COLORS.primary} style={styles.statIcon} />
             </View>
           </View>
@@ -185,16 +403,24 @@ export default function PerformanceReports() {
                 style={styles.searchInput}
                 placeholder="Filter by student name or role..."
                 placeholderTextColor="#9CA3AF"
+                value={search}
+                onChangeText={setSearch}
               />
             </View>
             <View style={styles.filterActions}>
-              <TouchableOpacity style={[styles.filterButton, { marginRight: 8 }]}>
+              <TouchableOpacity
+                style={[styles.filterButton, { marginRight: 8 }]}
+                onPress={() => {
+                  setSearch('');
+                  setPeriod('all');
+                }}
+              >
                 <Feather name="filter" size={12} color={COLORS.textMain} />
-                <Text style={styles.filterText}>Filters</Text>
+                <Text style={styles.filterText}>Clear</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton}>
+              <TouchableOpacity style={styles.filterButton} onPress={() => setMenuOpen(!menuOpen)}>
                 <Feather name="calendar" size={12} color={COLORS.textMain} />
-                <Text style={styles.filterText}>Last 7 Days</Text>
+                <Text style={styles.filterText}>{periodLabel}</Text>
                 <Feather name="chevron-down" size={12} color={COLORS.textMain} />
               </TouchableOpacity>
             </View>
@@ -203,16 +429,22 @@ export default function PerformanceReports() {
           {/* Date Range Info */}
           <View style={styles.dateRangeContainer}>
             <Text style={styles.dateRangeText}>
-              Report details for: <Text style={styles.dateRangeHighlight}>30 Sep 2026 – 06 Oct 2026</Text>
+              Report details for: <Text style={styles.dateRangeHighlight}>{rangeText}</Text>
             </Text>
           </View>
 
           {/* --- SHIFT DETAILS --- */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Shift details in selected period</Text>
-            <Text style={styles.sectionSubtitle}>Every scheduled shift contributes its duration to the report totals.</Text>
+            <Text style={styles.sectionSubtitle}>
+              Every scheduled shift contributes its duration to the report totals.
+            </Text>
 
-            {shiftData.map((item) => (
+            {report.shifts.length === 0 && (
+              <Text style={styles.emptyText}>No shifts in this period.</Text>
+            )}
+
+            {report.shifts.map((item) => (
               <View key={item.id} style={styles.tableCard}>
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
@@ -232,7 +464,9 @@ export default function PerformanceReports() {
                 </View>
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>DURATION</Text>
-                  <Text style={[styles.tableValue, { fontWeight: 'bold', color: COLORS.darkBlue }]}>{item.duration}</Text>
+                  <Text style={[styles.tableValue, { fontWeight: 'bold', color: COLORS.darkBlue }]}>
+                    {item.hours} hours
+                  </Text>
                 </View>
               </View>
             ))}
@@ -241,9 +475,15 @@ export default function PerformanceReports() {
           {/* --- REQUEST DETAILS --- */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Request details in selected period</Text>
-            <Text style={styles.sectionSubtitle}>These requests match the active date filter and are included in the report period.</Text>
+            <Text style={styles.sectionSubtitle}>
+              These requests match the active date filter and are included in the report period.
+            </Text>
 
-            {requestData.map((item) => (
+            {report.requests.length === 0 && (
+              <Text style={styles.emptyText}>No requests in this period.</Text>
+            )}
+
+            {report.requests.map((item) => (
               <View key={item.id} style={styles.tableCard}>
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>STUDENT ASSISTANT</Text>
@@ -255,12 +495,16 @@ export default function PerformanceReports() {
                 </View>
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>DATE</Text>
-                  <Text style={styles.tableValue}>{item.date}</Text>
+                  <Text style={styles.tableValue}>
+                    {formatDate(toDate(item.startDate))} – {formatDate(toDate(item.endDate))}
+                  </Text>
                 </View>
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>STATUS</Text>
                   <View style={[styles.statusBadge, { backgroundColor: COLORS.rejectedBg }]}>
-                    <Text style={[styles.statusText, { color: COLORS.rejectedText }]}>{item.status}</Text>
+                    <Text style={[styles.statusText, { color: COLORS.rejectedText }]}>
+                      {item.status}
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -269,7 +513,7 @@ export default function PerformanceReports() {
 
           {/* --- STAFF GRID --- */}
           <View style={styles.staffGrid}>
-            {staffData.map((staff) => (
+            {report.staff.map((staff) => (
               <View key={staff.id} style={styles.staffCard}>
                 <View style={styles.staffHeader}>
                   <View style={styles.staffAvatar}>
@@ -282,7 +526,7 @@ export default function PerformanceReports() {
                 <View style={styles.staffStatsRow}>
                   <View>
                     <Text style={styles.staffStatLabel}>HOURS WORKED</Text>
-                    <Text style={styles.staffStatValue}>{staff.hours}</Text>
+                    <Text style={styles.staffStatValue}>{staff.hours.toFixed(1)}h</Text>
                   </View>
                   <View>
                     <Text style={styles.staffStatLabel}>REQUESTS</Text>
@@ -292,23 +536,19 @@ export default function PerformanceReports() {
 
                 <View style={styles.staffFooter}>
                   <Text style={styles.staffLocation}>{staff.location}</Text>
-                  <Text style={styles.staffDays}>{staff.days}</Text>
+                  <Text style={styles.staffDays}>
+                    {staff.days} {staff.days === 1 ? 'day' : 'days'}
+                  </Text>
                 </View>
               </View>
             ))}
           </View>
 
-          {/* Padding for bottom nav */}
           <View style={{ height: 100 }} />
         </ScrollView>
 
         {/* --- BOTTOM NAVIGATION BAR --- */}
-        <View
-          style={[
-            styles.bottomNav,
-            { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 },
-          ]}
-        >
+        <View style={[styles.bottomNav, { paddingBottom: insets.bottom > 0 ? insets.bottom : 20 }]}>
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.path;
 
@@ -327,9 +567,7 @@ export default function PerformanceReports() {
                   />
                   {item.name === 'Requests' && <CountBadge count={pendingRequestCount} />}
                 </View>
-                <Text style={[styles.navText, isActive && styles.navTextActive]}>
-                  {item.name}
-                </Text>
+                <Text style={[styles.navText, isActive && styles.navTextActive]}>{item.name}</Text>
               </TouchableOpacity>
             );
           })}
@@ -345,7 +583,7 @@ const baseStyles = StyleSheet.create({
   pageContainer: { flex: 1, width: '100%', height: '100%' },
   scrollContent: { padding: 16 },
 
-  // --- NEW HEADER STYLES ---
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -363,13 +601,7 @@ const baseStyles = StyleSheet.create({
   logoImage: { width: 40, height: 40, marginRight: 10 },
   headerTextContainer: { justifyContent: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textMain },
-  headerSubtitle: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: 'red',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
+  headerSubtitle: { fontSize: 9, fontWeight: '600', color: 'red', letterSpacing: 1, marginTop: 2 },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { marginLeft: 14 },
 
@@ -389,6 +621,51 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, marginBottom: 8,
   },
   generateText: { fontSize: 12, fontWeight: '600', color: '#FFF', marginHorizontal: 6 },
+
+  // Dropdown menu
+  menu: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  menuItemActive: { backgroundColor: '#EFF6FF' },
+  menuItemText: { fontSize: 13, color: COLORS.textMain },
+  menuItemTextActive: { color: COLORS.primary, fontWeight: 'bold' },
+  customBox: { padding: 12, backgroundColor: '#F8FAFC' },
+  customRow: { flexDirection: 'row', alignItems: 'center' },
+  dateInput: {
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+    color: COLORS.textMain,
+  },
+  customTo: { marginHorizontal: 8, fontSize: 12, color: COLORS.textMuted },
+  errorText: { fontSize: 11, color: COLORS.danger, marginTop: 8 },
+  applyButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 6,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  applyText: { color: '#FFF', fontSize: 12, fontWeight: 'bold' },
 
   // Stats Row
   statsRow: { flexDirection: 'row', marginBottom: 16 },
@@ -435,6 +712,7 @@ const baseStyles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 15, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
   sectionSubtitle: { fontSize: 11, color: COLORS.textMuted, marginBottom: 12, lineHeight: 16 },
+  emptyText: { fontSize: 12, color: COLORS.textMuted, fontStyle: 'italic', paddingVertical: 8 },
 
   // Table Card
   tableCard: {
@@ -467,7 +745,7 @@ const baseStyles = StyleSheet.create({
   staffLocation: { fontSize: 10, color: COLORS.textMuted, marginBottom: 2 },
   staffDays: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain },
 
-  // ✅ UPDATED: Bottom Navigation Bar for 6 items
+  // Bottom Navigation Bar
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -481,42 +759,14 @@ const baseStyles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 2,
-    minWidth: 50,
-    flex: 1,
-  },
-  navIconContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  navItem: { alignItems: 'center', justifyContent: 'center', padding: 2, minWidth: 50, flex: 1 },
+  navIconContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   navBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -8,
-    backgroundColor: COLORS.danger,
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: 'absolute', top: -4, right: -8, backgroundColor: COLORS.danger,
+    borderRadius: 8, minWidth: 16, height: 16, paddingHorizontal: 3,
+    justifyContent: 'center', alignItems: 'center',
   },
-  navBadgeText: {
-    color: '#FFF',
-    fontSize: 9,
-    fontWeight: 'bold',
-  },
-  navText: {
-    fontSize: 9,
-    color: COLORS.textMuted,
-    marginTop: 4,
-  },
-  navTextActive: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
+  navBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
+  navText: { fontSize: 9, color: COLORS.textMuted, marginTop: 4 },
+  navTextActive: { color: COLORS.primary, fontWeight: 'bold' },
 });
