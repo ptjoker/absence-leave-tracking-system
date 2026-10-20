@@ -1,29 +1,29 @@
+import libraryImg from '@/assets/images/library.jpg';
+import logoImg from '@/assets/images/logo.png';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNotifications } from '../../constants/notifications';
 import {
-  LIBRARY_BG,
-  LOGO_IMAGE,
-  NAV_POSITION,
-  ROUTES,
-  SERIF,
-  useStudTheme,
+    LIBRARY_BG,
+    LOGO_IMAGE,
+    NAV_POSITION,
+    ROUTES,
+    SERIF,
+    useStudTheme,
 } from '../../constants/studTheme';
 import { useStudent } from '../../hooks/useStudent';
 import StudentNavBar from './StudentNavBar';
-
-import libraryImg from '@/assets/images/library.jpg';
-import logoImg from '@/assets/images/logo.png';
 
 /* Shared screen frame: top bar (logo, bell, logout, theme toggle),
    page heading, scrolling body and the nav bar. */
@@ -31,6 +31,7 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
   const router = useRouter();
   const { c, mode, toggle } = useStudTheme();
   const { user: USER } = useStudent();
+  const { unreadCount } = useNotifications(); // <-- ADD THIS LINE
   const navBottom = NAV_POSITION === 'bottom';
 
   // Uses LOGO_IMAGE from studTheme.js if it is set, otherwise the project's logo.png.
@@ -97,7 +98,12 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
               onPress={() => router.push(ROUTES.notifications)}
               style={styles.iconBtn}
             >
-              <Ionicons name="notifications-outline" size={26} color={iconColor} />
+              <View style={styles.bellWrap}>
+                <Ionicons name="notifications-outline" size={26} color={iconColor} />
+                {unreadCount > 0 && (
+                  <View style={[styles.badge, { borderColor: c.header }]} />
+                )}
+              </View>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -157,6 +163,17 @@ const styles = StyleSheet.create({
   brandTitle: { fontSize: 20, fontWeight: '800' },
   brandSub: { fontSize: 11, fontWeight: '700', letterSpacing: 1.6, marginTop: 2 },
   topRight: { flexDirection: 'row', alignItems: 'center' },
+    bellWrap: { position: 'relative' },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#e5383b',
+    borderWidth: 1.5,
+  },
   iconBtn: { padding: 8, marginLeft: 6 },
   modeBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
   modeText: { fontSize: 12, fontWeight: '600' },

@@ -1,7 +1,8 @@
+import { SupervisorThemeProvider } from '@/contexts/SupervisorThemeContext';
 import { Slot } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { SupervisorThemeProvider } from '@/contexts/SupervisorThemeContext';
+import { NotificationsProvider } from '../constants/notifications'; // <-- ADD THIS
 import { RequestsProvider } from '../constants/studData';
 
 SplashScreen.preventAutoHideAsync();
@@ -14,7 +15,9 @@ export default function RootLayout() {
   return (
     <SupervisorThemeProvider>
       <RequestsProvider>
-        <Slot />
+        <NotificationsProvider> 
+          <Slot />
+        </NotificationsProvider>
       </RequestsProvider>
     </SupervisorThemeProvider>
   );
