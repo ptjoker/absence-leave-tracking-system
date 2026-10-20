@@ -89,8 +89,10 @@ async function notifyProfiles({ role, type, title, message }) {
       SELECT id
       FROM public.profiles
       WHERE role = ${role}
-        AND account_status = 'active'
-        AND registration_status = 'approved'
+        AND (
+          ${role} = 'admin'
+          OR (account_status = 'active' AND registration_status = 'approved')
+        )
     `;
     await Promise.all(recipients.map(({ id }) => createNotification({
       userId: id,
@@ -636,6 +638,8 @@ router.get('/notifications', async (req, res) => {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
+    res.set('Cache-Control', 'no-store');
+
     const unreadOnly = String(req.query.unreadOnly || '').toLowerCase() === 'true';
     const parsedLimit = Number.parseInt(req.query.limit, 10);
     const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50;
@@ -670,6 +674,8 @@ router.get('/notifications/unread-count', async (req, res) => {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
+    res.set('Cache-Control', 'no-store');
+
     const rows = await sql`
       SELECT COUNT(*)::int AS unread_count
       FROM public.notifications
@@ -694,7 +700,13 @@ router.patch('/notifications/:id/read', async (req, res) => {
       RETURNING id, is_read
     `;
     if (!rows.length) return res.status(404).json({ error: 'Notification not found' });
-    res.json({ success: true, notification: rows[0] });
+    res.json({
+      success: true,
+      notification: {
+        id: rows[0].id,
+        isRead: rows[0].is_read,
+      },
+    });
   } catch (error) {
     console.error('Mark notification read error:', error);
     res.status(500).json({ error: 'Could not update notification' });
@@ -1960,12 +1972,11 @@ router.patch('/admin/registration-requests/:id/approve', async (req, res) => {
       WHERE id = ${req.params.id}
         AND role IN ('student', 'supervisor')
         AND registration_status = 'pending'
-        AND email_verified_at IS NOT NULL
       RETURNING id, first_name, last_name, student_email, role, registration_status, registration_reviewed_at
     `;
     if (rows.length === 0) {
       return res.status(409).json({
-        error: 'Registration must be pending and email-verified before approval'
+        error: 'Only pending registrations can be approved'
       });
     }
 
