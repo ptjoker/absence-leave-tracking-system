@@ -56,7 +56,7 @@ export default function AdminLoginPage() {
     <main className="grid min-h-[100dvh] place-items-center bg-[#f1f3f5] px-5 py-12">
       <section className="w-full max-w-md rounded-2xl border border-[#dce2e8] bg-white p-7 shadow-[0_18px_45px_rgba(30,48,66,.12)] sm:p-9">
         <Link href="/" className="focus-ring inline-flex items-center gap-2 text-sm font-semibold text-[#526171] hover:text-[#1f70d0]">
-          <Grid2X2 size={18} className="text-[#1f70d0]" /> iCenter administration
+          <Grid2X2 size={18} className="text-[#1f70d0]" /> Admin Portal
         </Link>
         <div className="mt-8">
           <p className="text-xs font-bold uppercase tracking-[.14em] text-[#1f70d0]">Administrator access</p>
