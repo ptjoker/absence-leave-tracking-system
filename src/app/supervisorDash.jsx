@@ -516,7 +516,7 @@ export default function SupervisorDashboard() {
     setSelectedRequest(null);
   };
 
-  const submitDecision = async (decision) => {
+    const submitDecision = async (decision) => {
     if (!selectedRequest) return;
 
     const requestId = getRequestId(selectedRequest);
@@ -552,33 +552,24 @@ export default function SupervisorDashboard() {
 
     try {
       if (requestId != null) {
-        let res;
-        try {
-          res = await apiFetch(`/api/requests/${requestId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ status: decision }),
-          });
-        } catch (e) {
-          res = null;
-        }
+        // 1. Send the update to the actual database endpoint
+        const res = await apiFetch(`/api/requests/${requestId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: decision }),
+        });
 
-        if (!res || !res.ok) {
-          try {
-            const action = decision === 'Approved' ? 'approve' : 'reject';
-            res = await apiFetch(`/api/requests/${requestId}/${action}`, {
-              method: 'POST',
-              body: JSON.stringify({ status: decision }),
-            });
-          } catch (e) {
-            res = null;
-          }
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to update request');
         }
       }
     } catch (err) {
-      console.warn(
-        'Request decision sync failed (may not be implemented yet):',
-        err?.message || err
-      );
+      console.error('Request decision sync failed:', err);
+      // Revert the local state if the database failed
+      updateLocal('Pending');
+      Alert.alert('Failed to save', err.message || 'Could not update the request.');
+      return;
     } finally {
       setIsProcessing(false);
       setRequestModalVisible(false);
@@ -593,7 +584,7 @@ export default function SupervisorDashboard() {
       );
     }
   };
-
+  
   // ============================================================
   // ALL LOGS MODAL HANDLERS
   // ============================================================
