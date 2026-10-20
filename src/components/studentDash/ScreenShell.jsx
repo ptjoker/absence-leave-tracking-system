@@ -76,10 +76,10 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
             <Image source={logoSource} style={styles.logo} resizeMode="contain" />
             <View style={{ marginLeft: 12, flexShrink: 1 }}>
               <Text style={[styles.brandTitle, { color: c.text }]} numberOfLines={1}>
-                Student Assistant
+                Library Log 
               </Text>
-              <Text style={[styles.brandSub, { color: c.muted }]} numberOfLines={1}>
-                ABSENCE TRACKER
+              <Text style={[styles.brandSub, { color: c.accentRed }]} numberOfLines={1}>
+                Student Assistant Portal
               </Text>
             </View>
           </View>
@@ -110,9 +110,6 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
           </Pressable>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={[styles.userName, { color: c.text }]}>{USER?.name || 'Loading...'}</Text>
-            <Text style={[styles.userRole, { color: c.muted }]}>
-              {USER?.position || ''}
-            </Text>
           </View>
         </View>
       </View>
@@ -149,7 +146,6 @@ const styles = StyleSheet.create({
   modeBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
   modeText: { fontSize: 12, fontWeight: '600' },
   userName: { fontSize: 12, fontWeight: '700' },
-  userRole: { fontSize: 11 },
   scroll: { padding: 16, paddingBottom: 32 },
   heading: { marginBottom: 14 },
   pill: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginBottom: 8 },
