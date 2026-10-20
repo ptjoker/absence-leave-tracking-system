@@ -392,7 +392,89 @@ router.post('/auth/verify-otp', verifyOtpLimiter, async (req, res) => {
   }
 });
 
+// ============================================
+// Forgot password endpoint
+// ============================================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { userId, email, role } = req.body;
 
+    if (
+      !email ||
+      typeof email !== 'string' ||
+      !['student', 'supervisor'].includes(role)
+    ) {
+      return res.status(400).json({
+        error: 'Please provide valid account details.'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUserId = typeof userId === 'string' ? userId.trim() : '';
+
+    if (role === 'student' && !cleanUserId) {
+      return res.status(400).json({
+        error: 'Student number is required.'
+      });
+    }
+
+    // Verify the account details against the profile.
+    // The current profiles schema does not show a separate staff-number column.
+    const profiles = role === 'student'
+      ? await sql`
+          SELECT id
+          FROM public.profiles
+          WHERE lower(student_email) = ${cleanEmail}
+            AND student_number = ${cleanUserId}
+            AND role = 'student'
+          LIMIT 1
+        `
+      : await sql`
+          SELECT id
+          FROM public.profiles
+          WHERE lower(student_email) = ${cleanEmail}
+            AND role = 'supervisor'
+          LIMIT 1
+        `;
+
+    // Return a generic response if no matching profile exists.
+    // This avoids revealing whether an email is registered.
+    const genericMessage =
+      'If the account details match a registered account, reset instructions will be sent to the email address.';
+
+    if (profiles.length === 0) {
+      return res.json({ success: true, message: genericMessage });
+    }
+
+    const frontendUrl =
+      process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    const { error } =
+      await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: `${frontendUrl}/reset-password`
+      });
+
+    if (error) {
+      console.error('Password reset request failed:', error.message);
+
+      return res.status(500).json({
+        error: 'Unable to send reset instructions right now. Please try again later.'
+      });
+    }
+
+    return res.json({ success: true, message: genericMessage });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+
+    return res.status(500).json({
+      error: 'Something went wrong. Please try again later.'
+    });
+  }
+});
+
+// ============================================
+// Registration
+// ============================================
 
 router.post('/register', async (req, res) => {
   try {
