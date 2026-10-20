@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 /* Example: export const LOGO_IMAGE = require('../../assets/images/logo.png'); */
 /* ------------------------------------------------------------------ */
 export const LOGO_IMAGE = null;
-export const LIBRARY_BG = null;
+export const LIBRARY_BG = require('../../assets/images/library.jpg');
 
 /* Nav bar placement: 'bottom' (as in your nav screenshot) or 'top'. */
 export const NAV_POSITION = 'bottom';
