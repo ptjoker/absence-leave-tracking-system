@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Clock3, FileText, Grid2X2, LogOut, Monitor, RefreshCw, ShieldCheck, Users, UserRound, UserRoundCog } from 'lucide-react';
+import { BarChart3, Clock3, FileText, Grid2X2, LogOut, Megaphone, Monitor, RefreshCw, ShieldCheck, Users, UserRound, UserRoundCog } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { format, subDays } from 'date-fns';
 import { apiFetch } from '@/lib/api';
 import { clearSession, getSession } from '@/lib/session';
 import { PortalBrand, ModeToggle } from '@/components/portal/PortalComponents';
+import { NotificationBell } from '@/components/portal/NotificationBell';
 import AdminRequest from '@/pages/admin/AdminRequest';
 import Analytics from '@/pages/admin/Analytics';
 import UserManagement from '@/pages/admin/UserManagement';
@@ -14,14 +15,6 @@ const navItems = [
   { id: 'user-management', label: 'User Management', icon: Users },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'requests', label: 'Requests', icon: FileText },
-];
-
-const sampleActivity = [
-  { title: 'Leave request approved', detail: 'Sick leave request · Student assistant', user: 'By: Admin (System)', time: '12 mins ago', severity: 'Info' },
-  { title: 'Shift swap requested', detail: 'Shift swap submitted for review', user: 'By: Jiyane Duduzile · Student assistant', time: '45 mins ago', severity: 'Info' },
-  { title: 'Profile updated', detail: 'Contact details changed', user: 'By: Segomotso Lencwe · Student assistant', time: '2 hours ago', severity: 'Low' },
-  { title: 'Leave request submitted', detail: 'Exam leave · Pending review', user: 'By: Mathebula Nicholas · Student assistant', time: '4 hours ago', severity: 'Info' },
-  { title: 'Strike recorded', detail: 'Attendance policy · Review required', user: 'By: Supervisor account', time: '6 hours ago', severity: 'High' },
 ];
 
 function readAdminSession() {
@@ -81,6 +74,13 @@ export default function AdminDashboard() {
   const [session, setSession] = useState(readAdminSession);
   const [overview, setOverview] = useState(null);
   const [accounts, setAccounts] = useState([]);
+  const [supervisorDeclarations, setSupervisorDeclarations] = useState([]);
+  const [declarationsLoading, setDeclarationsLoading] = useState(false);
+  const [declarationsError, setDeclarationsError] = useState('');
+  const [pendingRegistrations, setPendingRegistrations] = useState([]);
+  const [pendingRegistrationsLoading, setPendingRegistrationsLoading] = useState(false);
+  const [pendingRegistrationsError, setPendingRegistrationsError] = useState('');
+  const [registrationBusyId, setRegistrationBusyId] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
   const [analyticsRequests, setAnalyticsRequests] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -140,6 +140,65 @@ export default function AdminDashboard() {
     }
   }, [session]);
 
+  const loadPendingRegistrations = useCallback(async () => {
+    if (!session?.access_token || session.user?.role !== 'admin') return;
+    setPendingRegistrationsLoading(true);
+    setPendingRegistrationsError('');
+    try {
+      const response = await apiFetch('/api/admin/registration-requests?status=pending');
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not load pending registrations (${response.status}).`);
+      setPendingRegistrations(Array.isArray(body.requests) ? body.requests : []);
+    } catch (requestError) {
+      console.error('Load pending registrations error:', requestError);
+      setPendingRegistrationsError(requestError.message || 'Could not load pending registrations.');
+    } finally {
+      setPendingRegistrationsLoading(false);
+    }
+  }, [session]);
+
+  const loadSupervisorDeclarations = useCallback(async () => {
+    if (!session?.access_token || session.user?.role !== 'admin') return;
+    setDeclarationsLoading(true);
+    setDeclarationsError('');
+    try {
+      const response = await apiFetch('/api/closures');
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not load supervisor declarations (${response.status}).`);
+      if (!Array.isArray(body)) throw new Error('The supervisor declarations response was invalid.');
+      setSupervisorDeclarations([...body].sort((a, b) => String(b.declaredAt || b.date).localeCompare(String(a.declaredAt || a.date))));
+    } catch (requestError) {
+      console.error('Load supervisor declarations error:', requestError);
+      setDeclarationsError(requestError.message || 'Could not load supervisor declarations.');
+    } finally {
+      setDeclarationsLoading(false);
+    }
+  }, [session]);
+
+  const reviewRegistration = async (registration, decision, reason = '') => {
+    setRegistrationBusyId(registration.id);
+    setPendingRegistrationsError('');
+    try {
+      const response = await apiFetch(
+        `/api/admin/registration-requests/${encodeURIComponent(registration.id)}/${decision}`,
+        {
+          method: 'PATCH',
+          headers: decision === 'reject' ? { 'Content-Type': 'application/json' } : undefined,
+          body: decision === 'reject' ? JSON.stringify({ reason }) : undefined,
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not ${decision} registration (${response.status}).`);
+      setAccountNotice(`${registration.name}'s registration was ${decision === 'approve' ? 'approved' : 'declined'}.`);
+      await Promise.all([loadPendingRegistrations(), loadDashboard(true)]);
+    } catch (requestError) {
+      console.error(`${decision === 'approve' ? 'Approve' : 'Reject'} registration error:`, requestError);
+      setPendingRegistrationsError(requestError.message || `Could not ${decision} registration.`);
+    } finally {
+      setRegistrationBusyId(null);
+    }
+  };
+
   const loadRequests = useCallback(async (filters) => {
     if (!session?.access_token || session.user?.role !== 'admin') return;
     setRequestsLoading(true);
@@ -189,6 +248,10 @@ export default function AdminDashboard() {
   }, [loadDashboard, session]);
 
   useEffect(() => {
+    if (session?.access_token && session.user?.role === 'admin') loadSupervisorDeclarations();
+  }, [loadSupervisorDeclarations, session]);
+
+  useEffect(() => {
     if (activeSection !== 'requests') return undefined;
     const timer = window.setTimeout(() => {
       loadRequests({
@@ -205,6 +268,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeSection === 'analytics') loadAnalyticsRequests();
   }, [activeSection, loadAnalyticsRequests]);
+
+  useEffect(() => {
+    if (activeSection === 'user-management') loadPendingRegistrations();
+  }, [activeSection, loadPendingRegistrations]);
 
   const filteredAccounts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -404,6 +471,11 @@ export default function AdminDashboard() {
           ))}
         </nav>
         <div className="mt-auto border-t border-[#dce1e5] pt-4">
+          <div className="mb-2">
+            <NotificationBell onNavigate={(notification) => {
+              if (notification.type === 'registration_pending') jumpTo('user-management');
+            }} />
+          </div>
           <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex w-full items-center gap-3 rounded-lg bg-[#1f70d0] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
@@ -411,6 +483,9 @@ export default function AdminDashboard() {
       <div className="lg:pl-60">
         <header className="sticky top-0 z-20 flex min-h-[62px] items-center justify-between gap-4 border-b border-[#e1e5e9] bg-white/95 px-5 backdrop-blur sm:px-8">
           <div className="ml-auto flex items-center gap-3">
+            <div className="lg:hidden"><NotificationBell compact onNavigate={(notification) => {
+              if (notification.type === 'registration_pending') jumpTo('user-management');
+            }} /></div>
             <ModeToggle size="compact" />
             <span className="hidden text-xs text-[#697582] sm:inline">Signed in as <strong className="text-[#344252]">{firstName}</strong></span>
             <button type="button" onClick={() => {
@@ -418,7 +493,10 @@ export default function AdminDashboard() {
               else if (activeSection === 'analytics') {
                 loadDashboard(true);
                 loadAnalyticsRequests();
-              } else loadDashboard(true);
+              } else {
+                loadDashboard(true);
+                loadSupervisorDeclarations();
+              }
             }} disabled={activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing || loading : refreshing || loading} className="focus-ring inline-flex items-center gap-2 rounded-md border border-[#d7dde3] bg-white px-3 py-2 text-xs font-semibold text-[#3f4b58] hover:bg-[#f6f8fa] disabled:opacity-60">
               <RefreshCw size={14} className={(activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing : refreshing) ? 'animate-spin' : ''} />{(activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing : refreshing) ? 'Refreshing…' : 'Refresh data'}
             </button>
@@ -476,28 +554,34 @@ export default function AdminDashboard() {
                 </article>
                 <article className="rounded-xl border border-[#e6eaee] bg-white shadow-[0_2px_8px_rgba(30,48,66,.04)]">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f2] px-5 py-4">
-                    <div><h2 className="text-base font-bold text-[#202a34]">All user activity</h2><p className="mt-1 text-xs text-[#82909d]">Requests, account changes, and administrative actions</p></div>
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#f1f3f5] px-2 py-1 text-[10px] font-bold text-[#687583]"><span className="size-1.5 rounded-full bg-[#9aa5b1]" />Preview</span>
+                    <div><h2 className="text-base font-bold text-[#202a34]">Supervisor declarations</h2><p className="mt-1 text-xs text-[#82909d]">Institutional strikes and library closures</p></div>
+                    <button type="button" onClick={loadSupervisorDeclarations} disabled={declarationsLoading} className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-[#d7dde3] px-2.5 py-1.5 text-[10px] font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:opacity-60" data-testid="button-refresh-declarations">
+                      <RefreshCw size={12} className={declarationsLoading ? 'animate-spin' : ''} />Refresh
+                    </button>
                   </div>
-                  <ol className="divide-y divide-[#f0f2f4] px-5">
-                    {sampleActivity.map(({ title, detail, user, time, severity }) => (
-                      <li key={title + user} className="flex gap-3 py-4">
-                        <span className="mt-1.5 size-2 shrink-0 rounded-sm bg-[#398de3]" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                            <h3 className="text-xs font-bold text-[#344252]">{title}</h3>
-                            <span className="whitespace-nowrap text-[10px] text-[#929daa]">{time}</span>
+                  {declarationsError ? (
+                    <p role="alert" className="px-5 py-6 text-center text-xs font-semibold text-[#b84233]">{declarationsError}</p>
+                  ) : declarationsLoading && !supervisorDeclarations.length ? (
+                    <p className="px-5 py-8 text-center text-xs text-[#82909d]">Loading supervisor declarations…</p>
+                  ) : supervisorDeclarations.length ? (
+                    <ol className="max-h-[420px] divide-y divide-[#f0f2f4] overflow-y-auto px-5">
+                      {supervisorDeclarations.map((declaration) => (
+                        <li key={declaration.date} className="flex gap-3 py-4">
+                          <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-[#fff0ee] text-[#c34d42]"><Megaphone size={15} /></span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <h3 className="text-xs font-bold text-[#344252]">{declaration.type || 'Institutional closure'}</h3>
+                              <span className="whitespace-nowrap text-[10px] text-[#929daa]">{formatDate(declaration.date)}</span>
+                            </div>
+                            <p className="mt-1 text-[11px] leading-5 text-[#687583]">{declaration.note || 'No additional details provided.'}</p>
+                            <p className="mt-1 text-[10px] text-[#82909d]">Declared by a supervisor{declaration.declaredAt ? ` · ${formatLastSeen(declaration.declaredAt)}` : ''}</p>
                           </div>
-                          <p className="mt-1 text-[11px] text-[#687583]">{detail}</p>
-                          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-[10px] text-[#82909d]">{user}</span>
-                            <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${severity === 'High' ? 'bg-[#fff0ee] text-[#c34d42]' : severity === 'Low' ? 'bg-[#f1f3f5] text-[#687583]' : 'bg-[#eef5ff] text-[#1473e6]'}`}>{severity}</span>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                  <div className="border-t border-[#edf0f2] px-5 py-3 text-center text-xs font-semibold text-[#82909d]">Complete activity history requires backend event logging.</div>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="px-5 py-8 text-center text-xs text-[#82909d]">No strikes or library closures have been declared.</p>
+                  )}
                 </article>
               </div>
             </div>
@@ -534,7 +618,13 @@ export default function AdminDashboard() {
             accountForm={accountForm}
             accountError={accountError}
             accountBusy={accountBusy}
+            pendingRegistrations={pendingRegistrations}
+            pendingRegistrationsLoading={pendingRegistrationsLoading}
+            pendingRegistrationsError={pendingRegistrationsError}
+            registrationBusyId={registrationBusyId}
             onRefresh={() => loadDashboard(true)}
+            onRefreshRegistrations={loadPendingRegistrations}
+            onReviewRegistration={reviewRegistration}
             onOpenAccount={openAccountDialog}
             onDeleteAccount={handleDeleteAccount}
             onSaveAccount={handleSaveAccount}

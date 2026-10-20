@@ -719,6 +719,23 @@ router.patch('/notifications/read-all', async (req, res) => {
   }
 });
 
+router.delete('/notifications', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const rows = await sql`
+      DELETE FROM public.notifications
+      WHERE user_id = ${user.id}
+      RETURNING id
+    `;
+    res.json({ success: true, deletedCount: rows.length });
+  } catch (error) {
+    console.error('Clear notifications error:', error);
+    res.status(500).json({ error: 'Could not clear notifications' });
+  }
+});
+
 // POST /api/requests â€” create a new absence request
 router.post('/requests', async (req, res) => {
   try {
@@ -4212,6 +4229,32 @@ router.post('/closures', async (req, res) => {
   } catch (err) {
     console.error('Create closure error:', err);
     res.status(500).json({ error: 'Could not create closure' });
+  }
+});
+
+// DELETE /api/closures/:date — remove a closure declaration (supervisors only)
+router.delete('/closures/:date', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const callerProfile = await sql`
+      SELECT role FROM public.profiles WHERE id = ${user.id}
+    `;
+    if (callerProfile[0]?.role !== 'supervisor') {
+      return res.status(403).json({ error: 'Only supervisors can remove closures' });
+    }
+
+    const rows = await sql`
+      DELETE FROM public.closures
+      WHERE date = ${req.params.date}
+      RETURNING TO_CHAR(date, 'YYYY-MM-DD') AS date
+    `;
+    if (!rows.length) return res.status(404).json({ error: 'Closure not found' });
+    res.json({ success: true, date: rows[0].date });
+  } catch (err) {
+    console.error('Remove closure error:', err);
+    res.status(500).json({ error: 'Could not remove closure' });
   }
 });
 

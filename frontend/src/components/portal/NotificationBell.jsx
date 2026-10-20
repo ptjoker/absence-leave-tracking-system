@@ -50,16 +50,16 @@ export function UnreadDot({ className = '' }) {
 }
 
 /** Sidebar "Notification" button that opens the notification panel. */
-export function NotificationBell({ onNavigate }) {
+export function NotificationBell({ onNavigate, compact = false }) {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications();
+  const { notifications, unreadCount, markRead, markAllRead, clearAll, canClearAll } = useNotifications();
 
   const openNotification = (notification) => {
     if (!notification.read) markRead(notification.id);
     if (notification.link) {
       setOpen(false);
-      onNavigate?.();
+      onNavigate?.(notification);
       setLocation(notification.link);
     }
   };
@@ -69,7 +69,7 @@ export function NotificationBell({ onNavigate }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="focus-ring flex items-center gap-3 rounded-lg bg-[#eef4fb] px-3 py-2.5 text-sm font-semibold text-[#52708b] hover:bg-[#e5eef8]"
+          className={`focus-ring flex items-center rounded-lg bg-[#eef4fb] py-2.5 text-sm font-semibold text-[#52708b] hover:bg-[#e5eef8] ${compact ? 'size-9 justify-center px-0' : 'gap-3 px-3'}`}
           aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
           data-testid="button-notification"
         >
@@ -77,7 +77,7 @@ export function NotificationBell({ onNavigate }) {
             <Bell size={18} />
             {unreadCount > 0 && <UnreadDot className="-right-1 -top-1 !border-[#eef4fb]" />}
           </span>
-          Notification
+          {!compact && 'Notification'}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -146,7 +146,7 @@ export function NotificationBell({ onNavigate }) {
           </ul>
         )}
 
-        {notifications.length > 0 && (
+        {canClearAll && (
           <div className="border-t border-[#e2eaf1] px-4 py-2.5 text-right">
             <button type="button" onClick={clearAll} className="focus-ring rounded px-1 text-xs font-semibold text-[#7890a4] hover:text-[#d05b48]" data-testid="button-clear-notifications">
               Clear all
