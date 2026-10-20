@@ -1212,7 +1212,6 @@ router.get('/admin/requests', async (req, res) => {
 });
 
 // PATCH /api/requests/:id/status — supervisor approves or rejects
-// PATCH /api/requests/:id/status — supervisor approves or rejects
 router.patch('/requests/:id/status', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -1220,6 +1219,7 @@ router.patch('/requests/:id/status', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Verify the caller is a supervisor
     const callerProfile = await sql`
       SELECT role FROM public.profiles WHERE id = ${user.id}
     `;
@@ -1227,10 +1227,11 @@ router.patch('/requests/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Only supervisors can update request status' });
     }
 
-    let { id } = req.params;
-    // If the frontend sends "REQ-001", strip it down to "1" for the database query
-    if (String(id).includes('-')) {
-      id = String(id).split('-').pop();
+    // 🟢 THE FIX: Strip out "REQ-" or any non-numeric characters
+    const rawId = String(req.params.id).replace(/[^0-9]/g, '');
+
+    if (!rawId) {
+      return res.status(400).json({ error: 'Invalid request ID format' });
     }
 
     const { status } = req.body;
@@ -1242,12 +1243,12 @@ router.patch('/requests/:id/status', async (req, res) => {
     const updated = await sql`
       UPDATE public.absence_requests
       SET status = ${status}, reviewed_by = ${user.id}, reviewed_at = NOW()
-      WHERE id = ${id}
+      WHERE id = ${rawId}
       RETURNING *
     `;
 
     if (updated.length === 0) {
-      return res.status(404).json({ error: 'Request not found' });
+      return res.status(404).json({ error: 'Request not found in database' });
     }
 
     res.json({
