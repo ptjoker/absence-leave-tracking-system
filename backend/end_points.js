@@ -555,19 +555,48 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    let { data, error } = await supabaseAdmin.auth.signInWithPassword({
       email: email,
       password: password
     });
 
     if (error) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+      const registrationRows = await sql`
+        SELECT id, registration_status, registration_rejection_reason
+        FROM public.profiles
+        WHERE student_email = ${email}
+        LIMIT 1
+      `;
+      const registration = registrationRows[0];
 
-    if (!data.user?.email_confirmed_at) {
-      return res.status(403).json({
-        error: 'Please verify your email with the OTP before logging in.'
-      });
+      if (registration?.registration_status === 'pending') {
+        return res.status(403).json({
+          error: 'Your registration is awaiting administrator approval.',
+          code: 'REGISTRATION_PENDING'
+        });
+      }
+
+      if (registration?.registration_status === 'rejected') {
+        return res.status(403).json({
+          error: 'Your registration was rejected by an administrator.',
+          code: 'REGISTRATION_REJECTED',
+          reason: registration.registration_rejection_reason || null
+        });
+      }
+
+      if (registration?.registration_status === 'approved') {
+        const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+          registration.id,
+          { email_confirm: true }
+        );
+        if (!authUpdateError) {
+          const retry = await supabaseAdmin.auth.signInWithPassword({ email, password });
+          data = retry.data;
+          error = retry.error;
+        }
+      }
+
+      if (error) return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const profile = await sql`
@@ -580,7 +609,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     if (profile[0].registration_status === 'pending') {
       return res.status(403).json({
-        error: 'Your email is verified, but your registration is awaiting administrator approval.',
+        error: 'Your registration is awaiting administrator approval.',
         code: 'REGISTRATION_PENDING'
       });
     }
@@ -1978,6 +2007,15 @@ router.patch('/admin/registration-requests/:id/approve', async (req, res) => {
       return res.status(409).json({
         error: 'Only pending registrations can be approved'
       });
+    }
+
+    const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+      rows[0].id,
+      { email_confirm: true }
+    );
+    if (authUpdateError) {
+      console.error('Confirm approved registration email error:', authUpdateError);
+      return res.status(500).json({ error: 'Registration was approved, but the account could not be enabled for login' });
     }
 
     await createNotification({
