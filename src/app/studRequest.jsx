@@ -1,35 +1,36 @@
+// src/app/studRequest.jsx (or wherever your student request form lives)
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import {
-    AppButton,
-    Card,
-    DateField,
-    FieldLabel,
-    HelperText,
-    SelectField,
-    SuggestedText,
-    TextArea,
+  AppButton,
+  Card,
+  DateField,
+  FieldLabel,
+  HelperText,
+  SelectField,
+  SuggestedText,
+  TextArea,
 } from '../components/studentDash/ui';
 import {
-    AVAILABLE_ASSISTANTS,
-    LEAVE_CATEGORIES,
-    LEAVE_SUGGESTIONS,
-    SHIFT_OPTIONS,
-    SWAPS,
-    SWAP_SUGGESTIONS,
-    computeLeaveDates,
-    drafts,
-    formatLong,
-    fromKey,
-    isUnavailable,
-    toKey,
-    useRequests,
+  AVAILABLE_ASSISTANTS,
+  LEAVE_CATEGORIES,
+  LEAVE_SUGGESTIONS,
+  SWAPS,
+  SWAP_SUGGESTIONS,
+  computeLeaveDates,
+  drafts,
+  formatLong,
+  fromKey,
+  isUnavailable,
+  toKey,
+  useRequests,
 } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
+import { apiFetch } from '../lib/api';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -170,7 +171,7 @@ function LeaveForm({ onSwitch, editTarget, returnTo }) {
         name: asset.fileName || `attachment-${Date.now()}.jpg`,
         uri: asset.uri,
         mimeType: asset.mimeType || 'image/jpeg',
-        base64: asset.base64, // ← pre-computed by ImagePicker
+        base64: asset.base64,
       });
       setAttached(false);
     } catch (err) {
@@ -372,14 +373,66 @@ function SwapForm({ editTarget, returnTo }) {
   const editing = Boolean(editTarget);
   const loadedFor = useRef(null);
 
+  // 🔥 Directly fetch shifts from the backend API so we know it's exactly what is in the DB
+  const [shifts, setShifts] = useState([]);
+  const [shiftsLoading, setShiftsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/shifts');
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && Array.isArray(data)) {
+            // Filter to only show shifts from today onwards for the swap dropdown
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const futureShifts = data.filter(s => {
+              if (!s.shiftDate) return false;
+              const d = new Date(s.shiftDate + 'T00:00:00');
+              return d >= today;
+            });
+            setShifts(futureShifts);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load shifts for swap:', err);
+      } finally {
+        if (!cancelled) setShiftsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const dynamicShiftOptions = useMemo(() => {
+    return shifts.map((s) => {
+      const dateObj = fromKey(s.shiftDate);
+      return {
+        value: s.shiftDate,
+        label: `${formatLong(dateObj)} · ${s.startTime} - ${s.endTime}`,
+      };
+    });
+  }, [shifts]);
+
   const saved = editing ? {} : (drafts.swap || {});
-  const [currentOptions, setCurrentOptions] = useState(SHIFT_OPTIONS);
+  const [currentOptions, setCurrentOptions] = useState([]);
   const [assistants, setAssistants] = useState(AVAILABLE_ASSISTANTS);
-  const [currentKey, setCurrentKey] = useState(saved.currentKey || SHIFT_OPTIONS[0].value);
+  const [currentKey, setCurrentKey] = useState(saved.currentKey || '');
   const [newKey, setNewKey] = useState(saved.newKey || '');
   const [assistant, setAssistant] = useState(saved.assistant || '');
   const [reason, setReason] = useState(saved.reason || '');
   const [submitting, setSubmitting] = useState(false);
+
+  // Sync options when shifts load
+  useEffect(() => {
+    if (!editing) {
+      setCurrentOptions(dynamicShiftOptions);
+      if (!currentKey && dynamicShiftOptions.length > 0) {
+        setCurrentKey(dynamicShiftOptions[0].value);
+      }
+    }
+  }, [dynamicShiftOptions, editing, currentKey]);
 
   useEffect(() => {
     if (!editTarget || loadedFor.current === editTarget.rawId) return;
@@ -392,10 +445,10 @@ function SwapForm({ editTarget, returnTo }) {
     if (fromDate) {
       const key = toKey(fromDate);
       setCurrentKey(key);
-      if (!SHIFT_OPTIONS.some((o) => o.value === key)) {
+      if (!dynamicShiftOptions.some((o) => o.value === key)) {
         setCurrentOptions([
           { value: key, label: `${formatLong(fromDate)} · (original shift)` },
-          ...SHIFT_OPTIONS,
+          ...dynamicShiftOptions,
         ]);
       }
     }
@@ -411,7 +464,7 @@ function SwapForm({ editTarget, returnTo }) {
     }
 
     setReason(editTarget.reason || '');
-  }, [editTarget]);
+  }, [editTarget, dynamicShiftOptions]);
 
   useEffect(() => {
     if (editing) return;
@@ -517,16 +570,29 @@ function SwapForm({ editTarget, returnTo }) {
         </View>
 
         <Text style={[styles.step, { color: c.text }]}>1. SELECT YOUR CURRENT SHIFT</Text>
-        <SelectField
-          label="Current shift"
-          icon="time-outline"
-          value={currentKey}
-          options={currentOptions}
-          onChange={(v) => {
-            setCurrentKey(v);
-            if (newKey === v) setNewKey('');
-          }}
-        />
+        
+        {shiftsLoading ? (
+          <View style={{ paddingVertical: 10, marginBottom: 16 }}>
+            <ActivityIndicator color={c.primary} size="small" />
+          </View>
+        ) : currentOptions.length === 0 ? (
+          <View style={[styles.dashed, { borderColor: c.border, backgroundColor: c.panel, marginBottom: 16 }]}>
+             <Text style={{ color: c.danger, fontSize: 13, fontWeight: '600' }}>
+               You don't have any upcoming shifts available to swap.
+             </Text>
+          </View>
+        ) : (
+          <SelectField
+            label="Current shift"
+            icon="time-outline"
+            value={currentKey}
+            options={currentOptions}
+            onChange={(v) => {
+              setCurrentKey(v);
+              if (newKey === v) setNewKey('');
+            }}
+          />
+        )}
 
         <Text style={[styles.step, { color: c.text }]}>2. NEW SHIFT DATE</Text>
         <DateField
