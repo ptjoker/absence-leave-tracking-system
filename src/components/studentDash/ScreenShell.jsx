@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  LIBRARY_BG,
   LOGO_IMAGE,
   NAV_POSITION,
   ROUTES,
@@ -21,6 +22,7 @@ import {
 import { useStudent } from '../../hooks/useStudent';
 import StudentNavBar from './StudentNavBar';
 
+import libraryImg from '@/assets/images/library.jpg';
 import logoImg from '@/assets/images/logo.png';
 
 /* Shared screen frame: top bar (logo, bell, logout, theme toggle),
@@ -33,8 +35,13 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
 
   // Uses LOGO_IMAGE from studTheme.js if it is set, otherwise the project's logo.png.
   const logoSource = LOGO_IMAGE || logoImg;
+  // Uses LIBRARY_BG from studTheme.js if it is set, otherwise the project's library.jpg.
+  const bgSource = LIBRARY_BG || libraryImg;
   // Navy icons in light mode (as in the reference header), readable text colour in dark mode.
   const iconColor = mode === 'dark' ? c.text : '#1e3a8a';
+
+  // Subtle blur: blurRadius on mobile, CSS filter on web (react-native-web ignores blurRadius).
+  const webBlur = Platform.OS === 'web' ? { filter: 'blur(2px)', transform: [{ scale: 1.03 }] } : null;
 
   // Logout icon: opens the existing logOut screen (src/app/logOut.jsx -> route "/logOut").
   const logout = () => {
@@ -122,7 +129,13 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.flex}>
-          <View style={[styles.flex, { backgroundColor: c.bgFallback }]}>
+          <View style={[styles.flex, styles.bgWrap, { backgroundColor: c.bgFallback }]}>
+            <Image
+              source={bgSource}
+              resizeMode="cover"
+              blurRadius={2}
+              style={[StyleSheet.absoluteFill, styles.bgImage, webBlur]}
+            />
             {body}
           </View>
         </View>
@@ -135,6 +148,8 @@ export default function ScreenShell({ active, pill, title, subtitle, back, heade
 const styles = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
+  bgWrap: { overflow: 'hidden' },
+  bgImage: { width: '100%', height: '100%', opacity: 1 },
   topBar: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   brand: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
