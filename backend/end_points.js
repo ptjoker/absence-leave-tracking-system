@@ -1182,6 +1182,7 @@ router.get('/admin/requests', async (req, res) => {
   }
 });
 
+// PATCH /api/requests/:id/status — supervisor approves or rejects
 router.patch('/requests/:id/status', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -1200,6 +1201,7 @@ router.patch('/requests/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
+    // The frontend sends 'Approved', 'Rejected', or 'Pending'
     if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
@@ -1214,12 +1216,6 @@ router.patch('/requests/:id/status', async (req, res) => {
     if (updated.length === 0) {
       return res.status(404).json({ error: 'Request not found' });
     }
-    await createNotification({
-      userId: updated[0].user_id,
-      type: `leave_request_${String(updated[0].status).toLowerCase()}`,
-      title: `Leave request ${String(updated[0].status).toLowerCase()}`,
-      message: `Your ${updated[0].type} request (${updated[0].id}) has been ${String(updated[0].status).toLowerCase()}.`
-    });
 
     res.json({
       message: 'Status updated',
