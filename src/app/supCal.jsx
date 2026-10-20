@@ -511,7 +511,7 @@ export default function MasterSchedule() {
         console.warn('Portal shift logs load failed:', e?.message || e);
       }
 
-           try {
+      try {
         const closureRes = await apiFetch('/api/closures');
         if (closureRes.ok) {
           const closureData = await closureRes.json();
@@ -576,7 +576,8 @@ export default function MasterSchedule() {
       if (!shift.shiftDate) return;
       const dateKey = String(shift.shiftDate).slice(0, 10);
       if (!byDate[dateKey]) byDate[dateKey] = [];
-      const shiftColor = colorForUser(shift.userId);
+      // All shifts use a single blue indicator regardless of assistant
+      const shiftColor = COLORS.primary;
       const startTime = shift.startTime || shift.start_time || null;
       const endTime = shift.endTime || shift.end_time || null;
       const closureOnDay = closuresByDate[dateKey];
@@ -902,14 +903,14 @@ export default function MasterSchedule() {
     return list.filter((s) => !s.cancelled).length;
   };
 
-    const handleDeclareClosure = async () => {
+  const handleDeclareClosure = async () => {
     if (!closureDate) {
       Alert.alert('Missing date', 'Please pick a date for the closure.');
       return;
     }
     const dateKey = closureDate.replace(/\//g, '-');
     const affectedCount = getAffectedShiftCount(closureDate);
-    
+
     const newClosure = {
       date: dateKey,
       type: closureType,
@@ -951,7 +952,7 @@ export default function MasterSchedule() {
     setClosureModalVisible(false);
     setClosureDropdownOpen(false);
     setClosureNote('');
-    
+
     if (affectedCount > 0) {
       Alert.alert(
         'Closure declared',
@@ -959,7 +960,7 @@ export default function MasterSchedule() {
       );
     }
   };
-  
+
   const handleCreateShift = () => {
     console.log('>>> CREATE SHIFT HANDLER RAN');
     if (!selectedAssistant) {
@@ -1315,50 +1316,24 @@ export default function MasterSchedule() {
                           {String(closure.type || 'Closure').toUpperCase()}
                         </Text>
                       )}
-                      <View style={styles.eventsStack}>
-                        {item.current && visibleEvents.map((event, idx) => {
-                          const cancelled = !!event.cancelled;
-                          return (
+                      {item.current && visibleEvents.length > 0 && (
+                        <View style={styles.shiftDotsRow}>
+                          {visibleEvents.map((event, idx) => (
                             <View
                               key={event.id || idx}
                               style={[
-                                styles.eventTag,
-                                cancelled
-                                  ? styles.eventTagCancelled
-                                  : { backgroundColor: event.color, borderColor: event.color },
+                                styles.shiftDot,
+                                event.cancelled && styles.shiftDotCancelled,
                                 { opacity: isPast ? 0.55 : 1 },
                               ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.eventText,
-                                  cancelled
-                                    ? styles.eventTextCancelled
-                                    : { color: event.textColor },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {event.title}
-                              </Text>
-                              {cancelled ? (
-                                <Text style={[styles.eventTimeText, styles.eventCancelledLabel]} numberOfLines={1}>
-                                  CANCELLED
-                                </Text>
-                              ) : (
-                                !!event.time && (
-                                  <Text style={[styles.eventTimeText, { color: event.textColor }]} numberOfLines={1}>
-                                    {event.time}
-                                  </Text>
-                                )
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                      {item.current && dayEvents.length > visibleEvents.length && (
-                        <Text style={styles.moreEventsText}>
-                          +{dayEvents.length - visibleEvents.length} more
-                        </Text>
+                            />
+                          ))}
+                          {dayEvents.length > visibleEvents.length && (
+                            <Text style={styles.moreEventsText}>
+                              +{dayEvents.length - visibleEvents.length}
+                            </Text>
+                          )}
+                        </View>
                       )}
                     </TouchableOpacity>
                   );
@@ -1367,26 +1342,19 @@ export default function MasterSchedule() {
             </View>
 
             <View style={styles.legendContainer}>
-              <Text style={styles.legendTitle}>LEGEND — ASSISTANT COLOURS</Text>
+              <Text style={styles.legendTitle}>LEGEND</Text>
               <View style={styles.legendRow}>
-                {assistants.slice(0, 6).map((assistant) => (
-                  <View key={assistant.id} style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: colorForUser(assistant.id) }]} />
-                    <Text style={styles.legendText}>
-                      {assistant.name || assistant.first_name || 'Assistant'}
-                    </Text>
-                  </View>
-                ))}
-                {assistants.length === 0 && (
-                  <Text style={styles.legendText}>No assistants yet</Text>
-                )}
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
+                  <Text style={styles.legendText}>Blue dot — shifts scheduled</Text>
+                </View>
               </View>
               <View style={styles.legendDescRow}>
                 <Text style={styles.legendDesc}><Text style={{ color: '#10B981' }}>■</Text> Green box - Holiday (locked)</Text>
                 <Text style={styles.legendDesc}><Text style={{ color: '#9CA3AF' }}>■</Text> Grey box - Sunday (locked)</Text>
                 <Text style={styles.legendDesc}><Text style={{ color: '#E5E7EB' }}>■</Text> Light grey - Past day (locked)</Text>
                 <Text style={styles.legendDesc}><Text style={{ color: '#EF4444' }}>■</Text> Red box - Closure (no new shifts)</Text>
-                <Text style={styles.legendDesc}><Text style={{ color: '#B91C1C' }}>▨</Text> Cancelled shift</Text>
+                <Text style={styles.legendDesc}><Text style={{ color: '#B91C1C' }}>●</Text> Red dot - Cancelled shift</Text>
               </View>
             </View>
           </View>
@@ -1486,12 +1454,12 @@ export default function MasterSchedule() {
                 <Feather name="shield" size={16} color={COLORS.success} />
                 <Text style={styles.panelTitle}>Scheduling Tips</Text>
               </View>
-              <Text style={styles.tipText}>• Every assistant has a unique colour used on all their shifts.</Text>
-              <Text style={styles.tipText}>• Days show up to {MAX_VISIBLE_EVENTS} shifts before collapsing.</Text>
+              <Text style={styles.tipText}>• Blue dots on the calendar mean one or more shifts are scheduled that day.</Text>
+              <Text style={styles.tipText}>• Days show up to {MAX_VISIBLE_EVENTS} shift dots before collapsing.</Text>
               <Text style={styles.tipText}>• Past days, Sundays, and holidays are locked for scheduling.</Text>
               <Text style={styles.tipText}>• Shifts Mon–Thu: 08:00–21:00 · Fri: 08:00–16:00 · Sat: 09:00–17:00.</Text>
               <Text style={styles.tipText}>• Closure days (red) block new shifts automatically.</Text>
-              <Text style={styles.tipText}>• Shifts on a closure day are marked CANCELLED.</Text>
+              <Text style={styles.tipText}>• Shifts on a closure day are shown as red dots and marked CANCELLED.</Text>
               <Text style={styles.tipText}>• Start/End times come from the student portal. If a scheduled window elapses with no clock-in, the shift is marked Absent.</Text>
               <Text style={styles.tipText}>• In Shift logs, use Prev / Next to page through the full list.</Text>
             </View>
@@ -2607,13 +2575,23 @@ const baseStyles = StyleSheet.create({
     fontSize: 6, color: '#B91C1C', fontWeight: 'bold',
     marginTop: 1, textAlign: 'center',
   },
-  eventsStack: { width: '100%', marginTop: 3, gap: 2 },
-  eventTag: { width: '100%', paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, borderWidth: 1 },
-  eventTagCancelled: { backgroundColor: '#FFFFFF', borderColor: '#B91C1C', borderStyle: 'dashed' },
-  eventText: { fontSize: 7, fontWeight: '800', letterSpacing: 0.2 },
-  eventTextCancelled: { color: '#B91C1C', textDecorationLine: 'line-through' },
-  eventTimeText: { fontSize: 6, fontWeight: '600', opacity: 0.9, marginTop: 1 },
-  eventCancelledLabel: { color: '#B91C1C', fontWeight: 'bold', opacity: 1, letterSpacing: 0.4 },
+  shiftDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 2,
+    marginTop: 4,
+  },
+  shiftDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+  },
+  shiftDotCancelled: {
+    backgroundColor: '#B91C1C',
+  },
   moreEventsText: { fontSize: 6, color: COLORS.textMuted, marginTop: 2, fontWeight: 'bold' },
   legendContainer: { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
   legendTitle: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 8, letterSpacing: 0.5 },
@@ -3085,7 +3063,7 @@ const baseStyles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
     flexShrink: 1,
   },
@@ -3113,7 +3091,7 @@ const baseStyles = StyleSheet.create({
   timetableTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.textMain, marginBottom: 4 },
   timetableSubtitle: { fontSize: 14, color: COLORS.textMain, lineHeight: 20 },
   timetableCloseButton: { padding: 6, borderRadius: 6, backgroundColor: '#F3F4F6', marginLeft: 10 },
-   searchBarContainer: {
+  searchBarContainer: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF',
     borderWidth: 1, borderColor: COLORS.border, borderRadius: 8,
     paddingHorizontal: 12, marginBottom: 12,
