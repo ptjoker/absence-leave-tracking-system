@@ -257,6 +257,14 @@ export default function PerformanceReports() {
     if (key !== 'custom') setMenuOpen(false);
   };
 
+  const handleToggleReportMenu = () => setMenuOpen((open) => !open);
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setPeriod('all');
+    setMenuOpen(false);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -309,7 +317,7 @@ export default function PerformanceReports() {
                 <Text style={styles.exportText}>Export CSV</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.generateButton} onPress={() => setMenuOpen(!menuOpen)}>
+              <TouchableOpacity style={styles.generateButton} onPress={handleToggleReportMenu}>
                 <Feather name="file-text" size={14} color="#FFF" />
                 <Text style={styles.generateText}>Generate New Report</Text>
                 <Feather name={menuOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#FFF" />
@@ -410,18 +418,15 @@ export default function PerformanceReports() {
             <View style={styles.filterActions}>
               <TouchableOpacity
                 style={[styles.filterButton, { marginRight: 8 }]}
-                onPress={() => {
-                  setSearch('');
-                  setPeriod('all');
-                }}
+                onPress={handleClearFilters}
               >
                 <Feather name="filter" size={12} color={COLORS.textMain} />
                 <Text style={styles.filterText}>Clear</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.filterButton} onPress={() => setMenuOpen(!menuOpen)}>
+              <TouchableOpacity style={styles.filterButton} onPress={handleToggleReportMenu}>
                 <Feather name="calendar" size={12} color={COLORS.textMain} />
                 <Text style={styles.filterText}>{periodLabel}</Text>
-                <Feather name="chevron-down" size={12} color={COLORS.textMain} />
+                <Feather name={menuOpen ? 'chevron-up' : 'chevron-down'} size={12} color={COLORS.textMain} />
               </TouchableOpacity>
             </View>
           </View>
