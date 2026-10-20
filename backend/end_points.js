@@ -1183,6 +1183,7 @@ router.get('/admin/requests', async (req, res) => {
 });
 
 // PATCH /api/requests/:id/status — supervisor approves or rejects
+// PATCH /api/requests/:id/status — supervisor approves or rejects
 router.patch('/requests/:id/status', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -1190,7 +1191,6 @@ router.patch('/requests/:id/status', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Verify the caller is a supervisor
     const callerProfile = await sql`
       SELECT role FROM public.profiles WHERE id = ${user.id}
     `;
@@ -1198,10 +1198,14 @@ router.patch('/requests/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Only supervisors can update request status' });
     }
 
-    const { id } = req.params;
+    let { id } = req.params;
+    // If the frontend sends "REQ-001", strip it down to "1" for the database query
+    if (String(id).includes('-')) {
+      id = String(id).split('-').pop();
+    }
+
     const { status } = req.body;
 
-    // The frontend sends 'Approved', 'Rejected', or 'Pending'
     if (!['Approved', 'Rejected', 'Pending'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
