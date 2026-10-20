@@ -21,7 +21,7 @@ export function PortalBrand({ supervisor = false }) {
       <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-9 rounded-lg object-contain shadow-sm" />
       <span className="leading-none">
         <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">Library Log</strong>
-        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#c8102e]">ABSENCE AND LEAVE TRACKER</span>
+        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#c8102e]">{supervisor ? 'SUPERVISOR PORTAL' : 'STUDENT PORTAL'}</span>
       </span>
     </Link>
   );
