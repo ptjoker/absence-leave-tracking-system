@@ -1,0 +1,625 @@
+// src/app/supNotif.jsx
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import logoImg from '@/assets/images/logo.png';
+import { useSupervisorBadges } from '@/components/supervisor/SupervisorBadges';
+import { useSupervisorStyles, useSupervisorTheme } from '@/contexts/SupervisorThemeContext';
+import { apiFetch } from '@/lib/api';
+
+// Where we save which notifications were read / deleted on the phone
+const STORAGE_KEY = 'supNotif:state';
+
+// How long the "Undo" bar stays on screen (in milliseconds)
+const UNDO_TIME = 5000;
+
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso);
+    return d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return String(iso);
+  }
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-ZA', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return '';
+  }
+}
+
+/* Card shows: name + date + time. Unread = bold + blue dot. Trash icon deletes it. */
+const NotificationCard = ({ item, unread, onPress, onDelete, styles, theme }) => (
+  <TouchableOpacity
+    style={[styles.card, unread && styles.cardUnread]}
+    onPress={() => onPress(item)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.cardRow}>
+      <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
+        <Text style={styles.avatarText}>{item.initials}</Text>
+      </View>
+
+      <View style={styles.cardInfo}>
+        <Text
+          style={[styles.studentName, unread && styles.studentNameUnread]}
+          numberOfLines={1}
+        >
+          {item.name}
+        </Text>
+
+        <View style={styles.metaRow}>
+          <Ionicons
+            name="calendar-outline"
+            size={14}
+            color={theme.textMuted}
+            style={styles.metaIcon}
+          />
+          <Text style={[styles.dateText, unread && styles.dateTextUnread]}>{item.date}</Text>
+
+          {!!item.time && (
+            <>
+              <Text style={styles.metaSeparator}>•</Text>
+              <Ionicons
+                name="time-outline"
+                size={14}
+                color={theme.textMuted}
+                style={styles.metaIcon}
+              />
+              <Text style={[styles.dateText, unread && styles.dateTextUnread]}>{item.time}</Text>
+            </>
+          )}
+        </View>
+      </View>
+
+      {unread && <View style={styles.unreadDot} />}
+
+      <TouchableOpacity
+        style={styles.deleteIconBtn}
+        onPress={() => onDelete(item.id)}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+);
+
+export default function SupervisorNotifications() {
+  const router = useRouter();
+  const { isDarkMode, theme } = useSupervisorTheme();
+  const styles = useSupervisorStyles(baseStyles);
+
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  // --- NEW: remembers which notifications were read and which were deleted ---
+  const [readIds, setReadIds] = useState([]);
+  const [deletedIds, setDeletedIds] = useState([]);
+  const [storageLoaded, setStorageLoaded] = useState(false);
+
+  // --- NEW: the ids shown in the "Undo" bar (the ones deleted most recently) ---
+  const [undoIds, setUndoIds] = useState([]);
+  const undoTimer = useRef(null);
+
+  useSupervisorBadges({
+    markNotificationsRead: true,
+    readNotificationIds: notifications.map((notification) => notification.id),
+  });
+
+  // Load saved read/deleted lists when the screen opens
+  useEffect(() => {
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((saved) => {
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setReadIds(parsed.read || []);
+          setDeletedIds(parsed.deleted || []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setStorageLoaded(true));
+
+    // Stop the undo timer if we leave the screen
+    return () => {
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+    };
+  }, []);
+
+  // Save the lists every time they change (only after the first load is finished)
+  useEffect(() => {
+    if (!storageLoaded) return;
+    AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ read: readIds, deleted: deletedIds })
+    ).catch(() => {});
+  }, [readIds, deletedIds, storageLoaded]);
+
+  const loadNotifications = async () => {
+    try {
+      const res = await apiFetch('/api/requests');
+      const data = await res.json();
+
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Could not load notifications.');
+        return;
+      }
+
+      const formatted = data
+        .slice()
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 20)
+        .map((r) => ({
+          id: String(r.rawId || r.id),
+          name: r.name || 'Unknown',
+          initials: r.initials || '?',
+          avatarColor: '#A78BFA',
+          reason: r.reason || r.detail || 'No details provided.',
+          date: formatDate(r.createdAt) || r.dateRange || 'Recently',
+          time: formatTime(r.createdAt),
+        }));
+
+      setNotifications(formatted);
+    } catch (err) {
+      console.error('Load notifications error:', err);
+      Alert.alert('Connection error', 'Could not reach the server.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadNotifications();
+  };
+
+  const handleBackPress = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/supervisorDash');
+  };
+
+  // --- Tapping a notification: mark it as read, then open it ---
+  const handleNotificationPress = (notification) => {
+    setReadIds((prev) => (prev.includes(notification.id) ? prev : [...prev, notification.id]));
+    setSelectedNotification(notification);
+    setIsModalVisible(true);
+  };
+
+  const closeModal = () => setIsModalVisible(false);
+
+  // --- Delete: hide it and show the Undo bar ---
+  const handleDelete = (id) => {
+    setDeletedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+
+    // Add to the undo list and restart the 5 second timer
+    setUndoIds((prev) => [...prev, id]);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => setUndoIds([]), UNDO_TIME);
+  };
+
+  // Delete button inside the opened notification
+  const handleDeleteFromModal = () => {
+    if (selectedNotification) handleDelete(selectedNotification.id);
+    closeModal();
+  };
+
+  // --- Undo: bring back everything deleted most recently ---
+  const handleUndo = () => {
+    setDeletedIds((prev) => prev.filter((id) => !undoIds.includes(id)));
+    setUndoIds([]);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  };
+
+  // Only show notifications that were not deleted
+  const visibleNotifications = notifications.filter((n) => !deletedIds.includes(n.id));
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <View style={[styles.pageFrame, { backgroundColor: theme.bg }]}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+              <Ionicons name="chevron-back-outline" size={24} color={theme.textMain} />
+            </TouchableOpacity>
+            <Image source={logoImg} style={styles.iconContainerLogo} resizeMode="contain" />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>Notifications</Text>
+              <Text style={styles.headerSubtitle}>STUDENT ASSISTANCE</Text>
+            </View>
+          </View>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.iconButton}>
+              <Ionicons name="search-outline" size={22} color={theme.darkBlue} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
+              <Ionicons name="log-out-outline" size={22} color={theme.darkBlue} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          {loading && <Text style={styles.emptyText}>Loading notifications…</Text>}
+
+          {!loading && visibleNotifications.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="notifications-off-outline" size={60} color="#CBD5E0" />
+              <Text style={styles.emptyText}>No notifications</Text>
+            </View>
+          )}
+
+          {!loading &&
+            visibleNotifications.map((item) => (
+              <NotificationCard
+                key={item.id}
+                item={item}
+                unread={!readIds.includes(item.id)}
+                onPress={handleNotificationPress}
+                onDelete={handleDelete}
+                styles={styles}
+                theme={theme}
+              />
+            ))}
+        </ScrollView>
+
+        {/* --- UNDO BAR (shows for 5 seconds after deleting) --- */}
+        {undoIds.length > 0 && (
+          <View style={styles.undoBar}>
+            <Text style={styles.undoText}>
+              {undoIds.length === 1
+                ? 'Notification deleted'
+                : `${undoIds.length} notifications deleted`}
+            </Text>
+            <TouchableOpacity onPress={handleUndo} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.undoButtonText}>UNDO</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.footerNote}>
+          <Ionicons
+            name="information-circle-outline"
+            size={16}
+            color={theme.textMuted}
+            style={{ marginRight: 8, marginTop: 2 }}
+          />
+          <Text style={styles.footerNoteText}>
+            Notifications include student requests, submitted reports, and academic calendar updates.
+          </Text>
+        </View>
+      </View>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={closeModal}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closeModal}>
+          <TouchableOpacity
+            style={styles.modalContent}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {selectedNotification && (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHeaderLeft}>
+                    <View
+                      style={[
+                        styles.modalAvatar,
+                        { backgroundColor: selectedNotification.avatarColor },
+                      ]}
+                    >
+                      <Text style={styles.modalAvatarText}>
+                        {selectedNotification.initials}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.modalSender} numberOfLines={1}>
+                        {selectedNotification.name}
+                      </Text>
+                      <View style={styles.modalMetaRow}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={13}
+                          color={theme.textMuted}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.modalDate}>{selectedNotification.date}</Text>
+                        {!!selectedNotification.time && (
+                          <>
+                            <Text style={styles.metaSeparator}>•</Text>
+                            <Ionicons
+                              name="time-outline"
+                              size={13}
+                              color={theme.textMuted}
+                              style={{ marginRight: 4 }}
+                            />
+                            <Text style={styles.modalDate}>{selectedNotification.time}</Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={closeModal}>
+                    <Ionicons name="close-circle" size={28} color={theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.divider} />
+
+                <Text style={styles.sectionLabel}>NOTIFICATION</Text>
+
+                <ScrollView style={styles.messageScroll} showsVerticalScrollIndicator={false}>
+                  <Text style={styles.modalMessage}>{selectedNotification.reason}</Text>
+                </ScrollView>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity style={styles.modalDeleteBtn} onPress={handleDeleteFromModal}>
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color="#EF4444"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.modalDeleteText}>Delete</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.modalPrimaryBtn} onPress={closeModal}>
+                    <Ionicons
+                      name="checkmark-done-outline"
+                      size={18}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.modalPrimaryText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const baseStyles = StyleSheet.create({
+  safeArea: { flex: 1 },
+  pageFrame: { flex: 1, width: '100%', height: '100%' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  backButton: { marginRight: 8 },
+  iconContainerLogo: { width: 32, height: 32, marginRight: 10 },
+  headerTextContainer: { justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A202C' },
+  headerSubtitle: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#718096',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
+  iconButton: { marginLeft: 16 },
+  scrollContent: { padding: 16, paddingBottom: 60 },
+
+  /* Card */
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  // Unread card: light blue background and a blue strip on the left
+  cardUnread: {
+    backgroundColor: '#EFF6FF',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563EB',
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  cardInfo: { flex: 1, marginRight: 8 },
+  // Read = normal weight. Unread = extra bold and darker (styles below).
+  studentName: { fontSize: 15, fontWeight: '400', color: '#4A5568', marginBottom: 4 },
+  studentNameUnread: { fontWeight: '800', color: '#1A202C' },
+  metaRow: { flexDirection: 'row', alignItems: 'center' },
+  metaIcon: { marginRight: 5 },
+  metaSeparator: { fontSize: 12, color: '#A0AEC0', marginHorizontal: 8 },
+  dateText: { fontSize: 13, color: '#718096', fontWeight: '400' },
+  dateTextUnread: { fontWeight: '700', color: '#1A202C' },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#2563EB',
+    marginRight: 10,
+  },
+  deleteIconBtn: { padding: 4 },
+
+  /* Empty / loading */
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+  emptyText: {
+    fontSize: 14,
+    color: '#A0AEC0',
+    marginTop: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+
+  /* Undo bar */
+  undoBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 76,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1F2937',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  undoText: { color: '#FFFFFF', fontSize: 13, fontWeight: '500' },
+  undoButtonText: { color: '#60A5FA', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+
+  footerNote: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    alignItems: 'flex-start',
+  },
+  footerNoteText: { flex: 1, fontSize: 11, color: '#718096', lineHeight: 16 },
+
+  /* Modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 },
+  modalAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  modalAvatarText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  modalSender: { fontSize: 16, fontWeight: '700', color: '#1A202C', marginBottom: 4 },
+  modalMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  modalDate: { fontSize: 12, color: '#718096', fontWeight: '500' },
+  divider: { height: 1, backgroundColor: '#E2E8F0' },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#A0AEC0',
+    letterSpacing: 1,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  messageScroll: { maxHeight: 260, marginBottom: 24 },
+  modalMessage: { fontSize: 14, color: '#4A5568', lineHeight: 22 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end' },
+  modalDeleteBtn: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  modalDeleteText: { fontSize: 14, fontWeight: '700', color: '#EF4444' },
+  modalPrimaryBtn: {
+    flexDirection: 'row',
+    backgroundColor: '#1E3A8A',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  modalPrimaryText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+});
