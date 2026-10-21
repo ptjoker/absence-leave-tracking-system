@@ -2264,6 +2264,7 @@ router.get('/admin/assistants', async (req, res) => {
         course,
         level_of_study,
         cell_number,
+        account_status,
         created_at
       FROM public.profiles
       WHERE role = 'student'
@@ -2281,6 +2282,7 @@ router.get('/admin/assistants', async (req, res) => {
       course: row.course || '',
       levelOfStudy: row.level_of_study || '',
       cellNumber: row.cell_number || '',
+      accountStatus: row.account_status,
       createdAt: row.created_at
     }));
 
@@ -2568,6 +2570,7 @@ router.get('/admin/supervisors', async (req, res) => {
         student_email,
         personal_email,
         cell_number,
+        account_status,
         created_at
       FROM public.profiles
       WHERE role = 'supervisor'
@@ -2583,6 +2586,7 @@ router.get('/admin/supervisors', async (req, res) => {
       studentEmail: row.student_email || '',
       personalEmail: row.personal_email || '',
       cellNumber: row.cell_number || '',
+      accountStatus: row.account_status,
       role: 'supervisor',
       createdAt: row.created_at
     }));

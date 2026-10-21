@@ -48,6 +48,12 @@ function formatLastSeen(value) {
   return Number.isNaN(date.getTime()) ? 'Date unavailable' : format(date, 'd MMM yyyy, HH:mm');
 }
 
+function getLastSeenTimestamp(value) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
 function escapeCsv(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`;
 }
@@ -291,6 +297,16 @@ export default function AdminDashboard() {
   const pageCount = Math.max(1, Math.ceil(filteredAccounts.length / pageSize));
   const visibleAccounts = filteredAccounts.slice((page - 1) * pageSize, page * pageSize);
   const onlineUserCount = activeUsers.filter((user) => user.online).length;
+  const sortedActiveUsers = useMemo(() => [...activeUsers].sort((a, b) => {
+    const onlineOrder = Number(b.online) - Number(a.online);
+    if (onlineOrder !== 0) return onlineOrder;
+
+    const aLastSeen = getLastSeenTimestamp(a.lastSeenAt);
+    const bLastSeen = getLastSeenTimestamp(b.lastSeenAt);
+    if (aLastSeen === null) return bLastSeen === null ? 0 : 1;
+    if (bLastSeen === null) return -1;
+    return bLastSeen - aLastSeen;
+  }), [activeUsers]);
 
   useEffect(() => {
     setPage(1);
@@ -303,7 +319,12 @@ export default function AdminDashboard() {
   const openAccountDialog = (mode, account = null) => {
     setAccountError('');
     setAccountNotice('');
-    setAccountDialog({ mode, account, role: 'student' });
+    setAccountDialog({
+      mode,
+      account,
+      role: 'student',
+      nextStatus: account?.accountStatus === 'disabled' ? 'active' : 'disabled',
+    });
     setAccountForm(account ? {
       ...emptyAccountForm,
       first_name: account.firstName || '',
@@ -388,6 +409,27 @@ export default function AdminDashboard() {
     } catch (requestError) {
       console.error('Delete administrator-managed account error:', requestError);
       setAccountError(requestError.message || 'Could not delete this account.');
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleAccountStatusChange = async () => {
+    if (accountDialog?.mode !== 'status') return;
+    setAccountBusy(true);
+    setAccountError('');
+    try {
+      const result = await sendAdminRequest(accountEndpoint(accountDialog.account, '/status'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_status: accountDialog.nextStatus }),
+      });
+      setAccountDialog(null);
+      setAccountNotice(result.message || `User account ${accountDialog.nextStatus === 'disabled' ? 'deactivated' : 'activated'}.`);
+      await loadDashboard(true);
+    } catch (requestError) {
+      console.error('Change administrator-managed account status error:', requestError);
+      setAccountError(requestError.message || 'Could not update this account status.');
     } finally {
       setAccountBusy(false);
     }
@@ -537,7 +579,7 @@ export default function AdminDashboard() {
                     <table className="w-full min-w-[620px] text-left">
                       <thead><tr className="border-b border-[#edf0f2] text-[10px] font-bold uppercase tracking-wide text-[#82909d]"><th className="px-5 py-3">User</th><th className="px-3 py-3">Device / IP</th><th className="px-3 py-3">Last seen</th><th className="px-3 py-3">Status</th></tr></thead>
                       <tbody>
-                        {activeUsers.length ? activeUsers.map((user) => (
+                        {sortedActiveUsers.length ? sortedActiveUsers.map((user) => (
                           <tr key={user.id} className="border-b border-[#f0f2f4] last:border-0">
                             <td className="px-5 py-3 text-xs font-semibold text-[#344252]">{user.name}</td>
                             <td className="px-3 py-3"><span className="flex items-center gap-1.5 text-xs text-[#526171]"><Monitor size={13} />{user.userAgent || 'Unknown device'}</span><span className="mt-1 block font-mono text-[10px] text-[#929daa]">{user.ipAddress || 'IP unavailable'}</span></td>
@@ -627,6 +669,7 @@ export default function AdminDashboard() {
             onReviewRegistration={reviewRegistration}
             onOpenAccount={openAccountDialog}
             onDeleteAccount={handleDeleteAccount}
+            onChangeAccountStatus={handleAccountStatusChange}
             onSaveAccount={handleSaveAccount}
             onFormChange={handleAccountFormChange}
             onCloseDialog={() => setAccountDialog(null)}
