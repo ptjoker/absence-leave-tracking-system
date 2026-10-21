@@ -444,8 +444,8 @@ export default function SupervisorDashboard() {
   // ============================================================
   // REQUEST DETAILS MODAL HANDLERS
   // ============================================================
-  const getRequestId = (request) =>
-    request?.id || request?.rawId || request?._id || null;
+    const getRequestId = (request) =>
+    request?.rawId || request?.id || request?._id || null;
 
   const getRequestStatusStyle = (status) => {
     const normalized = String(status || '').toLowerCase();
