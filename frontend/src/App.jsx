@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 import { API_BASE } from '@/lib/api';
 import { useState, useEffect, useContext, createContext } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -227,16 +228,64 @@ function ForgotPasswordModal({ role, onClose }) {
   const [email, setEmail] = useState('');
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
-  const submit = (e) => {
-    e.preventDefault();
-    const next = {};
-    if (!userId.trim()) next.userId = 'Staff/Student No. is required.';
-    if (!email.trim()) next.email = 'Email address is required.';
-    else if (!email.includes('@')) next.email = 'Enter a valid registered email address.';
-    setErrors(next);
-    if (Object.keys(next).length) return;
+const [loading, setLoading] = useState(false);
+const [serverError, setServerError] = useState('');
+
+const submit = async (e) => {
+  e.preventDefault();
+
+  const next = {};
+
+  if (!userId.trim()) {
+    next.userId = 'Staff/Student No. is required.';
+  }
+
+  if (!email.trim()) {
+    next.email = 'Email address is required.';
+  } else if (!email.includes('@')) {
+    next.email = 'Enter a valid registered email address.';
+  }
+
+  setErrors(next);
+  setServerError('');
+
+  if (Object.keys(next).length > 0) return;
+
+  setLoading(true);
+
+  try {
+    const response = await fetch(`${API_BASE}/api/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userId.trim(),
+        email: email.trim(),
+        role,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setServerError(
+        data.error || 'Could not request a password reset. Please try again.'
+      );
+      return;
+    }
+
     setSent(true);
-  };
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    setServerError(
+      'Could not reach the server. Please check that the backend is running.'
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
   return <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="forgot-password-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
     <div className="forgot-password-modal relative w-full max-w-md rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_24px_70px_rgba(18,43,67,.28)] sm:p-8">
       <button type="button" onClick={onClose} aria-label="Close forgot password" className="focus-ring absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-black hover:bg-[#edf4f8]" data-testid="button-close-forgot-password"><X size={20}/></button>
@@ -244,7 +293,21 @@ function ForgotPasswordModal({ role, onClose }) {
       {!sent ? <form onSubmit={submit} className="mt-7 space-y-5" noValidate>
         <label className="block" htmlFor="forgot-user-id"><span className="mb-2 flex items-center gap-1.5 text-sm font-bold text-black"><User size={16} className="text-[#1f70d0]"/>Staff/Student No.<em className="not-italic text-[#d05b48]">*</em></span><input id="forgot-user-id" value={userId} onChange={(e)=>setUserId(e.target.value)} placeholder="Staff No. or Student No." className={`focus-ring w-full rounded-lg border bg-white px-3.5 py-3 text-sm text-black outline-none placeholder:text-black ${errors.userId?'border-[#d05b48]':'border-[#cfdee9] focus:border-[#1f70d0]'}`} />{errors.userId&&<span className="mt-1.5 block text-xs font-semibold text-[#c54f43]">{errors.userId}</span>}</label>
         <label className="block" htmlFor="forgot-email"><span className="mb-2 flex items-center gap-1.5 text-sm font-bold text-black"><Mail size={16} className="text-[#1f70d0]"/>Email Address<em className="not-italic text-[#d05b48]">*</em></span><input id="forgot-email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="123456789@tut4life.ac.za" className={`focus-ring w-full rounded-lg border bg-white px-3.5 py-3 text-sm text-black outline-none placeholder:text-black ${errors.email?'border-[#d05b48]':'border-[#cfdee9] focus:border-[#1f70d0]'}`} />{errors.email&&<span className="mt-1.5 block text-xs font-semibold text-[#c54f43]">{errors.email}</span>}</label>
-        <button type="submit" className="focus-ring w-full rounded-lg bg-[#9fd5f3] px-5 py-3.5 text-sm font-bold text-black shadow-[0_3px_0_#74b9df] transition-transform hover:-translate-y-0.5" data-testid="button-send-reset-link">Send Reset Link →</button>
+
+{serverError && (
+  <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+    {serverError}
+  </p>
+)}
+
+<button
+  type="submit"
+  disabled={loading}
+  className="focus-ring w-full rounded-lg bg-[#9fd5f3] px-5 py-3.5 text-sm font-bold text-black shadow-[0_3px_0_#74b9df] disabled:opacity-50"
+  data-testid="button-send-reset-link"
+>
+  {loading ? 'Sending...' : 'Send Reset Link →'}
+</button>
       </form> : <div className="mt-7 rounded-xl border border-[#bfe4d0] bg-[#eefaf3] p-5"><p className="text-sm font-bold text-black">Reset instructions requested.</p><p className="mt-2 text-sm leading-6 text-black">If the Staff/Student No. and email are registered, reset instructions will be sent to that address.</p><button type="button" onClick={onClose} className="focus-ring mt-4 rounded-lg bg-[#1f70d0] px-5 py-2.5 text-sm font-bold text-white">Close</button></div>}
     </div>
   </div>;
@@ -375,6 +438,191 @@ function LogoutSuccessPage() {
       </div>
     </main>
   </div>;
+}
+
+function ResetPasswordPage() {
+  const [, setLocation] = useLocation();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    const checkSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+
+        if (!active) return;
+
+        if (error) {
+          setError(error.message);
+          return;
+        }
+
+        if (data.session) {
+          setReady(true);
+        } else {
+          setError(
+            'No password recovery session was found. Please request a new reset email and open its link in this browser.'
+          );
+        }
+      } catch (err) {
+        if (active) {
+          setError('Could not verify your reset link. Please try again.');
+        }
+      }
+    };
+
+    checkSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!active) return;
+
+        if (
+          (event === 'PASSWORD_RECOVERY' ||
+            event === 'SIGNED_IN') &&
+          session
+        ) {
+          setError('');
+          setReady(true);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+
+    if (password.length < 8) {
+      setError('Your password must contain at least 8 characters.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('The passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+
+      setMessage('Your password has been reset successfully.');
+
+      await supabase.auth.signOut();
+    } catch {
+      setError('Something went wrong. Please request a new reset link if needed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#eef6fb] px-5 py-10">
+      <div className="w-full max-w-md rounded-2xl border border-[#d7e3ee] bg-white p-7 shadow-lg">
+        <h1 className="serif text-3xl text-[#162c4d]">
+          Reset your password
+        </h1>
+
+        <p className="mt-3 text-sm text-[#60768c]">
+          Enter and confirm your new StudentAssist password.
+        </p>
+
+        {message ? (
+          <div className="mt-6">
+            <p className="rounded-lg bg-green-50 p-4 text-sm text-green-800">
+              {message}
+            </p>
+            <button
+              onClick={() => setLocation('/login')}
+              className="mt-5 w-full rounded-lg bg-[#1f70d0] px-4 py-3 font-bold text-white"
+            >
+              Back to login
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="new-password" className="mb-2 block text-sm font-semibold text-[#162c4d]">
+                New password
+              </label>
+              <input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                minLength={8}
+                disabled={!ready || loading}
+                className="w-full rounded-lg border border-[#cbd8e5] px-3 py-3 text-sm"
+                placeholder="At least 8 characters"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="confirm-password" className="mb-2 block text-sm font-semibold text-[#162c4d]">
+                Confirm new password
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                required
+                minLength={8}
+                disabled={!ready || loading}
+                className="w-full rounded-lg border border-[#cbd8e5] px-3 py-3 text-sm"
+                placeholder="Enter the password again"
+              />
+            </div>
+
+            {error && (
+              <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={!ready || loading}
+              className="w-full rounded-lg bg-[#1f70d0] px-4 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? 'Updating password...' : 'Update password'}
+            </button>
+
+            {!ready && !error && (
+              <p className="text-sm text-[#60768c]">
+                Checking your password reset link...
+              </p>
+            )}
+          </form>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function NotFound() {
@@ -960,8 +1208,33 @@ function ShiftSwapPage() {
 
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route path="/login" component={LoginPage} /><Route path="/admin/login" component={AdminLoginPage} /><Route path="/admin" component={AdminDashboard} /><Route path="/logout-success" component={LogoutSuccessPage} /><Route path="/signup" component={SignupPage} /><Route path="/dashboard" component={DashboardPage} /><Route path="/dashboard/request" component={StudentRequestPage} /><Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} /><Route path="/dashboard/history" component={StudentHistoryPage} /><Route path="/dashboard/schedule" component={StudentSchedulePage} /><Route path="/profile" component={StudentProfilePage} /><Route path="/supervisor" component={SupervisorDashboard} /><Route path="/supervisor/calendar" component={SupervisorCalendarPage} /><Route path="/supervisor/requests" component={SupervisorRequestsPage} /><Route path="/supervisor/assistances" component={SupervisorAssistancesPage} /><Route path="/supervisor/reports" component={SupervisorReportsPage} /><Route path="/supervisor/profile" component={StudentProfilePage} /><Route component={NotFound} /></Switch>;
+  return <Switch>
+    <Route path="/" component={Home} />
+    <Route path="/login" component={LoginPage} />
+    <Route path="/admin/login" component={AdminLoginPage} />
+    <Route path="/admin" component={AdminDashboard} />
+    <Route path="/logout-success" component={LogoutSuccessPage} />
+    <Route path="/signup" component={SignupPage} />
+    <Route path="/dashboard" component={DashboardPage} />
+    <Route path="/dashboard/request" component={StudentRequestPage} />
+    <Route path="/dashboard/shift-swap" component={StudentShiftSwapPage} />
+    <Route path="/dashboard/history" component={StudentHistoryPage} />
+    <Route path="/dashboard/schedule" component={StudentSchedulePage} />
+    <Route path="/profile" component={StudentProfilePage} />
+    <Route path="/supervisor" component={SupervisorDashboard} />
+    <Route path="/supervisor/calendar" component={SupervisorCalendarPage} />
+    <Route path="/supervisor/requests" component={SupervisorRequestsPage} />
+    <Route path="/supervisor/assistances" component={SupervisorAssistancesPage} />
+    <Route path="/supervisor/reports" component={SupervisorReportsPage} />
+    <Route path="/supervisor/profile" component={StudentProfilePage} />
+
+    {/* New password reset route */}
+    <Route path="/reset-password" component={ResetPasswordPage} />
+
+    <Route component={NotFound} />
+  </Switch>;
 }
+
 function RoutedErrorBoundary({ children }) {
   const [location] = useLocation();
   return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;

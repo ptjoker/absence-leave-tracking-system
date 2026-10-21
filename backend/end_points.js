@@ -89,8 +89,10 @@ async function notifyProfiles({ role, type, title, message }) {
       SELECT id
       FROM public.profiles
       WHERE role = ${role}
-        AND account_status = 'active'
-        AND registration_status = 'approved'
+        AND (
+          ${role} = 'admin'
+          OR (account_status = 'active' AND registration_status = 'approved')
+        )
     `;
     await Promise.all(recipients.map(({ id }) => createNotification({
       userId: id,
@@ -392,7 +394,89 @@ router.post('/auth/verify-otp', verifyOtpLimiter, async (req, res) => {
   }
 });
 
+// ============================================
+// Forgot password endpoint
+// ============================================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { userId, email, role } = req.body;
 
+    if (
+      !email ||
+      typeof email !== 'string' ||
+      !['student', 'supervisor'].includes(role)
+    ) {
+      return res.status(400).json({
+        error: 'Please provide valid account details.'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUserId = typeof userId === 'string' ? userId.trim() : '';
+
+    if (role === 'student' && !cleanUserId) {
+      return res.status(400).json({
+        error: 'Student number is required.'
+      });
+    }
+
+    // Verify the account details against the profile.
+    // The current profiles schema does not show a separate staff-number column.
+    const profiles = role === 'student'
+      ? await sql`
+          SELECT id
+          FROM public.profiles
+          WHERE lower(student_email) = ${cleanEmail}
+            AND student_number = ${cleanUserId}
+            AND role = 'student'
+          LIMIT 1
+        `
+      : await sql`
+          SELECT id
+          FROM public.profiles
+          WHERE lower(student_email) = ${cleanEmail}
+            AND role = 'supervisor'
+          LIMIT 1
+        `;
+
+    // Return a generic response if no matching profile exists.
+    // This avoids revealing whether an email is registered.
+    const genericMessage =
+      'If the account details match a registered account, reset instructions will be sent to the email address.';
+
+    if (profiles.length === 0) {
+      return res.json({ success: true, message: genericMessage });
+    }
+
+    const frontendUrl =
+      process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    const { error } =
+      await supabaseAdmin.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: `${frontendUrl}/reset-password`
+      });
+
+    if (error) {
+      console.error('Password reset request failed:', error.message);
+
+      return res.status(500).json({
+        error: 'Unable to send reset instructions right now. Please try again later.'
+      });
+    }
+
+    return res.json({ success: true, message: genericMessage });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+
+    return res.status(500).json({
+      error: 'Something went wrong. Please try again later.'
+    });
+  }
+});
+
+// ============================================
+// Registration
+// ============================================
 
 router.post('/register', async (req, res) => {
   try {
@@ -553,19 +637,48 @@ router.post('/login', loginLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    let { data, error } = await supabaseAdmin.auth.signInWithPassword({
       email: email,
       password: password
     });
 
     if (error) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+      const registrationRows = await sql`
+        SELECT id, registration_status, registration_rejection_reason
+        FROM public.profiles
+        WHERE student_email = ${email}
+        LIMIT 1
+      `;
+      const registration = registrationRows[0];
 
-    if (!data.user?.email_confirmed_at) {
-      return res.status(403).json({
-        error: 'Please verify your email with the OTP before logging in.'
-      });
+      if (registration?.registration_status === 'pending') {
+        return res.status(403).json({
+          error: 'Your registration is awaiting administrator approval.',
+          code: 'REGISTRATION_PENDING'
+        });
+      }
+
+      if (registration?.registration_status === 'rejected') {
+        return res.status(403).json({
+          error: 'Your registration was rejected by an administrator.',
+          code: 'REGISTRATION_REJECTED',
+          reason: registration.registration_rejection_reason || null
+        });
+      }
+
+      if (registration?.registration_status === 'approved') {
+        const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+          registration.id,
+          { email_confirm: true }
+        );
+        if (!authUpdateError) {
+          const retry = await supabaseAdmin.auth.signInWithPassword({ email, password });
+          data = retry.data;
+          error = retry.error;
+        }
+      }
+
+      if (error) return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const profile = await sql`
@@ -578,7 +691,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
     if (profile[0].registration_status === 'pending') {
       return res.status(403).json({
-        error: 'Your email is verified, but your registration is awaiting administrator approval.',
+        error: 'Your registration is awaiting administrator approval.',
         code: 'REGISTRATION_PENDING'
       });
     }
@@ -636,6 +749,8 @@ router.get('/notifications', async (req, res) => {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
+    res.set('Cache-Control', 'no-store');
+
     const unreadOnly = String(req.query.unreadOnly || '').toLowerCase() === 'true';
     const parsedLimit = Number.parseInt(req.query.limit, 10);
     const limit = Number.isInteger(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 100) : 50;
@@ -670,6 +785,8 @@ router.get('/notifications/unread-count', async (req, res) => {
     const user = await getUserFromToken(req);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
+    res.set('Cache-Control', 'no-store');
+
     const rows = await sql`
       SELECT COUNT(*)::int AS unread_count
       FROM public.notifications
@@ -694,7 +811,13 @@ router.patch('/notifications/:id/read', async (req, res) => {
       RETURNING id, is_read
     `;
     if (!rows.length) return res.status(404).json({ error: 'Notification not found' });
-    res.json({ success: true, notification: rows[0] });
+    res.json({
+      success: true,
+      notification: {
+        id: rows[0].id,
+        isRead: rows[0].is_read,
+      },
+    });
   } catch (error) {
     console.error('Mark notification read error:', error);
     res.status(500).json({ error: 'Could not update notification' });
@@ -1200,7 +1323,6 @@ router.get('/admin/requests', async (req, res) => {
 });
 
 // PATCH /api/requests/:id/status — supervisor approves or rejects
-// PATCH /api/requests/:id/status — supervisor approves or rejects
 router.patch('/requests/:id/status', async (req, res) => {
   try {
     const user = await getUserFromToken(req);
@@ -1208,6 +1330,7 @@ router.patch('/requests/:id/status', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Verify the caller is a supervisor
     const callerProfile = await sql`
       SELECT role FROM public.profiles WHERE id = ${user.id}
     `;
@@ -1215,10 +1338,11 @@ router.patch('/requests/:id/status', async (req, res) => {
       return res.status(403).json({ error: 'Only supervisors can update request status' });
     }
 
-    let { id } = req.params;
-    // If the frontend sends "REQ-001", strip it down to "1" for the database query
-    if (String(id).includes('-')) {
-      id = String(id).split('-').pop();
+    // 🟢 THE FIX: Strip out "REQ-" or any non-numeric characters
+    const rawId = String(req.params.id).replace(/[^0-9]/g, '');
+
+    if (!rawId) {
+      return res.status(400).json({ error: 'Invalid request ID format' });
     }
 
     const { status } = req.body;
@@ -1230,12 +1354,12 @@ router.patch('/requests/:id/status', async (req, res) => {
     const updated = await sql`
       UPDATE public.absence_requests
       SET status = ${status}, reviewed_by = ${user.id}, reviewed_at = NOW()
-      WHERE id = ${id}
+      WHERE id = ${rawId}
       RETURNING *
     `;
 
     if (updated.length === 0) {
-      return res.status(404).json({ error: 'Request not found' });
+      return res.status(404).json({ error: 'Request not found in database' });
     }
 
     res.json({
@@ -1960,13 +2084,21 @@ router.patch('/admin/registration-requests/:id/approve', async (req, res) => {
       WHERE id = ${req.params.id}
         AND role IN ('student', 'supervisor')
         AND registration_status = 'pending'
-        AND email_verified_at IS NOT NULL
       RETURNING id, first_name, last_name, student_email, role, registration_status, registration_reviewed_at
     `;
     if (rows.length === 0) {
       return res.status(409).json({
-        error: 'Registration must be pending and email-verified before approval'
+        error: 'Only pending registrations can be approved'
       });
+    }
+
+    const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+      rows[0].id,
+      { email_confirm: true }
+    );
+    if (authUpdateError) {
+      console.error('Confirm approved registration email error:', authUpdateError);
+      return res.status(500).json({ error: 'Registration was approved, but the account could not be enabled for login' });
     }
 
     await createNotification({

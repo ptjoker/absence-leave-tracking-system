@@ -145,7 +145,8 @@ export function NotificationsProvider({ children }) {
       const response = await apiFetch(`/api/notifications/${encodeURIComponent(notification.serverId)}/read`, { method: 'PATCH' });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || `Could not update notification (${response.status}).`);
-      setServerNotifications((current) => current.map((item) => (item.id === id ? { ...item, read: true } : item)));
+      const read = Boolean(body.notification?.isRead ?? true);
+      setServerNotifications((current) => current.map((item) => (item.id === id ? { ...item, read } : item)));
     } catch (error) {
       console.error('Mark server notification read error:', error);
     }
