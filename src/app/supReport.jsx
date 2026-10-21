@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -141,6 +142,36 @@ const getRange = (period, customStart, customEnd) => {
 // Wraps a value in quotes so commas inside it don't break the CSV
 const csvCell = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
+// Builds the CSV text for a report.
+// We use it for the full report AND for a single student's report.
+const buildCsv = (title, rangeText, shifts, requests, staff) => {
+  const lines = [];
+  lines.push(`${title},${csvCell(rangeText)}`);
+  lines.push('');
+
+  lines.push('SHIFTS');
+  lines.push('Student Assistant,Position,Date,Shift Time,Duration (hours)');
+  shifts.forEach((s) =>
+    lines.push([s.name, s.position, s.date, s.time, s.hours].map(csvCell).join(','))
+  );
+  lines.push('');
+
+  lines.push('REQUESTS');
+  lines.push('Student Assistant,Request,Start Date,End Date,Status');
+  requests.forEach((r) =>
+    lines.push([r.name, r.request, r.startDate, r.endDate, r.status].map(csvCell).join(','))
+  );
+  lines.push('');
+
+  lines.push('STAFF SUMMARY');
+  lines.push('Name,Location,Hours Worked,Requests');
+  staff.forEach((p) =>
+    lines.push([p.name, p.location, p.hours.toFixed(1), p.requests].map(csvCell).join(','))
+  );
+
+  return lines.join('\n');
+};
+
 export default function PerformanceReports() {
   const router = useRouter();
   const pathname = usePathname();
@@ -156,6 +187,11 @@ export default function PerformanceReports() {
   const [search, setSearch] = useState('');          // text in the search box
   const [customStart, setCustomStart] = useState('2026-09-30');
   const [customEnd, setCustomEnd] = useState('2026-10-06');
+
+  // NEW: which student's three-dots was tapped (null = nothing selected)
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  // NEW: which popup to show: 'menu' (list of actions) or 'details' (student info)
+  const [panel, setPanel] = useState('menu');
 
   const customIsValid =
     isValidDateText(customStart) &&
@@ -217,37 +253,60 @@ export default function PerformanceReports() {
     ? `${formatDate(report.range.start)} – ${formatDate(report.range.end)}`
     : 'All time';
 
-  // --- Export CSV ---
+  // --- Export CSV (the whole report) ---
   const handleExport = async () => {
-    const lines = [];
-    lines.push(`Performance Report,${csvCell(rangeText)}`);
-    lines.push('');
-
-    lines.push('SHIFTS');
-    lines.push('Student Assistant,Position,Date,Shift Time,Duration (hours)');
-    report.shifts.forEach((s) =>
-      lines.push([s.name, s.position, s.date, s.time, s.hours].map(csvCell).join(','))
-    );
-    lines.push('');
-
-    lines.push('REQUESTS');
-    lines.push('Student Assistant,Request,Start Date,End Date,Status');
-    report.requests.forEach((r) =>
-      lines.push([r.name, r.request, r.startDate, r.endDate, r.status].map(csvCell).join(','))
-    );
-    lines.push('');
-
-    lines.push('STAFF SUMMARY');
-    lines.push('Name,Location,Hours Worked,Requests');
-    report.staff.forEach((p) =>
-      lines.push([p.name, p.location, p.hours.toFixed(1), p.requests].map(csvCell).join(','))
-    );
-
+    const csv = buildCsv('Performance Report', rangeText, report.shifts, report.requests, report.staff);
     try {
-      await exportReportCsv(lines.join('\n'), 'performance-report.csv');
+      await exportReportCsv(csv, 'performance-report.csv');
     } catch (error) {
       Alert.alert('Export failed', 'Could not export the report. Please try again.');
     }
+  };
+
+  // --- NEW: open the three-dots menu for one student ---
+  const openStaffMenu = (staff) => {
+    setSelectedStaff(staff);
+    setPanel('menu');
+  };
+
+  // --- NEW: close the popup ---
+  const closeStaffMenu = () => {
+    setSelectedStaff(null);
+    setPanel('menu');
+  };
+
+  // --- NEW: the shifts and requests that belong to the selected student ---
+  const selectedShifts = selectedStaff
+    ? report.shifts.filter((s) => s.name === selectedStaff.name)
+    : [];
+  const selectedRequests = selectedStaff
+    ? report.requests.filter((r) => r.name === selectedStaff.name)
+    : [];
+
+  // --- NEW: export a report for ONE student only ---
+  const handleExportStudent = async () => {
+    if (!selectedStaff) return;
+    const csv = buildCsv(
+      `Report for ${selectedStaff.name}`,
+      rangeText,
+      selectedShifts,
+      selectedRequests,
+      [selectedStaff]
+    );
+    const fileName = `report-${selectedStaff.name.replace(/\s+/g, '-').toLowerCase()}.csv`;
+
+    closeStaffMenu();
+    try {
+      await exportReportCsv(csv, fileName);
+    } catch (error) {
+      Alert.alert('Export failed', 'Could not export the report. Please try again.');
+    }
+  };
+
+  // --- NEW: go to the Requests screen ---
+  const handleViewRequests = () => {
+    closeStaffMenu();
+    router.push('/supRequest');
   };
 
   // --- Choosing a period from the dropdown ---
@@ -525,7 +584,14 @@ export default function PerformanceReports() {
                     <Text style={styles.staffAvatarText}>{staff.initials}</Text>
                   </View>
                   <Text style={styles.staffName} numberOfLines={1}>{staff.name}</Text>
-                  <Feather name="more-horizontal" size={16} color={COLORS.textMuted} />
+
+                  {/* CHANGED: the three dots are now a button that opens the menu */}
+                  <TouchableOpacity
+                    onPress={() => openStaffMenu(staff)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Feather name="more-horizontal" size={16} color={COLORS.textMuted} />
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.staffStatsRow}>
@@ -578,6 +644,98 @@ export default function PerformanceReports() {
           })}
         </View>
       </View>
+
+      {/* --- NEW: POPUP FOR THE THREE-DOTS MENU --- */}
+      {/* It only shows when a student has been selected. */}
+      <Modal
+        visible={selectedStaff !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeStaffMenu}
+      >
+        {/* Tapping the dark area outside the card closes the popup */}
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeStaffMenu}
+        >
+          {/* This inner touchable stops taps on the card from closing the popup */}
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
+            {selectedStaff && panel === 'menu' && (
+              <>
+                <Text style={styles.modalTitle}>{selectedStaff.name}</Text>
+                <Text style={styles.modalSubtitle}>{selectedStaff.location}</Text>
+
+                <TouchableOpacity style={styles.modalItem} onPress={() => setPanel('details')}>
+                  <Feather name="user" size={16} color={COLORS.primary} />
+                  <Text style={styles.modalItemText}>View details</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalItem} onPress={handleExportStudent}>
+                  <Feather name="download" size={16} color={COLORS.primary} />
+                  <Text style={styles.modalItemText}>Export this student&apos;s report</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalItem} onPress={handleViewRequests}>
+                  <Feather name="file-text" size={16} color={COLORS.primary} />
+                  <Text style={styles.modalItemText}>View requests</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.modalCancel} onPress={closeStaffMenu}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {selectedStaff && panel === 'details' && (
+              <>
+                <Text style={styles.modalTitle}>{selectedStaff.name}</Text>
+                <Text style={styles.modalSubtitle}>{selectedStaff.location}</Text>
+                <Text style={styles.modalRange}>Period: {rangeText}</Text>
+
+                <ScrollView style={styles.detailsScroll}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>HOURS WORKED</Text>
+                    <Text style={styles.detailValue}>{selectedStaff.hours.toFixed(1)}h</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>DAYS WORKED</Text>
+                    <Text style={styles.detailValue}>{selectedStaff.days}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>REQUESTS</Text>
+                    <Text style={styles.detailValue}>{selectedStaff.requests}</Text>
+                  </View>
+
+                  <Text style={styles.detailHeading}>Shifts</Text>
+                  {selectedShifts.length === 0 && (
+                    <Text style={styles.emptyText}>No shifts in this period.</Text>
+                  )}
+                  {selectedShifts.map((s) => (
+                    <Text key={s.id} style={styles.detailItem}>
+                      {s.date} • {s.time} • {s.hours}h
+                    </Text>
+                  ))}
+
+                  <Text style={styles.detailHeading}>Requests</Text>
+                  {selectedRequests.length === 0 && (
+                    <Text style={styles.emptyText}>No requests in this period.</Text>
+                  )}
+                  {selectedRequests.map((r) => (
+                    <Text key={r.id} style={styles.detailItem}>
+                      {r.request} • {formatDate(toDate(r.startDate))} • {r.status}
+                    </Text>
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setPanel('menu')}>
+                  <Text style={styles.modalCancelText}>Back</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -749,6 +907,56 @@ const baseStyles = StyleSheet.create({
   staffFooter: { borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', paddingTop: 6 },
   staffLocation: { fontSize: 10, color: COLORS.textMuted, marginBottom: 2 },
   staffDays: { fontSize: 10, fontWeight: 'bold', color: COLORS.textMain },
+
+  // NEW: Popup (modal) for the three-dots menu
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.darkBlue },
+  modalSubtitle: { fontSize: 11, color: COLORS.textMuted, marginTop: 2, marginBottom: 12 },
+  modalRange: { fontSize: 11, color: COLORS.textMuted, marginBottom: 8 },
+  modalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  modalItemText: { fontSize: 13, color: COLORS.textMain, marginLeft: 10 },
+  modalCancel: {
+    marginTop: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+  },
+  modalCancelText: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
+
+  // NEW: "View details" panel
+  detailsScroll: { maxHeight: 320 },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  detailLabel: { fontSize: 9, fontWeight: 'bold', color: COLORS.textMuted, letterSpacing: 0.5 },
+  detailValue: { fontSize: 12, fontWeight: 'bold', color: COLORS.textMain },
+  detailHeading: { fontSize: 12, fontWeight: 'bold', color: COLORS.darkBlue, marginTop: 14, marginBottom: 4 },
+  detailItem: { fontSize: 11, color: COLORS.textMain, paddingVertical: 3 },
 
   // Bottom Navigation Bar
   bottomNav: {
