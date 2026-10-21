@@ -24,6 +24,7 @@ import { declareInstitutionalClosure, removeInstitutionalClosure, useStrikeDays 
 import { institutionalStrikeNotification, shiftCancelledNotification } from '@/lib/notifications';
 import { recordActivity } from '@/lib/activityLog';
 import { getSession } from '@/lib/session';
+import { apiFetch } from '@/lib/api';
 import { recordCancelledShift, useCancelledShifts } from '@/lib/cancelledShifts';
 import { isPublicHoliday, isSunday, approvedSwapRequests, parseDateRangeKeys } from '@/lib/schedule';
 import { useTimetables, formatFileSize } from '@/lib/timetables';
@@ -400,6 +401,25 @@ export default function CalendarPage() {
 
   const confirmDeclareStrike = async (e) => {
     e.preventDefault();
+    try {
+      const response = await apiFetch('/api/closures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: selectedKey,
+          type: closureType,
+          note: strikeReason.trim(),
+          affectedShifts: selectedShifts.length,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not declare closure (${response.status}).`);
+    } catch (requestError) {
+      console.error('Declare institutional closure error:', requestError);
+      setError(requestError.message || 'Could not declare institutional closure.');
+      return;
+    }
+
     declareInstitutionalClosure(selectedKey, closureType, strikeReason);
     recordActivity({
       type: 'closure_declared',
@@ -413,7 +433,17 @@ export default function CalendarPage() {
     setStrikeReason('');
   };
 
-  const cancelStrike = () => {
+  const cancelStrike = async () => {
+    try {
+      const response = await apiFetch(`/api/closures/${encodeURIComponent(selectedKey)}`, { method: 'DELETE' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not remove closure (${response.status}).`);
+    } catch (requestError) {
+      console.error('Remove institutional closure error:', requestError);
+      setError(requestError.message || 'Could not remove institutional closure.');
+      return;
+    }
+
     removeInstitutionalClosure(selectedKey);
     recordActivity({
       type: 'closure_cancelled',
