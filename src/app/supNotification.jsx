@@ -12,6 +12,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -122,14 +123,18 @@ export default function SupervisorNotifications() {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // --- NEW: remembers which notifications were read and which were deleted ---
+  // Remembers which notifications were read and which were deleted
   const [readIds, setReadIds] = useState([]);
   const [deletedIds, setDeletedIds] = useState([]);
   const [storageLoaded, setStorageLoaded] = useState(false);
 
-  // --- NEW: the ids shown in the "Undo" bar (the ones deleted most recently) ---
+  // The ids shown in the "Undo" bar (the ones deleted most recently)
   const [undoIds, setUndoIds] = useState([]);
   const undoTimer = useRef(null);
+
+  // --- NEW: search ---
+  const [searchOpen, setSearchOpen] = useState(false); // is the search bar showing?
+  const [searchText, setSearchText] = useState('');    // what the user typed
 
   useSupervisorBadges({
     markNotificationsRead: true,
@@ -212,7 +217,7 @@ export default function SupervisorNotifications() {
     else router.replace('/supervisorDash');
   };
 
-  // --- Tapping a notification: mark it as read, then open it ---
+  // Tapping a notification: mark it as read, then open it
   const handleNotificationPress = (notification) => {
     setReadIds((prev) => (prev.includes(notification.id) ? prev : [...prev, notification.id]));
     setSelectedNotification(notification);
@@ -221,7 +226,7 @@ export default function SupervisorNotifications() {
 
   const closeModal = () => setIsModalVisible(false);
 
-  // --- Delete: hide it and show the Undo bar ---
+  // Delete: hide it and show the Undo bar
   const handleDelete = (id) => {
     setDeletedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
 
@@ -237,15 +242,31 @@ export default function SupervisorNotifications() {
     closeModal();
   };
 
-  // --- Undo: bring back everything deleted most recently ---
+  // Undo: bring back everything deleted most recently
   const handleUndo = () => {
     setDeletedIds((prev) => prev.filter((id) => !undoIds.includes(id)));
     setUndoIds([]);
     if (undoTimer.current) clearTimeout(undoTimer.current);
   };
 
-  // Only show notifications that were not deleted
-  const visibleNotifications = notifications.filter((n) => !deletedIds.includes(n.id));
+  // --- NEW: open/close the search bar ---
+  const toggleSearch = () => {
+    if (searchOpen) setSearchText(''); // closing the bar also clears what was typed
+    setSearchOpen(!searchOpen);
+  };
+
+  // --- NEW: work out which notifications to show ---
+  const query = searchText.trim().toLowerCase();
+
+  const visibleNotifications = notifications
+    // 1. hide the deleted ones
+    .filter((n) => !deletedIds.includes(n.id))
+    // 2. keep only the ones that match the search (name, message, date or time)
+    .filter(
+      (n) =>
+        !query ||
+        `${n.name} ${n.reason} ${n.date} ${n.time}`.toLowerCase().includes(query)
+    );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -263,8 +284,13 @@ export default function SupervisorNotifications() {
             </View>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="search-outline" size={22} color={theme.darkBlue} />
+            {/* Search icon: opens the search bar (turns into an X when it is open) */}
+            <TouchableOpacity style={styles.iconButton} onPress={toggleSearch}>
+              <Ionicons
+                name={searchOpen ? 'close-outline' : 'search-outline'}
+                size={22}
+                color={theme.darkBlue}
+              />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/logOut')}>
               <Ionicons name="log-out-outline" size={22} color={theme.darkBlue} />
@@ -272,14 +298,54 @@ export default function SupervisorNotifications() {
           </View>
         </View>
 
+        {/* --- SEARCH BAR (only shows when searchOpen is true) --- */}
+        {searchOpen && (
+          <View style={styles.searchBar}>
+            <Ionicons
+              name="search-outline"
+              size={18}
+              color="#718096"
+              style={styles.searchBarIcon}
+            />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by name, message, date or time..."
+              placeholderTextColor="#A0AEC0"
+              value={searchText}
+              onChangeText={setSearchText}
+              autoFocus
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchText('')}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close-circle" size={18} color="#A0AEC0" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {loading && <Text style={styles.emptyText}>Loading notifications…</Text>}
 
-          {!loading && visibleNotifications.length === 0 && (
+          {/* Nothing matched the search */}
+          {!loading && visibleNotifications.length === 0 && query.length > 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="search-outline" size={60} color="#CBD5E0" />
+              <Text style={styles.emptyText}>No results for &quot;{searchText.trim()}&quot;</Text>
+            </View>
+          )}
+
+          {/* No notifications at all */}
+          {!loading && visibleNotifications.length === 0 && query.length === 0 && (
             <View style={styles.emptyState}>
               <Ionicons name="notifications-off-outline" size={60} color="#CBD5E0" />
               <Text style={styles.emptyText}>No notifications</Text>
@@ -308,7 +374,10 @@ export default function SupervisorNotifications() {
                 ? 'Notification deleted'
                 : `${undoIds.length} notifications deleted`}
             </Text>
-            <TouchableOpacity onPress={handleUndo} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={handleUndo}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={styles.undoButtonText}>UNDO</Text>
             </TouchableOpacity>
           </View>
@@ -452,6 +521,24 @@ const baseStyles = StyleSheet.create({
   iconButton: { marginLeft: 16 },
   scrollContent: { padding: 16, paddingBottom: 60 },
 
+  /* Search bar */
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  searchBarIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1A202C',
+    paddingVertical: 8,
+  },
+
   /* Card */
   card: {
     backgroundColor: '#FFFFFF',
@@ -485,7 +572,7 @@ const baseStyles = StyleSheet.create({
   },
   avatarText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
   cardInfo: { flex: 1, marginRight: 8 },
-  // Read = normal weight. Unread = extra bold and darker (styles below).
+  // Read = normal weight. Unread = extra bold and darker.
   studentName: { fontSize: 15, fontWeight: '400', color: '#4A5568', marginBottom: 4 },
   studentNameUnread: { fontWeight: '800', color: '#1A202C' },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
