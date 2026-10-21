@@ -10,7 +10,7 @@ export default function Analytics({
 }) {
   return (
     <section id="analytics" className="space-y-5">
-      <div><p className="text-xs font-semibold text-[#75808c]">Dashboard　›　Analytics</p><h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">System Analytics</h1><p className="mt-1 text-sm text-[#77828e]">Live account, presence, and request metrics from the administrator service.</p></div>
+      <div><p className="text-xs font-semibold text-[#75808c]"></p><h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">System Analytics</h1><p className="mt-1 text-sm text-[#77828e]">Live account, presence, and request metrics from the administrator service.</p></div>
       {analyticsError && <div role="alert" className="rounded-lg border border-[#f1c6c3] bg-[#fff1f0] px-4 py-3 text-sm font-semibold text-[#b84233]">{analyticsError}</div>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total users" value={totalUsers} note="Student assistants and supervisors" icon={Users} tint="bg-[#eaf3ff] text-[#1473e6]" />

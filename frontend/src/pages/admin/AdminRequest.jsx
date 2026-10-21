@@ -86,7 +86,7 @@ export default function AdminRequest({
   return (
     <section id="requests" className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="text-xs font-semibold text-[#75808c]">Dashboard　›　Analytics　›　Requests</p><h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">All requests</h1><p className="mt-1 text-sm text-[#82909d]">Review leave and shift-swap requests submitted by student assistants.</p></div>
+        <div><p className="text-xs font-semibold text-[#75808c]"></p><h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">All requests</h1><p className="mt-1 text-sm text-[#82909d]">Review leave and shift-swap requests submitted by student assistants.</p></div>
         <div className="relative flex flex-wrap gap-2">
           <button type="button" onClick={() => exportRequests('csv')} disabled={!requests.length} className="focus-ring inline-flex items-center gap-2 rounded-md border border-[#d7dde3] bg-white px-3 py-2 text-xs font-bold text-[#3f4b58] hover:bg-[#f6f8fa] disabled:cursor-not-allowed disabled:opacity-50"><Download size={14} />Export CSV</button>
           <button type="button" onClick={() => setExportOpen((open) => !open)} disabled={!requests.length} className="focus-ring inline-flex items-center gap-2 rounded-md bg-[#1473e6] px-3 py-2 text-xs font-bold text-white hover:bg-[#095fc5] disabled:cursor-not-allowed disabled:opacity-50"><FileText size={14} />Generate report<ChevronDown size={14} /></button>

@@ -555,7 +555,7 @@ export default function AdminDashboard() {
         <main className="mx-auto max-w-[1500px] space-y-6 p-5 sm:p-8">
           {activeSection === 'dashboard' && <section id="dashboard">
             <div className="mb-5">
-              <p className="text-xs font-semibold text-[#75808c]">Dashboard　›　Overview</p>
+              <p className="text-xs font-semibold text-[#75808c]"></p>
               <h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">Dashboard Overview</h1>
               <p className="mt-1 text-sm text-[#77828e]">Account metrics and administrative monitoring.</p>
             </div>
