@@ -1804,7 +1804,7 @@ router.post('/shifts', async (req, res) => {
         ${notes},
         ${user.id}
       )
-      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at,
+      RETURNING id, user_id, start_time, end_time, role, location, notes, created_by, created_at, started_at, ended_at,
                 TO_CHAR(shift_date, 'YYYY-MM-DD') AS shift_date
     `;
 
@@ -1827,6 +1827,8 @@ router.post('/shifts', async (req, res) => {
       location: shiftRow.location,
       notes: shiftRow.notes,
       createdAt: shiftRow.created_at,
+      startedAt: shiftRow.started_at,
+      endedAt: shiftRow.ended_at,
     });
   } catch (err) {
     console.error('Create shift error:', err);
@@ -1849,7 +1851,7 @@ router.get('/shifts', async (req, res) => {
     if (role === 'supervisor') {
       rows = await sql`
         SELECT
-          s.id, s.user_id, s.start_time, s.end_time, s.role, s.location, s.notes, s.created_by, s.created_at,
+          s.id, s.user_id, s.start_time, s.end_time, s.role, s.location, s.notes, s.created_by, s.created_at, s.started_at, s.ended_at,
           TO_CHAR(s.shift_date, 'YYYY-MM-DD') AS shift_date,
           p.first_name, p.last_name
         FROM public.shifts s
@@ -1859,7 +1861,7 @@ router.get('/shifts', async (req, res) => {
     } else {
       rows = await sql`
         SELECT
-          s.id, s.user_id, s.start_time, s.end_time, s.role, s.location, s.notes, s.created_by, s.created_at,
+          s.id, s.user_id, s.start_time, s.end_time, s.role, s.location, s.notes, s.created_by, s.created_at, s.started_at, s.ended_at,
           TO_CHAR(s.shift_date, 'YYYY-MM-DD') AS shift_date,
           p.first_name, p.last_name
         FROM public.shifts s
@@ -1881,12 +1883,67 @@ router.get('/shifts', async (req, res) => {
       location: row.location,
       notes: row.notes,
       createdAt: row.created_at,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
     }));
 
     res.json(formatted);
   } catch (err) {
     console.error('List shifts error:', err);
     res.status(500).json({ error: 'Could not load shifts' });
+  }
+});
+
+// POST /api/shifts/:id/status — start or end an assigned shift (students only)
+router.post('/shifts/:id/status', async (req, res) => {
+  try {
+    const user = await getUserFromToken(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const action = req.body?.action;
+    if (!['start', 'end'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be start or end.' });
+    }
+
+    const rows = await sql`
+      SELECT s.id, s.user_id, s.shift_date, s.start_time, s.end_time, s.started_at, s.ended_at,
+             p.first_name, p.last_name
+      FROM public.shifts s
+      JOIN public.profiles p ON p.id = s.user_id
+      WHERE s.id = ${req.params.id} AND s.user_id = ${user.id}
+      LIMIT 1
+    `;
+    const shift = rows[0];
+    if (!shift) return res.status(404).json({ error: 'Shift not found.' });
+
+    const [startHour, startMinute] = String(shift.start_time).slice(0, 5).split(':').map(Number);
+    const [endHour, endMinute] = String(shift.end_time).slice(0, 5).split(':').map(Number);
+    const start = new Date(`${shift.shift_date}T${String(startHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00`);
+    const end = new Date(`${shift.shift_date}T${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`);
+    const now = new Date();
+    if (action === 'start' && (now < start || now >= end)) {
+      return res.status(400).json({ error: 'This shift can only be started during its open time window.' });
+    }
+    if (action === 'start' && shift.started_at) {
+      return res.status(409).json({ error: 'This shift has already been started.' });
+    }
+    if (action === 'end' && (!shift.started_at || shift.ended_at)) {
+      return res.status(409).json({ error: 'This shift cannot be ended.' });
+    }
+
+    const updated = action === 'start'
+      ? await sql`UPDATE public.shifts SET started_at = NOW() WHERE id = ${shift.id} RETURNING started_at, ended_at`
+      : await sql`UPDATE public.shifts SET ended_at = NOW() WHERE id = ${shift.id} RETURNING started_at, ended_at`;
+    const studentName = `${shift.first_name || ''} ${shift.last_name || ''}`.trim() || 'A student';
+    await notifyProfiles({
+      role: 'supervisor',
+      type: action === 'start' ? 'shift_started' : 'shift_ended',
+      title: action === 'start' ? 'Student started a shift' : 'Student ended a shift',
+      message: `${studentName} ${action === 'start' ? 'started' : 'ended'} their shift on ${shift.shift_date} (${shift.start_time}–${shift.end_time}).`,
+    });
+    res.json({ success: true, startedAt: updated[0].started_at, endedAt: updated[0].ended_at });
+  } catch (err) {
+    console.error('Update shift status error:', err);
+    res.status(500).json({ error: 'Could not update shift status.' });
   }
 });
 

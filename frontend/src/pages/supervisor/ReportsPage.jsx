@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDays, endOfDay, format, isAfter, isBefore, startOfDay, startOfMonth, startOfWeek, endOfWeek } from 'date-fns';
-import { BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, FileText, Grid2X2, List, Search } from 'lucide-react';
+import { BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, FileText, Grid2X2, List, Search, UserRound } from 'lucide-react';
 import { PortalShell } from '@/components/portal/PortalComponents';
 import { useRequests } from '@/context/RequestsContext';
 import { parseDateRangeKeys } from '@/lib/schedule';
 import { exportPerformanceReport } from '@/lib/reportExport';
 import { getSession } from '@/lib/session';
+import { useLocation } from 'wouter';
 
 const REPORT_ROSTER = [
   
@@ -106,6 +107,9 @@ export default function ReportsPage() {
   const [rangeTo, setRangeTo] = useState(inputDate(new Date()));
   const [view, setView] = useState('grid');
   const [exportOpen, setExportOpen] = useState(false);
+  const [menuRow, setMenuRow] = useState(null);
+  const [detailsRow, setDetailsRow] = useState(null);
+  const [, setLocation] = useLocation();
 
   const period = useMemo(() => getPeriod(range, rangeFrom, rangeTo), [range, rangeFrom, rangeTo]);
 
@@ -136,6 +140,11 @@ export default function ReportsPage() {
   const download = (formatType) => {
     exportPerformanceReport(formatType, filtered, `Performance Reports — ${period.label}`);
     setExportOpen(false);
+  };
+
+  const exportStudentReport = (row) => {
+    exportPerformanceReport('csv', [row], `Performance Report — ${row.name}`);
+    setMenuRow(null);
   };
 
   const selectRange = (event) => setRange(event.target.value);
@@ -178,8 +187,10 @@ export default function ReportsPage() {
         </div>}
 
 
-        {view === 'grid' ? <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{filtered.map((row) => <article key={row.name} className="report-card min-h-[245px] rounded-xl bg-[#c5dced] p-5"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-white text-sm font-bold text-black">{row.name.split(' ').map((part) => part[0]).join('').slice(0,2)}</span><h2 className="text-lg font-bold text-[#10253f]">{row.name}</h2></div><button type="button" aria-label={`More options for ${row.name}`} className="text-xl font-bold text-black">•••</button></div><div className="mt-6 grid grid-cols-2 gap-5"><div><p className="text-[10px] font-bold uppercase tracking-[.08em] text-black">Hours Worked</p><p className="mt-2 text-sm font-semibold text-black">{row.hours}</p></div><div><p className="text-[10px] font-bold uppercase tracking-[.08em] text-black">Requests in Period</p><p className="mt-2 text-sm font-semibold text-black">{row.requests}</p></div></div><div className="mt-7"><p className="text-[10px] font-bold uppercase tracking-[.08em] text-black">{row.site}</p><p className="mt-2 text-sm font-semibold text-black">{row.days} days</p></div></article>)}</div> : <div className="mt-5 overflow-x-auto rounded-xl bg-white"><table className="w-full min-w-[800px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-sm font-bold text-black"><th className="p-4">Student Assistant</th><th className="p-4">Hours Worked</th><th className="p-4">Requests in Period</th><th className="p-4">Site</th><th className="p-4">Days</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.name} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{row.name}</td><td className="p-4">{row.hours}</td><td className="p-4">{row.requests}</td><td className="p-4">{row.site}</td><td className="p-4">{row.days}</td></tr>)}</tbody></table></div>}
+        {view === 'grid' ? <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{filtered.map((row) => <article key={row.name} className="report-card min-h-[245px] rounded-xl bg-[#c5dced] p-5"><div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-full bg-white text-sm font-bold text-black">{row.name.split(' ').map((part) => part[0]).join('').slice(0,2)}</span><h2 className="text-lg font-bold text-[#10253f]">{row.name}</h2></div><button type="button" onClick={() => setMenuRow(row)} aria-label={`More options for ${row.name}`} className="rounded p-1 text-xl font-bold text-black hover:bg-white">•••</button></div><div className="mt-6 grid grid-cols-2 gap-5"><div><p className="text-[10px] font-bold uppercase tracking-[.08em] text-black">Hours Worked</p><p className="mt-2 text-sm font-semibold text-black">{row.hours}</p></div><div><p className="text-[10px] font-bold uppercase tracking-[.08em] text-black">Requests in Period</p><p className="mt-2 text-sm font-semibold text-black">{row.requests}</p></div></div><div className="mt-7"><p className="text-[10px] font-bold uppercase tracking-[.08em] text-black">{row.site}</p><p className="mt-2 text-sm font-semibold text-black">{row.days} days</p></div></article>)}</div> : <div className="mt-5 overflow-x-auto rounded-xl bg-white"><table className="w-full min-w-[800px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-sm font-bold text-black"><th className="p-4">Student Assistant</th><th className="p-4">Hours Worked</th><th className="p-4">Requests in Period</th><th className="p-4">Site</th><th className="p-4">Days</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.name} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{row.name}</td><td className="p-4">{row.hours}</td><td className="p-4">{row.requests}</td><td className="p-4">{row.site}</td><td className="p-4">{row.days}</td></tr>)}</tbody></table></div>}
         {!filtered.length && <div className="mt-5 rounded-xl bg-white p-10 text-center text-sm font-semibold text-black">No student assistants match your search.</div>}
+        {menuRow && <div className="fixed inset-0 z-40 grid place-items-center bg-[#10253f]/45 p-4" onClick={() => setMenuRow(null)}><div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="border-b border-[#dce5ec] px-1 pb-3"><h2 className="text-lg font-bold text-[#1f4ea3]">{menuRow.name}</h2><p className="text-xs font-semibold uppercase text-[#1f4ea3]">{menuRow.site}</p></div><div className="divide-y divide-[#dce5ec]"><button type="button" onClick={() => { setDetailsRow(menuRow); setMenuRow(null); }} className="flex w-full items-center gap-3 px-1 py-4 text-left text-sm font-semibold text-[#10253f] hover:text-[#1f70d0]"><UserRound size={17}/>View details</button><button type="button" onClick={() => exportStudentReport(menuRow)} className="flex w-full items-center gap-3 px-1 py-4 text-left text-sm font-semibold text-[#10253f] hover:text-[#1f70d0]"><Download size={17}/>Export this student's report</button><button type="button" onClick={() => setLocation('/supervisor/requests')} className="flex w-full items-center gap-3 px-1 py-4 text-left text-sm font-semibold text-[#10253f] hover:text-[#1f70d0]"><FileText size={17}/>View requests</button></div><button type="button" onClick={() => setMenuRow(null)} className="mt-3 w-full rounded-lg bg-[#f1f2f4] py-2.5 text-sm font-bold text-[#10253f]">Cancel</button></div></div>}
+        {detailsRow && <div className="fixed inset-0 z-40 grid place-items-center bg-[#10253f]/45 p-4" onClick={() => setDetailsRow(null)}><div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}><h2 className="text-lg font-bold text-[#1f4ea3]">{detailsRow.name}</h2><p className="text-xs font-semibold uppercase text-[#1f4ea3]">{detailsRow.site}</p><p className="mt-4 text-xs text-[#10253f]">Period: {period.label}</p><div className="mt-4 divide-y divide-[#dce5ec] text-sm"><div className="flex justify-between py-3"><span className="font-bold uppercase text-[10px]">Hours worked</span><strong>{detailsRow.hours}</strong></div><div className="flex justify-between py-3"><span className="font-bold uppercase text-[10px]">Days worked</span><strong>{detailsRow.days}</strong></div><div className="flex justify-between py-3"><span className="font-bold uppercase text-[10px]">Requests</span><strong>{detailsRow.requests}</strong></div></div><h3 className="mt-5 text-sm font-bold text-[#1f4ea3]">Shifts</h3><p className="mt-2 text-sm italic text-[#243e5b]">{detailsRow.shiftDetails || 'No shifts in this period.'}</p><h3 className="mt-5 text-sm font-bold text-[#1f4ea3]">Requests</h3><p className="mt-2 text-sm italic text-[#243e5b]">{detailsRow.requestDetails || 'No requests in this period.'}</p><button type="button" onClick={() => setDetailsRow(null)} className="mt-6 w-full rounded-lg bg-[#f1f2f4] py-2.5 text-sm font-bold text-[#10253f]">Back</button></div></div>}
       </div>
     </PortalShell>
   );

@@ -54,6 +54,8 @@ CREATE TABLE public.shifts (
   notes text,
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
+  started_at timestamp with time zone,
+  ended_at timestamp with time zone,
   CONSTRAINT shifts_pkey PRIMARY KEY (id),
   CONSTRAINT shifts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
   CONSTRAINT shifts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)

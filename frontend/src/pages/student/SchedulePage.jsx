@@ -57,6 +57,14 @@ function getShiftTiming(dateKey, shift) {
 }
 
 function ShiftAssignmentDetails({ shift, dateKey, now }) {
+  const [started, setStarted] = useState(Boolean(shift.startedAt));
+  const [ended, setEnded] = useState(Boolean(shift.endedAt));
+  const [statusError, setStatusError] = useState('');
+  useEffect(() => {
+    setStarted(Boolean(shift.startedAt));
+    setEnded(Boolean(shift.endedAt));
+    setStatusError('');
+  }, [shift.id, shift.startedAt, shift.endedAt]);
   const timing = getShiftTiming(dateKey, shift);
   const status = !timing
     ? 'unavailable'
@@ -68,6 +76,29 @@ function ShiftAssignmentDetails({ shift, dateKey, now }) {
   const formattedTime = timing
     ? `${timing.startLabel} – ${timing.endLabel}`
     : shift.time;
+  const canStart = status === 'in-progress' && !started && !ended;
+  const canEnd = started && !ended;
+  const updateShiftStatus = async () => {
+    if (!shift.id) {
+      setStatusError('This shift is missing its ID. Refresh the schedule and try again.');
+      return;
+    }
+    const action = started ? 'end' : 'start';
+    setStatusError('');
+    try {
+      const response = await apiFetch(`/api/shifts/${encodeURIComponent(shift.id)}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Could not update shift status.');
+      if (action === 'start') setStarted(true);
+      else setEnded(true);
+    } catch (error) {
+      setStatusError(error.message || 'Could not update shift status.');
+    }
+  };
 
   return <div className="mt-5 space-y-3">
     <div className="flex items-start justify-between gap-3 rounded-lg bg-[#eaf1fb] p-3">
@@ -75,10 +106,11 @@ function ShiftAssignmentDetails({ shift, dateKey, now }) {
         <p className="text-sm font-bold text-[#243e5b]">Shift · {shift.shift}</p>
         <p className="mt-1 text-sm text-black">{formattedTime}. Arrive 10 minutes before your shift starts.</p>
       </div>
-      <button type="button" disabled title="Shift start tracking is not available from this schedule." className="inline-flex shrink-0 cursor-not-allowed items-center gap-2 rounded-lg bg-[#e8edf5] px-3 py-2 text-xs font-bold text-[#243e5b] opacity-70">
-        <Play size={14}/>Start Shift
+      <button type="button" disabled={ended || (!canStart && !canEnd)} onClick={updateShiftStatus} title={ended ? 'Shift ended.' : started ? 'End your shift.' : canStart ? 'Start your shift.' : 'You can start this shift during its open time window.'} className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${ended || (!canStart && !canEnd) ? 'cursor-not-allowed bg-[#e8edf5] text-[#243e5b] opacity-70' : 'bg-[#1f70d0] text-white shadow-[0_3px_0_#1555aa] hover:bg-[#256fc6]'}`}>
+        <Play size={14}/>{ended ? 'Shift Ended' : started ? 'End Shift' : 'Start Shift'}
       </button>
     </div>
+    {statusError && <p role="alert" className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-sm font-semibold text-[#a8332b]">{statusError}</p>}
     <div className={`flex w-fit rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide ${status === 'closed' || status === 'unavailable' ? 'bg-[#fde0dc] text-[#a8332b]' : status === 'upcoming' ? 'bg-[#e7f1fa] text-[#1f70d0]' : 'bg-[#d9f3e3] text-[#246b45]'}`}>
       {status === 'closed' ? 'Time window closed' : status === 'upcoming' ? 'Time window not open' : status === 'unavailable' ? 'Shift time unavailable' : 'Time window open'}
     </div>
@@ -93,7 +125,7 @@ function ShiftAssignmentDetails({ shift, dateKey, now }) {
         <p className="text-sm text-black">The assigned time ({formattedTime}) has passed, so this shift can no longer be started.</p>
         <p className="rounded-lg bg-[#fde0dc] px-3 py-2 text-sm font-bold text-[#a8332b]">The assigned time for this shift has ended, so it can no longer be started.</p>
       </div>
-      : <p className="text-sm text-black">{status === 'upcoming' ? `This shift starts at ${timing.startLabel}. Arrive 10 minutes before it begins.` : status === 'unavailable' ? 'The assigned shift time could not be read.' : 'Your assigned shift is currently in progress.'}</p>}
+      : <p className="text-sm text-black">{ended ? 'Your shift has ended.' : started ? 'Your shift has been started.' : status === 'upcoming' ? `This shift starts at ${timing.startLabel}. Arrive 10 minutes before it begins.` : status === 'unavailable' ? 'The assigned shift time could not be read.' : 'Your assigned shift is currently in progress.'}</p>}
   </div>;
 }
 
@@ -156,6 +188,7 @@ export default function SchedulePage() {
   }, []);
   const assignedSchedule = useMemo(() => assignedShifts.reduce((result, shift) => {
     result[shift.shiftDate] = {
+      id: shift.id,
       date: shift.shiftDate,
       time: `${shift.startTime} – ${shift.endTime}`,
       shift: Number(String(shift.startTime).match(/^(\d{1,2}):/)?.[1]) < 12 ? 'Morning' : 'Afternoon',
@@ -163,6 +196,8 @@ export default function SchedulePage() {
       endTime: shift.endTime,
       location: shift.location,
       role: shift.role,
+      startedAt: shift.startedAt,
+      endedAt: shift.endedAt,
     };
     return result;
   }, {}), [assignedShifts]);
