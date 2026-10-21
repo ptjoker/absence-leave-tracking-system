@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import RequestDetailsModal from '../components/studentDash/RequestDetailsModal'; // <-- ADDED
 import RequestsTableWithActions from '../components/studentDash/RequestsTableWithActions';
 import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card } from '../components/studentDash/ui';
@@ -9,7 +10,6 @@ import { useRequests } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
 import { useStudent } from '../hooks/useStudent';
 
-// Unique identifier of a request: the backend row id (rawId), falling back to the display id.
 const requestKey = (r) => String(r?.rawId ?? r?.id);
 
 function InfoItem({ icon, label, value }) {
@@ -31,21 +31,22 @@ export default function StudDash() {
   const { user: USER } = useStudent();
 
   const { requests, cancelRequest, loading: requestsLoading } = useRequests();
-  const [cancellingId, setCancellingId] = useState(null);
-  const [pendingCancel, setPendingCancel] = useState(null); // request waiting for confirmation
-  const [hiddenIds, setHiddenIds] = useState([]); // unique keys of cancelled requests removed from Recent Requests
 
-  // If a different student is logged in, never carry over another student's pop-up or hidden list.
+  // States
+  const [cancellingId, setCancellingId] = useState(null);
+  const [pendingCancel, setPendingCancel] = useState(null);
+  const [hiddenIds, setHiddenIds] = useState([]);
+  const [selectedRequest, setSelectedRequest] = useState(null); // <-- ADDED: Modal state
+
   useEffect(() => {
     setHiddenIds([]);
     setPendingCancel(null);
     setCancellingId(null);
+    setSelectedRequest(null);
   }, [USER?.email]);
 
-  // A request may only be cancelled by the student it belongs to.
-  // The backend must enforce this too; this is an extra check on the app side.
   const belongsToUser = (req) => {
-    if (!req?.email || !USER?.email) return true; // no owner info available here, backend decides
+    if (!req?.email || !USER?.email) return true;
     return String(req.email).toLowerCase() === String(USER.email).toLowerCase();
   };
 
@@ -61,17 +62,14 @@ export default function StudDash() {
     });
   };
 
-  // Cancel button only opens the confirmation pop-up for the selected request.
   const handleCancel = (req) => {
     setPendingCancel(req);
   };
 
-  // "No, Keep Request" (or tapping outside / back button): close without changing anything.
   const dismissCancel = () => {
     setPendingCancel(null);
   };
 
-  // "Yes, Cancel": close the pop-up, cancel only the selected request, remove only that request from the list.
   const confirmCancel = async () => {
     const req = pendingCancel;
     if (!req) return;
@@ -81,7 +79,7 @@ export default function StudDash() {
       Alert.alert('Error', 'You can only cancel your own requests.');
       return;
     }
-    if (cancellingId === req.id) return; // already cancelling this request
+    if (cancellingId === req.id) return;
 
     const key = requestKey(req);
     setCancellingId(req.id);
@@ -151,9 +149,17 @@ export default function StudDash() {
             onEdit={handleEdit}
             onCancel={handleCancel}
             cancellingId={cancellingId}
+            onPressId={(req) => setSelectedRequest(req)} // <-- ADDED: Wire up modal
           />
         )}
       </Card>
+
+      {/* ADDED: Details Modal */}
+      <RequestDetailsModal
+        visible={Boolean(selectedRequest)}
+        request={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+      />
 
       {/* ---------------- cancel confirmation pop-up ---------------- */}
       <Modal
