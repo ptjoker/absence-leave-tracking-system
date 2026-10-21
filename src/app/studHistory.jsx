@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Text } from 'react-native';
-import ScreenShell from '../components/studentDash/ScreenShell';
+import RequestDetailsModal from '../components/studentDash/RequestDetailsModal'; // <-- ADDED
 import RequestsTableWithActions from '../components/studentDash/RequestsTableWithActions';
+import ScreenShell from '../components/studentDash/ScreenShell';
 import { AppButton, Card } from '../components/studentDash/ui';
 import { useRequests } from '../constants/studData';
 import { ROUTES, useStudTheme } from '../constants/studTheme';
@@ -15,6 +16,7 @@ export default function StudHistory() {
 
   const { requests, cancelRequest, loading } = useRequests();
   const [cancellingId, setCancellingId] = useState(null);
+  const [selectedRequest, setSelectedRequest] = useState(null); // <-- ADDED: Modal state
 
   const handleEdit = (req) => {
     const isSwap = String(req.type || '').toLowerCase().includes('shift swap');
@@ -81,8 +83,16 @@ export default function StudHistory() {
           onCancel={handleCancel}
           cancellingId={cancellingId}
           emptyLabel={loading ? 'Loading…' : 'No requests yet.'}
+          onPressId={(req) => setSelectedRequest(req)} // <-- ADDED: Wire up modal
         />
       </Card>
+
+      {/* ADDED: Details Modal */}
+      <RequestDetailsModal
+        visible={Boolean(selectedRequest)}
+        request={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+      />
     </ScreenShell>
   );
 }
