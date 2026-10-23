@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, ShieldCheck, Pencil, X, Save } from 'lucide-react';
+import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, Pencil, X, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
 import { recordActivity } from '@/lib/activityLog';
 import { getSession as readSession, updateSession } from '@/lib/session';
@@ -209,7 +209,7 @@ export default function ProfilePage() {
     <PortalShell supervisor={isSupervisor}>
       <main className="px-5 py-7 md:px-8 md:py-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <h1 className="serif text-4xl text-[#10253f]">{user.role === 'supervisor' ? 'Supervisor Profile' : 'My Profile'}</h1>
+          <h1 className="serif text-4xl text-[#10253f]">{user.role === 'supervisor' ? 'Supervisor Profile' : 'Student Profile'}</h1>
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e3f7ec] px-3 py-1 text-xs font-bold text-[#19885d]">
               <span className="size-1.5 rounded-full bg-[#19885d]" /> Active
@@ -327,22 +327,6 @@ export default function ProfilePage() {
                 {!isSupervisor && <InfoField icon={<GraduationCap size={14} />} label="Current Year" value={levelLabel} />}
                 <InfoField icon={<CalendarDays size={14} />} label={isSupervisor ? 'Member Since' : 'Enrolled Since'} value={formatDate(user.created_at)} />
                 <InfoField icon={<User size={14} />} label="Account Type" value={roleLabel} />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-8 border-t border-[#e2eaf1] bg-[#f4f8fb] px-6 py-5 md:px-8">
-            <div className="flex gap-3">
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-[#1f70d0]">
-                <ShieldCheck size={16} />
-              </span>
-              <div>
-                <p className="text-sm font-bold text-[#243e5b]">Data Privacy Notice</p>
-                <p className="mt-1 max-w-xl text-xs leading-5 text-[#60768c]">
-                  {isSupervisor
-                    ? 'Identity and employment fields (name, staff number, role, and work email) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.'
-                    : 'Identity and academic fields (name, student number, role, student email, course / department, and current year) are managed by the University Registrar and cannot be edited here. Contact the Student Affairs Office if any of those details are incorrect.'}
-                </p>
               </div>
             </div>
           </div>
