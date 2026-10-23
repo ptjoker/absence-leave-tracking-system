@@ -22,6 +22,7 @@ import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
+import AdminLoginPage from '@/pages/admin/AdminLoginPage';
 import { ModeToggle, PortalShell, STUDENT } from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
 import { generateStudentSchedule } from '@/lib/schedule';
