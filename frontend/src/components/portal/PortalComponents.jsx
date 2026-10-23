@@ -15,13 +15,13 @@ import { assetUrl } from '@/lib/assets';
 export const STUDENT = { name: 'Nicholas Mathebula', initials: 'NM', number: 'SA-2024-8842' };
 export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
 
-export function PortalBrand({ supervisor = false }) {
+export function PortalBrand() {
   return (
     <Link href="/" className="focus-ring flex items-center gap-2 px-2" data-testid="link-portal-brand">
-      <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-9 rounded-lg object-contain shadow-sm" />
+      <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
       <span className="leading-none">
-        <strong className="block text-[15px] font-bold tracking-[-.02em] text-[#162c4d]">Library Log</strong>
-        <span className="mt-1 block text-[9px] font-bold uppercase tracking-[.16em] text-[#c8102e]">{supervisor ? 'SUPERVISOR PORTAL' : 'STUDENT PORTAL'}</span>
+        <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">Library Log</strong>
+        <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">ABSENCE AND LEAVE TRACKER</span>
       </span>
     </Link>
   );
@@ -57,10 +57,10 @@ export function PortalSidebar({ supervisor = false }) {
     <>
       <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`portal-sidebar fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-4 py-6 transition-transform md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col justify-between px-4 py-6 transition-transform md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div>
           <div className="mb-8 flex items-center justify-between">
-            <PortalBrand supervisor={supervisor} />
+            <PortalBrand />
             <button className="rounded p-1 text-[#718196] md:hidden" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={18} /></button>
           </div>
           <nav className="flex flex-col gap-1">
@@ -144,8 +144,8 @@ export function PortalTopbar({ supervisor = false }) {
       <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <span className="min-w-0 text-right leading-tight">
-            <strong className="block truncate text-sm font-bold text-[#162c4d]">{fullName}</strong>
-            <span className="block text-xs text-[#7890a4]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
+            <strong className="block truncate text-[10px] font-bold text-[#162c4d] sm:text-[11px]">{fullName}</strong>
+            <span className="block text-[6px] text-[#7890a4] sm:text-[7px]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
           </span>
           <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 shrink-0 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
         </div>
