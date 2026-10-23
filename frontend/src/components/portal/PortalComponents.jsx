@@ -57,7 +57,7 @@ export function PortalSidebar({ supervisor = false }) {
     <>
       <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`portal-sidebar fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] bg-white px-4 py-6 transition-transform md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-4 py-6 transition-transform md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div>
           <div className="mb-8 flex items-center justify-between">
             <PortalBrand supervisor={supervisor} />

@@ -253,7 +253,7 @@
 }
 
 .homepage-dark {
-  --homepage-bg: rgba(8,28,49,.82);
+  --homepage-bg: rgba(19,20,20,.82);
   --homepage-surface: #0c2742;
   --homepage-card: #113452;
   --homepage-text: #f4f8fc;
@@ -665,6 +665,56 @@ select option { background: #ffffff; color: #000000; }
 .dark .portal-sidebar .text-\[\#52708b\],
 .dark .portal-sidebar .text-\[\#718196\],
 .dark .portal-sidebar .text-\[\#7890a4\] { color: #eef4fb !important; }
+
+/* Use the supplied charcoal RGBA for shared dark-mode page and panel surfaces. */
+.dark {
+  --app-dark-surface: rgba(19, 20, 20, 0.82);
+  --homepage-bg: var(--app-dark-surface);
+  --homepage-surface: var(--app-dark-surface);
+  --homepage-card: var(--app-dark-surface);
+}
+.dark body,
+.dark .homepage-shell,
+.dark .homepage-header,
+.dark .homepage-mobile-menu,
+.dark .homepage-footer,
+.dark .portal-shell,
+.dark .portal-page,
+.dark .portal-sidebar,
+.dark .portal-topbar,
+.dark .auth-shell,
+.dark .auth-page-main,
+.dark [class~="bg-[#90bddb]"],
+.dark [class~="bg-[#f4f8fb]"],
+.dark [class~="bg-[#f4f9fc]"],
+.dark [class~="bg-[#eef6fb]"],
+.dark [class~="bg-[#e7f2f9]"],
+.dark [class~="bg-[#f1f3f5]"],
+.dark [class~="bg-white"] {
+  background-color: var(--app-dark-surface) !important;
+}
+
+/* Keep page surfaces and paragraph text consistent with the selected theme. */
+html:not(.dark) body,
+html:not(.dark) .homepage-shell,
+html:not(.dark) .portal-shell,
+html:not(.dark) .portal-page,
+html:not(.dark) .portal-grid,
+html:not(.dark) .auth-shell,
+html:not(.dark) main.auth-page-main,
+html:not(.dark) [class~="bg-[#90bddb]"],
+html:not(.dark) [class~="bg-[#f4f9fc]"],
+html:not(.dark) [class~="bg-[#eef6fb]"],
+html:not(.dark) [class~="bg-[#e7f2f9]"],
+html:not(.dark) [class~="bg-[#f1f3f5]"] {
+  background-color: #ffffff !important;
+}
+html:not(.dark) .homepage-shell { --homepage-bg: #ffffff; }
+html:not(.dark) .homepage-footer { background-color: #ffffff !important; }
+html:not(.dark) body p,
+html:not(.dark) body p[class][class] { color: #000000 !important; }
+html.dark body p,
+html.dark body p[class][class] { color: #ffffff !important; }
 .dark .portal-sidebar { background: #0d263b !important; border-color: #29475e !important; }
 .dark .portal-sidebar a { color: #eef4fb !important; }
 .dark .portal-sidebar a:hover { color: #70aef5 !important; background: #16384f !important; }
@@ -922,4 +972,174 @@ select option { background: #ffffff; color: #000000; }
 }
 .dark .admin-console [class~="text-[#b84233]"] {
   color: #ff9b8b !important;
+}
+/* Keep every route on the homepage's charcoal, blue, and gold dark palette. */
+.dark {
+  --app-dark-surface: rgba(19, 20, 20, 0.82);
+  --app-dark-text: #f4f8fc;
+  --app-dark-muted: #b6cadb;
+  --app-dark-accent: #2b8fd1;
+  --app-dark-border: #1c4565;
+}
+
+.dark body,
+.dark .portal-shell,
+.dark .portal-page,
+.dark .portal-sidebar,
+.dark .portal-topbar,
+.dark .auth-shell,
+.dark .auth-page-main,
+.dark .auth-header,
+.dark .auth-footer,
+.dark .report-card,
+.dark .portal-dropdown,
+.dark [data-radix-select-content],
+.dark [data-radix-popper-content-wrapper] [role="listbox"],
+.dark [data-radix-menu-content],
+.dark [data-radix-dropdown-menu-content] {
+  background-color: var(--app-dark-surface) !important;
+  color: var(--app-dark-text) !important;
+  border-color: var(--app-dark-border) !important;
+}
+
+.dark [class~="bg-white"],
+.dark [class~="bg-[#90bddb]"],
+.dark [class~="bg-[#f4f8fb]"],
+.dark [class~="bg-[#f4f9fc]"],
+.dark [class~="bg-[#f8fbfd]"],
+.dark [class~="bg-[#fbfdfe]"],
+.dark [class~="bg-[#eef6fb]"],
+.dark [class~="bg-[#e7f2f9]"],
+.dark [class~="bg-[#e7f2fa]"],
+.dark [class~="bg-[#e7f1fa]"],
+.dark [class~="bg-[#e8f3fb]"],
+.dark [class~="bg-[#e9f3fb]"],
+.dark [class~="bg-[#d7edfb]"],
+.dark [class~="bg-[#dbeefa]"],
+.dark [class~="bg-[#dce5fb]"],
+.dark [class~="bg-[#d8e9f5]"],
+.dark [class~="bg-[#dce8f2]"],
+.dark [class~="bg-[#e5eef8]"],
+.dark [class~="bg-[#edf4f8]"],
+.dark [class~="bg-[#eaf3f9]"] {
+  background-color: var(--app-dark-surface) !important;
+}
+
+.dark [class~="bg-[#162c4d]"] {
+  background-color: #123452 !important;
+}
+
+.dark [class~="bg-[#1f70d0]"],
+.dark [class~="bg-[#286ee5]"] {
+  background-color: var(--app-dark-accent) !important;
+}
+
+.dark [class~="text-[#1f70d0]"],
+.dark [class~="text-[#286ee5]"],
+.dark [class~="text-[#70aef5]"],
+.dark [class~="text-[#63a6f2]"] {
+  color: var(--app-dark-accent) !important;
+}
+
+.dark [class~="text-[#f0b323]"],
+.dark [class~="text-[#f2aa00]"],
+.dark [class~="text-[#ffcf4d]"] {
+  color: #f3bd32 !important;
+}
+
+.dark [class~="text-[#52708b]"],
+.dark [class~="text-[#60768c]"],
+.dark [class~="text-[#6a7180]"],
+.dark [class~="text-[#6b809a]"],
+.dark [class~="text-[#6b8297]"],
+.dark [class~="text-[#6c8196]"],
+.dark [class~="text-[#71869a]"],
+.dark [class~="text-[#718196]"],
+.dark [class~="text-[#7890a4]"],
+.dark [class~="text-[#8aa0b2]"],
+.dark [class~="text-[#8ca0b2]"],
+.dark [class~="text-[#9baebe]"],
+.dark [class~="text-[#9bb0c1]"],
+.dark [class~="text-[#bdccd8]"],
+.dark [class~="text-[#c3cfd9]"],
+.dark [class~="text-[#5f7185]"],
+.dark [class~="text-[#48627d]"],
+.dark [class~="text-[#3d5a76]"] {
+  color: var(--app-dark-muted) !important;
+}
+
+.dark [class~="border-[#d5dfe8]"],
+.dark [class~="border-[#d7e3ee]"],
+.dark [class~="border-[#cfdee9]"],
+.dark [class~="border-[#d0e0ea]"],
+.dark [class~="border-[#e2eaf1]"],
+.dark [class~="border-[#e4edf3]"],
+.dark [class~="border-[#dce4ea]"],
+.dark [class~="border-[#91bfdc]"],
+.dark [class~="border-[#1f70d0]"],
+.dark [class~="border-[#286ee5]"] {
+  border-color: var(--app-dark-border) !important;
+}
+
+.dark .portal-sidebar a:hover,
+.dark .portal-sidebar a.bg-\[\#e7f1fa\],
+.dark .portal-dropdown-option:hover,
+.dark [role="option"]:hover,
+.dark [data-radix-select-item]:hover,
+.dark [data-radix-menu-item]:hover,
+.dark [data-radix-dropdown-menu-item]:hover {
+  background-color: #123452 !important;
+}
+
+.dark .text-black {
+  color: var(--app-dark-text) !important;
+}
+
+/* Full-page canvas and shared chrome use solid black/white on every route. */
+html.dark body,
+html.dark #root,
+html.dark #root > *,
+html.dark .homepage-shell,
+html.dark .homepage-main,
+html.dark .portal-shell,
+html.dark .portal-page,
+html.dark .auth-shell,
+html.dark main.auth-page-main,
+html.dark header,
+html.dark footer {
+  background-color: #000000 !important;
+}
+
+html:not(.dark) body,
+html:not(.dark) #root,
+html:not(.dark) #root > *,
+html:not(.dark) .homepage-shell,
+html:not(.dark) .homepage-main,
+html:not(.dark) .portal-shell,
+html:not(.dark) .portal-page,
+html:not(.dark) .auth-shell,
+html:not(.dark) main.auth-page-main,
+html:not(.dark) header,
+html:not(.dark) footer {
+  background-color: #ffffff !important;
+}
+
+html.dark .auth-shell,
+html.dark .auth-shell .auth-page-main,
+html.dark .auth-shell .auth-footer {
+  background-color: #000000 !important;
+}
+
+html.dark .auth-shell .auth-page-main > .absolute {
+  display: none;
+}
+
+html:not(.dark) .auth-shell,
+html:not(.dark) .auth-shell .auth-page-main,
+html:not(.dark) .auth-shell .auth-footer {
+  background-color: #ffffff !important;
+}
+
+html:not(.dark) .auth-shell .auth-page-main > .absolute {
+  display: none;
 }

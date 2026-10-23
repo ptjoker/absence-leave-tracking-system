@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowRight, BadgeCheck, BookOpen, Bell, Building2, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Clock3, Eye, EyeOff, FileText, GraduationCap, Info, LayoutDashboard, LockKeyhole, LogOut, Mail, MapPin, Menu, Moon, PanelTop, Phone, Plus, RefreshCw, ShieldCheck, Sun, TrendingUp, Trash2, Upload, User, UsersRound, X, } from 'lucide-react';
+import { ArrowRight, BadgeCheck, BookOpen, Bell, Building2, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Eye, EyeOff, FileText, GraduationCap, Info, LayoutDashboard, LockKeyhole, LogOut, Mail, MapPin, Menu, Moon, PanelTop, Phone, Plus, RefreshCw, ShieldCheck, Sun, TrendingUp, Trash2, Upload, User, UsersRound, X, } from 'lucide-react';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { format } from 'date-fns';
 import { RequestsProvider, useRequests } from '@/context/RequestsContext';
@@ -21,7 +21,6 @@ import SupervisorRequestsPage from '@/pages/supervisor/Requestspage';
 import SupervisorAssistancesPage from '@/pages/supervisor/StudentAssistancesPage';
 import SupervisorCalendarPage from '@/pages/supervisor/Calendarpage';
 import SupervisorReportsPage from '@/pages/supervisor/ReportsPage';
-import AdminLoginPage from '@/pages/admin/AdminLoginPage';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import { ModeToggle, PortalShell, STUDENT } from '@/components/portal/PortalComponents';
 import RequestDetailsDialog from '@/components/portal/RequestDetailsDialog';
@@ -31,15 +30,6 @@ import { assetUrl } from '@/lib/assets';
 import { setSession, rememberSession, clearSession, getSession } from '@/lib/session';
 const queryClient = new QueryClient();
 
-/* Fixed, page-independent background photo shown behind every route. */
-function PhotoBackdrop() {
-  return <div aria-hidden="true" className="app-photo-backdrop" />;
-}
-const navItems = [
-  { label: 'How it works', href: '#how-it-works' },
-  { label: 'For students', href: '#students' },
-  { label: 'For supervisors', href: '#supervisors' },
-];
 function Brand({ light = false }) {
   return (<Link href="/" className="focus-ring flex items-center gap-3" data-testid="link-brand">
     <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-10 rounded-[5px] object-contain shadow-sm" />
@@ -54,7 +44,7 @@ function Header() {
   const onToggleMode = toggleDarkMode;
   const [open, setOpen] = useState(false);
   return (<header className="homepage-header fixed inset-x-0 top-0 z-50 border-b border-[#d5dfe8] bg-white">
-    <div className="mx-auto flex h-[58px] max-w-[1440px] items-center justify-between px-5 sm:px-8">
+    <div className="flex h-[58px] w-full items-center justify-between px-5 sm:px-8">
       <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
         <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">
@@ -111,7 +101,7 @@ function Footer() {
     <div className="border-t border-[#91bfdc]">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-8 py-5 text-[10px] text-[#52708b] sm:flex-row sm:items-center sm:justify-between sm:px-12">
         <span>© 2026 Student Assistance Absence Tracker. All rights reserved.</span>
-        <span className="flex gap-5"><Link href="/admin/login" className="hover:text-[#286ee5]" data-testid="link-footer-administrator">Administrator</Link><a href="mailto:general@tut.ac.za" className="hover:text-[#286ee5]">Contact Support</a></span>
+        <span className="flex gap-5"><a href="mailto:general@tut.ac.za" className="hover:text-[#286ee5]">Contact Support</a></span>
       </div>
     </div>
   </footer>);
@@ -175,16 +165,6 @@ function Home() {
         </div>
       </section>
 
-      <section id="supervisors" className="mx-auto max-w-[1180px] px-8 pb-20 pt-16 text-center sm:px-12 lg:pb-24 lg:pt-20">
-        <h2 className="serif text-[31px] leading-none tracking-[-.03em] text-[#10253f] sm:text-[38px]">Built for Every Role</h2>
-        <p className="mx-auto mt-4 max-w-[510px] text-[11px] leading-5 text-[#52708b]">Whether you're a department head or a student worker, Student Assistant Tracker simplifies your workflow.</p>
-        <div className="mx-auto mt-10 grid max-w-[940px] gap-5 md:grid-cols-3">
-          <RoleCard icon={<UsersRound size={22} />} iconClass="bg-[#dce5fb] text-[#286ee5]" title="Administrators" text="Oversee department-wide attendance, generate payroll reports, and manage staffing levels with comprehensive analytics." />
-          <RoleCard icon={<ClipboardCheck size={22} />} iconClass="bg-[#fff0d8] text-[#f2aa00]" title="Supervisors" text="Approve or deny leave requests in seconds, view daily team schedules, and communicate directly with your student staff." />
-          <RoleCard icon={<CheckCircle2 size={22} />} iconClass="bg-[#d4f5e7] text-[#22b78b]" title="Student Assistant" text="Easily log absences, track remaining leave balance, and receive instant status updates on pending requests via mobile." />
-        </div>
-        <a href="mailto:general@tut.ac.za" className="focus-ring mt-10 inline-block rounded-[4px] border border-white/70 px-7 py-3 text-[10px] font-bold text-white transition-colors hover:bg-white/15">Contact Sales</a>
-      </section>
     </main>
     <Footer />
   </div>);
@@ -204,17 +184,14 @@ function Feature({ icon, title }) {
 function InfoCard({ icon, title, text }) {
   return <div className="homepage-info-card rounded-md bg-[#eaf3f9] p-4 text-left"><span className="grid size-7 place-items-center rounded-full bg-white text-[#286ee5]">{icon}</span><h3 className="mt-3 text-[10px] font-bold text-[#243e5b]">{title}</h3><p className="mt-1 text-[9px] leading-4 text-[#60768c]">{text}</p></div>;
 }
-function RoleCard({ icon, iconClass, title, text }) {
-  return <article className="homepage-role-card rounded-md bg-[#f4f8fb] px-6 py-6 shadow-[0_3px_8px_rgba(53,91,121,.08)]"><span className={`mx-auto grid size-11 place-items-center rounded-full ${iconClass}`}>{icon}</span><h3 className="mt-5 text-[14px] font-bold text-[#172d48]">{title}</h3><p className="mt-3 min-h-[58px] text-[10px] leading-4 text-[#60768c]">{text}</p><a href="#learn-more" className="mt-5 inline-flex items-center gap-2 text-[10px] font-bold text-[#286ee5]">Learn More <ChevronRight size={13} /></a></article>;
-}
 function AuthHeader() {
-  return <header className="auth-header fixed inset-x-0 top-0 z-50 border-b border-[#d7e3ee] bg-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-10"><Brand /><ModeToggle size="compact" /></div></header>;
+  return <Header />;
 }
 function AuthFooter() {
   return <div className="auth-footer fixed inset-x-0 bottom-0 z-50 border-t border-[#d7e3ee] bg-white/95 px-5 py-5 text-center text-xs text-[#71869a] backdrop-blur"><span>Need help? </span><a href="mailto:general@tut.ac.za" className="font-bold text-[#1f70d0]" data-testid="link-auth-support">Contact iCenter support</a><span className="mx-2 text-[#bdccd8]">·</span><Link href="/" className="hover:text-[#1f70d0]" data-testid="link-auth-home">Return home</Link></div>;
 }
 function AuthShell({ children, eyebrow, title, copy }) {
-  return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="auth-page-main relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p><div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div></div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
+  return <div className="auth-shell flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="auth-page-main relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p><div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div></div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
 }
 function Field({ label, id, type = 'text', placeholder, value, onChange, error, required = true, icon }) {
   return <label className="block" htmlFor={id}><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]">{icon}{label}{required && <em className="not-italic text-[#d05b48]">*</em>}</span><span className="relative block">{icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8aa0b2]">{icon}</span>}<input id={id} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none transition-colors placeholder:text-[#9baebe] ${icon ? 'pl-10' : ''} ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid={`input-${id}`} /> </span>{error && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid={`error-${id}`}>{error}</span>}</label>;
@@ -223,7 +200,7 @@ function PasswordField({ label, id, value, onChange, error }) {
   const [show, setShow] = useState(false);
   return <label className="block" htmlFor={id}><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]"><LockKeyhole size={14} className="text-[#8aa0b2]" />{label}<em className="not-italic text-[#d05b48]">*</em></span><span className="relative block"><input id={id} type={show ? 'text' : 'password'} value={value} onChange={(e) => onChange(e.target.value)} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 pr-11 text-sm text-[#243e5b] outline-none transition-colors placeholder:text-[#9baebe] ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} placeholder="Enter your password" data-testid={`input-${id}`} /><button type="button" onClick={() => setShow(!show)} className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4] hover:text-[#1f70d0]" aria-label={show ? 'Hide password' : 'Show password'} data-testid={`button-toggle-${id}`}>{show ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>{error && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid={`error-${id}`}>{error}</span>}</label>;
 }
-function ForgotPasswordModal({ role, onClose }) {
+function ForgotPasswordModal({ onClose }) {
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
   const [errors, setErrors] = useState({});
@@ -313,7 +290,6 @@ const submit = async (e) => {
   </div>;
 }
 function LoginPage() {
-  const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
@@ -321,7 +297,7 @@ function LoginPage() {
    const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [forgotOpen, setForgotOpen] = useState(false);
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const submit = async (e) => {
     e.preventDefault();
     const next = {};
@@ -336,11 +312,24 @@ function LoginPage() {
       const response = await fetch(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
       if (!response.ok) {
         setServerError(data.error || 'Login failed. Please check your credentials.');
+        return;
+      }
+      if (!data.user?.role || !data.session?.access_token) {
+        setServerError('The server returned an invalid account session. Please try again.');
+        return;
+      }
+      const destination = {
+        student: '/dashboard',
+        supervisor: '/supervisor',
+        admin: '/admin',
+      }[data.user.role];
+      if (!destination) {
+        setServerError('This account does not have access to the portal.');
         return;
       }
 const sessionData = {
@@ -353,7 +342,7 @@ const sessionData = {
 clearSession();              // wipe any leftover from previous user in this tab
 setSession(sessionData);     // this tab's session
 if (remember) rememberSession(sessionData);
-      setLocation(role === 'student' ? '/dashboard' : '/supervisor');
+      setLocation(destination);
     } catch (err) {
       console.error('Login error:', err);
       setServerError('Could not reach the server. Please check that the backend is running and try again.');
@@ -361,7 +350,7 @@ if (remember) rememberSession(sessionData);
       setLoading(false);
     }
   };
-  return <AuthShell eyebrow="Secure portal" title={role === 'student' ? 'Welcome back, student.' : 'Welcome back, supervisor.'} copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to iCenter</h2><p className="mt-2 text-sm text-[#71869a]">Choose your account type to continue.</p></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); setServerError(''); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-role-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); setServerError(''); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-role-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><Field label={role === 'student' ? 'University email' : 'Work email'} id="login-email" type="email" placeholder={role === 'student' ? 'studentnumber@tut4life.ac.za' : 'surnameinitials@tut4life.ac.za'} value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : `Sign in as ${role === 'student' ? 'student' : 'supervisor'}`}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div>{forgotOpen && <ForgotPasswordModal role={role} onClose={() => setForgotOpen(false)} />}</AuthShell>;
+  return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to iCenter</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}</AuthShell>;
 }
 function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;
@@ -1247,12 +1236,9 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-              <PhotoBackdrop />
-              <div className="app-content-layer">
-                <RoutedErrorBoundary>
-                  <Router />
-                </RoutedErrorBoundary>
-              </div>
+              <RoutedErrorBoundary>
+                <Router />
+              </RoutedErrorBoundary>
             </WouterRouter>
             <Toaster />
           </TooltipProvider>

@@ -115,7 +115,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!session?.access_token || session.user?.role !== 'admin') {
-      setLocation('/admin/login');
+      setLocation('/login');
     }
   }, [session, setLocation]);
 
