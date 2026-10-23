@@ -132,7 +132,7 @@ export function ModeToggle({ size = 'default' }) {
 }
 
 export function PortalTopbar({ supervisor = false }) {
-const session = typeof window !== 'undefined' ? getSession() : null;
+  const session = typeof window !== 'undefined' ? getSession() : null;
   const user = session?.user || {};
   const firstName = user.first_name || 'User';
   const lastName = user.last_name || '';
@@ -140,8 +140,7 @@ const session = typeof window !== 'undefined' ? getSession() : null;
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
   const email = user.email || '';
   return (
-    <header className="portal-topbar fixed left-0 right-0 top-0 z-40 flex h-[70px] items-center justify-between border-b border-[#e2eaf1] bg-white px-5 md:left-64 md:px-8">
-      <ModeToggle size="compact" />
+    <header className="portal-topbar homepage-header fixed left-0 right-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[#d5dfe8] bg-white px-5 md:left-64 md:px-8">
       <div className="flex items-center gap-3">
         <span className="text-right leading-tight">
           <strong className="block text-sm font-bold text-[#162c4d]">{fullName}</strong>
@@ -149,6 +148,7 @@ const session = typeof window !== 'undefined' ? getSession() : null;
         </span>
         <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
       </div>
+      <ModeToggle size="compact" />
     </header>
   );
 }
