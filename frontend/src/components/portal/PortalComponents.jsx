@@ -143,7 +143,7 @@ export function PortalTopbar({ supervisor = false }) {
         <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">
           <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">Library Log</strong>
-          <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">ABSENCE AND LEAVE TRACKER</span>
+          <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">STUDENT PORTAL</span>
         </span>
       </Link>
       <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-4">

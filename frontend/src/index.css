@@ -715,7 +715,7 @@ html:not(.dark) body p,
 html:not(.dark) body p[class][class] { color: #000000 !important; }
 html.dark body p,
 html.dark body p[class][class] { color: #ffffff !important; }
-.dark .portal-sidebar { background: #0d263b !important; border-color: #29475e !important; }
+.dark .portal-sidebar { background: #003a6c !important; border-color: #003a6c !important; }
 .dark .portal-sidebar a { color: #eef4fb !important; }
 .dark .portal-sidebar a:hover { color: #70aef5 !important; background: #16384f !important; }
 .dark .portal-sidebar a.bg-\[\#e7f1fa\] { background: #1c3f63 !important; color: #70aef5 !important; }
@@ -1215,8 +1215,8 @@ html:not(.dark) .auth-shell .auth-page-main > .absolute {
 }
 
 .portal-sidebar {
-  background-color: #003f70 !important;
-  border-color: #003f70 !important;
+  background-color: #003a6c !important;
+  border-color: #003a6c !important;
 }
 
 .portal-sidebar nav a {
