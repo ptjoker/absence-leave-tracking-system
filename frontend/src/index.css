@@ -1233,3 +1233,109 @@ html:not(.dark) .auth-shell .auth-page-main > .absolute {
   background-color: #f4f8fb !important;
   color: #162c4d !important;
 }
+
+[class*="bg-[#2196f3]"],
+[class*="bg-[#286ee5]"],
+[class*="bg-[#3e7de8]"],
+[class*="bg-[#1f70d0]"],
+[class*="bg-[#256fc6]"] {
+  background-color: #0d406b !important;
+}
+
+.dark [class*="bg-[#2196f3]"],
+.dark [class*="bg-[#286ee5]"],
+.dark [class*="bg-[#3e7de8]"],
+.dark [class*="bg-[#1f70d0]"],
+.dark [class*="bg-[#256fc6]"] {
+  background-color: #0d406b !important;
+}
+
+[class*="text-[#2196f3]"],
+[class*="text-[#286ee5]"],
+[class*="text-[#3e7de8]"],
+[class*="text-[#1f70d0]"] {
+  color: #0d406b !important;
+}
+
+.dark [class*="text-[#2196f3]"],
+.dark [class*="text-[#286ee5]"],
+.dark [class*="text-[#3e7de8]"],
+.dark [class*="text-[#1f70d0]"] {
+  color: #0d406b !important;
+}
+
+[class*="border-[#2196f3]"],
+[class*="border-[#286ee5]"],
+[class*="border-[#3e7de8]"],
+[class*="border-[#1f70d0]"] {
+  border-color: #0d406b !important;
+}
+
+.dark [class*="border-[#2196f3]"],
+.dark [class*="border-[#286ee5]"],
+.dark [class*="border-[#3e7de8]"],
+.dark [class*="border-[#1f70d0]"] {
+  border-color: #0d406b !important;
+}
+
+[class*="bg-[#d05b48]"] {
+  background-color: #d60b28 !important;
+}
+
+.dark [class*="bg-[#d05b48]"] {
+  background-color: #d60b28 !important;
+}
+
+[class*="text-[#d05b48]"] {
+  color: #d60b28 !important;
+}
+
+.dark [class*="text-[#d05b48]"] {
+  color: #d60b28 !important;
+}
+
+[class*="border-[#d05b48]"] {
+  border-color: #d60b28 !important;
+}
+
+.dark [class*="border-[#d05b48]"] {
+  border-color: #d60b28 !important;
+}
+
+[class*="text-[#f0b323]"],
+[class*="text-[#f2aa00]"],
+[class*="text-[#f3bd32]"],
+[class*="text-[#ffcf4d]"],
+[class*="text-[#c98200]"],
+[class*="text-[#c17a13]"] {
+  color: #ff9c03 !important;
+}
+
+.dark [class*="text-[#f0b323]"],
+.dark [class*="text-[#f2aa00]"],
+.dark [class*="text-[#f3bd32]"],
+.dark [class*="text-[#ffcf4d]"],
+.dark [class*="text-[#c98200]"],
+.dark [class*="text-[#c17a13]"] {
+  color: #ff9c03 !important;
+}
+
+[class*="bg-[#f2aa00]"] {
+  background-color: #ff9c03 !important;
+}
+
+.dark [class*="bg-[#f2aa00]"] {
+  background-color: #ff9c03 !important;
+}
+
+.homepage-shell,
+.homepage-dark {
+  --homepage-blue: #0d406b;
+  --homepage-gold: #ff9c03;
+}
+
+.homepage-shell .homepage-footer a:hover,
+.homepage-dark .homepage-footer a:hover,
+html.dark .homepage-shell .homepage-footer a:hover {
+  color: #ff9c03 !important;
+}

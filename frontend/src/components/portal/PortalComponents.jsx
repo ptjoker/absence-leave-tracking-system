@@ -71,7 +71,7 @@ export function PortalSidebar({ supervisor = false }) {
         </div>
         <div className="flex flex-col gap-2">
           <NotificationBell onNavigate={() => setMobileOpen(false)} />
-          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#c8102e] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a50d25]"><LogOut size={18} />Logout</button>
+          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a50d25]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
             {showLogoutConfirm && (
