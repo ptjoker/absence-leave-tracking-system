@@ -50,7 +50,7 @@ export function UnreadDot({ className = '' }) {
 }
 
 /** Sidebar "Notification" button that opens the notification panel. */
-export function NotificationBell({ onNavigate, compact = false }) {
+export function NotificationBell({ onNavigate, compact = false, fullWidth = false, adminTheme = false }) {
   const [open, setOpen] = useState(false);
   const [, setLocation] = useLocation();
   const { notifications, unreadCount, markRead, markAllRead, clearAll, canClearAll } = useNotifications();
@@ -69,7 +69,7 @@ export function NotificationBell({ onNavigate, compact = false }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`focus-ring flex items-center rounded-lg bg-[#eef4fb] py-2.5 text-sm font-semibold text-[#52708b] hover:bg-[#e5eef8] ${compact ? 'size-9 justify-center px-0' : 'gap-3 px-3'}`}
+          className={`focus-ring flex items-center rounded-lg py-2.5 text-sm ${adminTheme ? 'bg-[#eef4fb] text-[#202a34] hover:bg-[#e5eef8]' : 'bg-[#eef4fb] text-[#52708b] hover:bg-[#e5eef8]'} ${compact ? 'size-9 justify-center px-0 font-semibold' : fullWidth ? 'w-full gap-3 px-3 font-bold' : 'gap-3 px-3 font-semibold'}`}
           aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
           data-testid="button-notification"
         >
@@ -99,7 +99,7 @@ export function NotificationBell({ onNavigate, compact = false }) {
             type="button"
             onClick={markAllRead}
             disabled={unreadCount === 0}
-            className="focus-ring rounded px-1 text-xs font-bold text-[#1f70d0] hover:underline disabled:cursor-not-allowed disabled:text-[#9baebe] disabled:no-underline"
+            className={`focus-ring rounded px-1 text-xs font-bold ${adminTheme ? 'text-[#003a6c]' : 'text-[#1f70d0]'} hover:underline disabled:cursor-not-allowed disabled:text-[#9baebe] disabled:no-underline`}
             data-testid="button-mark-all-read"
           >
             Mark all as read
@@ -125,10 +125,10 @@ export function NotificationBell({ onNavigate, compact = false }) {
                     className={`focus-ring flex w-full gap-3 px-4 py-3 text-left hover:bg-[#f4f8fb] ${n.read ? '' : 'bg-[#f4f8fb]'}`}
                     data-testid={`notification-${n.id}`}
                   >
-                    <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full ${style.tone}`}><Icon size={16} /></span>
+                    <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full ${adminTheme && ['request_submitted', 'timetable_uploaded'].includes(n.type) ? 'bg-[#003a6c] text-white' : style.tone}`}><Icon size={16} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-start justify-between gap-2">
-                        <strong className="text-sm font-bold text-[#162c4d]">{n.title}</strong>
+                        <strong className={`text-sm font-bold ${adminTheme ? 'text-[#003a6c]' : 'text-[#162c4d]'}`}>{n.title}</strong>
                         {!n.read && <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-[#e5383b]" />}
                       </span>
                       <span className="mt-0.5 block text-xs leading-5 text-[#52708b]">{n.message}</span>

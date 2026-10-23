@@ -53,13 +53,13 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-[#f1f3f5] px-5 py-12">
+    <main className="admin-login grid min-h-[100dvh] place-items-center bg-[#f1f3f5] px-5 py-12">
       <section className="w-full max-w-md rounded-2xl border border-[#dce2e8] bg-white p-7 shadow-[0_18px_45px_rgba(30,48,66,.12)] sm:p-9">
-        <Link href="/" className="focus-ring inline-flex items-center gap-2 text-sm font-semibold text-[#526171] hover:text-[#1f70d0]">
-          <Grid2X2 size={18} className="text-[#1f70d0]" /> Admin Portal
+        <Link href="/" className="focus-ring inline-flex items-center gap-2 text-sm font-semibold text-[#526171] hover:text-[#003a6c]">
+          <Grid2X2 size={18} className="text-[#003a6c]" /> Admin Portal
         </Link>
         <div className="mt-8">
-          <p className="text-xs font-bold uppercase tracking-[.14em] text-[#1f70d0]">Administrator access</p>
+          <p className="text-xs font-bold uppercase tracking-[.14em] text-[#003a6c]">Administrator access</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#17212b]">Sign in to your account</h1>
           <p className="mt-2 text-sm leading-6 text-[#657383]">Use the administrator account provided for your platform.</p>
         </div>
@@ -75,7 +75,7 @@ export default function AdminLoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="admin@yourorganisation.org"
-              className="focus-ring w-full rounded-lg border border-[#cfd7df] bg-white px-3.5 py-3 text-sm text-[#17212b] outline-none placeholder:text-[#9aa5b1] focus:border-[#1f70d0]"
+              className="focus-ring w-full rounded-lg border border-[#cfd7df] bg-white px-3.5 py-3 text-sm text-[#17212b] outline-none placeholder:text-[#9aa5b1] focus:border-[#003a6c]"
             />
           </label>
           <label htmlFor="admin-password" className="block">
@@ -88,21 +88,21 @@ export default function AdminLoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Enter your password"
-              className="focus-ring w-full rounded-lg border border-[#cfd7df] bg-white px-3.5 py-3 text-sm text-[#17212b] outline-none placeholder:text-[#9aa5b1] focus:border-[#1f70d0]"
+              className="focus-ring w-full rounded-lg border border-[#cfd7df] bg-white px-3.5 py-3 text-sm text-[#17212b] outline-none placeholder:text-[#9aa5b1] focus:border-[#003a6c]"
             />
           </label>
           {error && <p role="alert" className="rounded-lg bg-[#fff0ee] px-3.5 py-3 text-sm font-semibold text-[#b84233]">{error}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="focus-ring flex w-full items-center justify-center rounded-lg bg-[#1473e6] px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#095fc5] disabled:cursor-wait disabled:opacity-60"
+            className="focus-ring flex w-full items-center justify-center rounded-lg bg-[#003a6c] px-5 py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#003a6c] disabled:cursor-wait disabled:opacity-60"
           >
             {loading ? 'Signing in…' : 'Sign in as administrator'}
             {!loading && <ArrowRight size={16} className="ml-2" />}
           </button>
         </form>
         <p className="mt-6 border-t border-[#e7ebef] pt-5 text-center text-xs text-[#768391]">
-          <Link href="/" className="focus-ring rounded font-semibold text-[#526171] hover:text-[#1f70d0]">Return to the iCenter home page</Link>
+          <Link href="/" className="focus-ring rounded font-semibold text-[#526171] hover:text-[#003a6c]">Return to the iCenter home page</Link>
         </p>
       </section>
     </main>

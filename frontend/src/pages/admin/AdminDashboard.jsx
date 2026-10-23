@@ -501,34 +501,31 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-console min-h-screen bg-[#f4f5f7] text-[#202a34]">
-      <aside className="admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[#e1e5e9] bg-[#eceef0] px-4 py-5 lg:flex">
-        <div className="border-b border-[#dce1e5] px-2 pb-5">
-          <PortalBrand />
-        </div>
+      <aside className="admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-white/20 bg-[#003a6c] px-4 py-5 lg:flex">
         <nav className="mt-5 space-y-1" aria-label="Administrator navigation">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition-colors ${activeSection === id ? 'bg-[#dce1e6] text-[#202a34]' : 'text-[#687481] hover:bg-white/70 hover:text-[#202a34]'}`}>
+            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition-colors ${activeSection === id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}>
               <Icon size={16} />{label}
             </button>
           ))}
         </nav>
-        <div className="mt-auto border-t border-[#dce1e5] pt-4">
-          <div className="mb-2">
-            <NotificationBell onNavigate={(notification) => {
+        <div className="mt-auto flex flex-col gap-2">
+          <div>
+            <NotificationBell fullWidth onNavigate={(notification) => {
               if (notification.type === 'registration_pending') jumpTo('user-management');
             }} />
           </div>
-          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex w-full items-center gap-3 rounded-lg bg-[#1f70d0] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"><LogOut size={18} />Logout</button>
+          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex w-full items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#b90922]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
 
-      <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 flex min-h-[62px] items-center justify-between gap-4 border-b border-[#e1e5e9] bg-white/95 px-5 backdrop-blur sm:px-8">
-          <div className="ml-auto flex items-center gap-3">
+      <div className="pt-[62px] lg:pl-60">
+        <header className="admin-topbar fixed inset-x-0 top-0 z-40 flex min-h-[62px] items-center justify-between gap-4 border-b border-[#e1e5e9] bg-white/95 px-5 backdrop-blur sm:px-8">
+          <PortalBrand admin />
+          <div className="flex items-center gap-3">
             <div className="lg:hidden"><NotificationBell compact onNavigate={(notification) => {
               if (notification.type === 'registration_pending') jumpTo('user-management');
             }} /></div>
-            <ModeToggle size="compact" />
             <span className="hidden text-xs text-[#697582] sm:inline">Signed in as <strong className="text-[#344252]">{firstName}</strong></span>
             <button type="button" onClick={() => {
               if (activeSection === 'requests') loadRequests(requestFilters);
@@ -542,11 +539,12 @@ export default function AdminDashboard() {
             }} disabled={activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing || loading : refreshing || loading} className="focus-ring inline-flex items-center gap-2 rounded-md border border-[#d7dde3] bg-white px-3 py-2 text-xs font-semibold text-[#3f4b58] hover:bg-[#f6f8fa] disabled:opacity-60">
               <RefreshCw size={14} className={(activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing : refreshing) ? 'animate-spin' : ''} />{(activeSection === 'requests' ? requestsLoading : activeSection === 'analytics' ? analyticsLoading || refreshing : refreshing) ? 'Refreshing…' : 'Refresh data'}
             </button>
+            <ModeToggle size="compact" />
           </div>
         </header>
         <nav className="flex gap-2 overflow-x-auto border-b border-[#e1e5e9] bg-white px-4 py-2 lg:hidden" aria-label="Administrator navigation">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold ${activeSection === id ? 'bg-[#e9f2ff] text-[#1473e6]' : 'text-[#687481] hover:bg-[#f4f6f8]'}`}>
+            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold ${activeSection === id ? 'bg-[#003a6c] text-white' : 'text-[#687481] hover:bg-[#f4f6f8]'}`}>
               <Icon size={14} />{label}
             </button>
           ))}
@@ -562,7 +560,7 @@ export default function AdminDashboard() {
             {error && <div role="alert" className="mb-5 rounded-lg border border-[#f1c6c3] bg-[#fff1f0] px-4 py-3 text-sm font-semibold text-[#b84233]">{error}</div>}
             {loading ? <div className="rounded-xl border border-[#e6eaee] bg-white px-5 py-10 text-center text-sm text-[#75808c]">Loading administrator metrics…</div> : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Total users" value={totalUsers.toLocaleString()} note="Student assistants and supervisors" icon={Users} tint="bg-[#eaf3ff] text-[#1473e6]" />
+                <MetricCard label="Total users" value={totalUsers.toLocaleString()} note="Student assistants and supervisors" icon={Users} tint="bg-[#003a6c] text-white" />
                 <MetricCard label="Active accounts" value={(overview?.activeAccounts || 0).toLocaleString()} note="Accounts currently enabled" icon={UserRound} tint="bg-[#e8f8f0] text-[#15966a]" />
                 <MetricCard label="Student assistants" value={(overview?.totalStudentAssistants || 0).toLocaleString()} note={`${overview?.activeStudentAssistants || 0} active`} icon={UserRoundCog} tint="bg-[#f1ecff] text-[#7450c8]" />
                 <MetricCard label="Supervisors" value={(overview?.totalSupervisors || 0).toLocaleString()} note={`${overview?.activeSupervisors || 0} active`} icon={ShieldCheck} tint="bg-[#fff5e5] text-[#c17a13]" />
@@ -573,7 +571,7 @@ export default function AdminDashboard() {
                 <article className="rounded-xl border border-[#e6eaee] bg-white shadow-[0_2px_8px_rgba(30,48,66,.04)]">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f2] px-5 py-4">
                     <div><h2 className="text-base font-bold text-[#202a34]">Active user sessions</h2><p className="mt-1 text-xs text-[#82909d]">Recent activity from student assistants and supervisors</p></div>
-                    <span className="rounded-md bg-[#eef5ff] px-2.5 py-1 text-[10px] font-bold text-[#1473e6]">{onlineUserCount} online · {activeUsers.length} active accounts</span>
+                    <span className="rounded-md bg-[#003a6c] px-2.5 py-1 text-[10px] font-bold text-white">{onlineUserCount} online · {activeUsers.length} active accounts</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[620px] text-left">
@@ -695,7 +693,7 @@ export default function AdminDashboard() {
             onRefresh={() => loadRequests(requestFilters)}
           />}
 
-          <footer className="flex flex-wrap justify-between gap-3 border-t border-[#e1e5e9] py-4 text-[10px] text-[#8793a0]"><span>© 2026 iCenter Administrative Console</span><a href="mailto:general@tut.ac.za" className="hover:text-[#1473e6]">Contact support</a></footer>
+          <footer className="flex flex-wrap justify-between gap-3 border-t border-[#e1e5e9] py-4 text-[10px] text-[#8793a0]"><span>© 2026 iCenter Administrative Console</span><a href="mailto:general@tut.ac.za" className="hover:text-[#003a6c]">Contact support</a></footer>
         </main>
       </div>
       {showLogoutConfirm && (
@@ -704,7 +702,7 @@ export default function AdminDashboard() {
             <div className="mx-auto grid size-12 place-items-center rounded-full bg-[#fbe4e1] text-[#d05b48]">
               <LogOut size={22} />
             </div>
-            <h3 className="serif mt-4 text-center text-2xl text-[#162c4d]">Log out?</h3>
+            <h3 className="serif mt-4 text-center text-2xl text-[#003a6c]">Log out?</h3>
             <p className="mt-2 text-center text-sm text-[#60768c]">
               You'll need to sign in again to access your dashboard.
             </p>
@@ -720,7 +718,7 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="focus-ring flex-1 rounded-lg bg-[#1f70d0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"
+                className="focus-ring flex-1 rounded-lg bg-[#d60b28] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#b90922]"
                 data-testid="button-confirm-logout"
               >
                 Log out
@@ -729,7 +727,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-              <button type="button" onClick={handleLogout} className="focus-ring fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#cb3f43] px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-[#ad3036] lg:hidden"><LogOut size={14} />Log out</button>
+              <button type="button" onClick={handleLogout} className="focus-ring fixed bottom-4 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-[#d60b28] px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-[#b90922] lg:hidden"><LogOut size={14} />Log out</button>
     </div>
   );
 }

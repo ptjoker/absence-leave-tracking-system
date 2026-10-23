@@ -248,8 +248,8 @@
 }
 
 .homepage-shell .homepage-footer {
-  background-color: #b7d8ec !important;
-  border-color: #9ec4dd !important;
+  background-color: #003a6c !important;
+  border-color: #002c51 !important;
 }
 
 .homepage-dark {
@@ -302,8 +302,8 @@
 }
 
 .homepage-dark .homepage-footer {
-  background-color: #0c2945 !important;
-  border-color: #1c4565 !important;
+  background-color: #005596 !important;
+  border-color: #004578 !important;
 }
 
 .homepage-dark .homepage-footer p,
@@ -904,6 +904,26 @@ html.dark body p[class][class] { color: #ffffff !important; }
   background-color: #0d263b !important;
   border-color: #29475e !important;
 }
+.admin-console .admin-sidebar,
+.dark .admin-console .admin-sidebar {
+  background-color: #003a6c !important;
+}
+.admin-console .admin-sidebar {
+  top: 62px !important;
+}
+.admin-console .admin-topbar [data-testid="link-portal-brand"] strong {
+  color: #162c4d !important;
+}
+.admin-console .admin-sidebar [data-testid="link-portal-brand"] strong {
+  color: #ffffff !important;
+}
+.admin-console [data-testid="button-change-mode"]:hover {
+  color: #003a6c !important;
+}
+.admin-console .focus-ring:focus-visible,
+.admin-login .focus-ring:focus-visible {
+  outline-color: #003a6c;
+}
 .dark .admin-console [class~="bg-[#f4f5f7]"],
 .dark .admin-console [class~="bg-[#eceef0]"],
 .dark .admin-console [class~="bg-[#dce1e6]"],
@@ -1122,6 +1142,56 @@ html:not(.dark) main.auth-page-main,
 html:not(.dark) header,
 html:not(.dark) footer {
   background-color: #ffffff !important;
+}
+
+html:not(.dark) .homepage-shell .homepage-footer {
+  background-color: #003a6c !important;
+  color: #ffffff !important;
+}
+
+html:not(.dark) .homepage-shell .homepage-footer *,
+html:not(.dark) .homepage-shell .homepage-footer p[class][class] {
+  color: #ffffff !important;
+}
+
+html:not(.dark) .homepage-shell .homepage-footer a:hover {
+  color: #ffdc6e !important;
+}
+
+html:not(.dark) .homepage-shell .homepage-footer > div:last-child {
+  border-color: rgba(255, 255, 255, .35) !important;
+}
+
+html:not(.dark) .homepage-shell.homepage-light .homepage-notification-card {
+  background-color: #003a6c !important;
+}
+
+html:not(.dark) .homepage-shell.homepage-light .homepage-notification-card h3,
+html:not(.dark) .homepage-shell.homepage-light .homepage-notification-card p {
+  color: #ffffff !important;
+}
+
+html.dark .homepage-shell .homepage-footer {
+  background-color: var(--app-dark-surface) !important;
+  color: #b6cadb !important;
+}
+
+html.dark .homepage-shell .homepage-footer p,
+html.dark .homepage-shell .homepage-footer a,
+html.dark .homepage-shell .homepage-footer span {
+  color: #b6cadb !important;
+}
+
+html.dark .homepage-shell .homepage-footer p.text-\[\#152d49\] {
+  color: #f4f8fc !important;
+}
+
+html.dark .homepage-shell .homepage-footer a:hover {
+  color: #f3bd32 !important;
+}
+
+html.dark .homepage-shell .homepage-footer > div:last-child {
+  border-color: rgba(255, 255, 255, .35) !important;
 }
 
 html.dark .auth-shell,

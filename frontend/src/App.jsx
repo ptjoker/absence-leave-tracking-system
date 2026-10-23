@@ -74,7 +74,7 @@ function Header() {
   </header>);
 }
 function Footer() {
-  return (<footer className="homepage-footer bg-[#a9d0ea] text-[#29445f]">
+  return (<footer className="homepage-footer bg-[#003a6c] text-white">
     <div className="mx-auto max-w-[1180px] px-8 py-12 sm:px-12 lg:py-14">
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.15fr_1fr_1fr_1.2fr]">
         <div>
@@ -157,8 +157,8 @@ function Home() {
           <h2 className="serif mt-4 max-w-[520px] text-[31px] leading-[1.04] tracking-[-.03em] text-[#10253f] sm:text-[38px]">Automated Notifications &amp; Alerts</h2>
           <p className="mt-5 max-w-[470px] text-[11px] leading-5 text-[#52708b]">Ensure no request goes unnoticed. StudentAssist proactively notifies relevant staff via email and app alerts whenever a student assistant logs an absence or submits a time-off request.</p>
           <div className="mt-7 grid max-w-[470px] gap-3 sm:grid-cols-2">
-            <InfoCard icon={<Clock3 size={16} />} title="Instant Alerts" text="Receive real-time push notifications for last-minute scheduling changes." />
-            <InfoCard icon={<ShieldCheck size={16} />} title="Status Updates" text="Students are automatically notified when their leave status changes." />
+            <InfoCard className="homepage-notification-card" icon={<Clock3 size={16} />} title="Instant Alerts" text="Receive real-time push notifications for last-minute scheduling changes." />
+            <InfoCard className="homepage-notification-card" icon={<ShieldCheck size={16} />} title="Status Updates" text="Students are automatically notified when their leave status changes." />
           </div>
         </div>
         <div className="mx-auto w-full max-w-[390px] overflow-hidden">
@@ -182,8 +182,8 @@ function Bullet({ children }) {
 function Feature({ icon, title }) {
   return <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-[#e8f3fb] text-[#1f70d0]">{icon}</span><span className="text-sm font-bold text-[#385570]">{title}</span></div>;
 }
-function InfoCard({ icon, title, text }) {
-  return <div className="homepage-info-card rounded-md bg-[#eaf3f9] p-4 text-left"><span className="grid size-7 place-items-center rounded-full bg-white text-[#286ee5]">{icon}</span><h3 className="mt-3 text-[10px] font-bold text-[#243e5b]">{title}</h3><p className="mt-1 text-[9px] leading-4 text-[#60768c]">{text}</p></div>;
+function InfoCard({ icon, title, text, className = '' }) {
+  return <div className={`homepage-info-card rounded-md bg-[#eaf3f9] p-4 text-left ${className}`}><span className="grid size-7 place-items-center rounded-full bg-white text-[#286ee5]">{icon}</span><h3 className="mt-3 text-[10px] font-bold text-[#243e5b]">{title}</h3><p className="mt-1 text-[9px] leading-4 text-[#60768c]">{text}</p></div>;
 }
 function AuthHeader() {
   return <Header />;
