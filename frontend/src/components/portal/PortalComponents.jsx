@@ -69,7 +69,7 @@ export function PortalSidebar({ supervisor = false }) {
         </div>
         <div className="flex flex-col gap-2">
           <NotificationBell onNavigate={() => setMobileOpen(false)} />
-          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#1f70d0] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#256fc6]"><LogOut size={18} />Logout</button>
+          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#c8102e] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a50d25]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
             {showLogoutConfirm && (
@@ -136,7 +136,7 @@ export function PortalTopbar({ supervisor = false }) {
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
   const email = user.email || '';
   return (
-    <header className="portal-topbar homepage-header fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[#d5dfe8] bg-white px-5 sm:px-8 md:pl-72">
+    <header className="portal-topbar homepage-header fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[#d5dfe8] bg-white px-5 sm:px-8">
       <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
         <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">

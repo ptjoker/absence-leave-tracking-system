@@ -1143,3 +1143,23 @@ html:not(.dark) .auth-shell .auth-footer {
 html:not(.dark) .auth-shell .auth-page-main > .absolute {
   display: none;
 }
+
+.portal-sidebar {
+  background-color: #073f6b !important;
+  border-color: #073f6b !important;
+}
+
+.portal-sidebar nav a {
+  color: #ffffff !important;
+}
+
+.portal-sidebar nav a:hover,
+.portal-sidebar nav a.bg-\[\#e7f1fa\] {
+  background-color: #145581 !important;
+  color: #ffffff !important;
+}
+
+.portal-sidebar [data-testid="button-notification"] {
+  background-color: #f4f8fb !important;
+  color: #162c4d !important;
+}
