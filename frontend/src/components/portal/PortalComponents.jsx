@@ -136,7 +136,7 @@ export function PortalTopbar({ supervisor = false }) {
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
   const email = user.email || '';
   return (
-    <header className="portal-topbar homepage-header fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[#d5dfe8] bg-white px-5 sm:px-8 md:pl-72">
+    <header className="portal-topbar homepage-header fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[#d5dfe8] bg-white px-5 sm:px-8">
       <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
         <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
         <span className="leading-none">
