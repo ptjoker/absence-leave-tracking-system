@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, Pencil, X, Save } from 'lucide-react';
+import { Mail, Phone, GraduationCap, Building2, User, CalendarDays, BadgeCheck, Pencil, X, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
 import { recordActivity } from '@/lib/activityLog';
 import { getSession as readSession, updateSession } from '@/lib/session';
@@ -297,7 +297,7 @@ export default function ProfilePage() {
                       placeholder="e.g. 076 123 4567"
                     />
                     <EditableField
-                      icon={<Globe size={14} />}
+                      icon={<Mail size={14} />}
                       label="Personal Email"
                       type="email"
                       value={draft.personal_email}
@@ -313,7 +313,7 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <InfoField icon={<Phone size={14} />} label="Cell Number" value={user.cell_number} bold />
-                    <InfoField icon={<Globe size={14} />} label="Personal Email" value={user.personal_email} />
+                    <InfoField icon={<Mail size={14} />} label="Personal Email" value={user.personal_email} />
                   </>
                 )}
               </div>
