@@ -834,6 +834,7 @@ function DashboardPage() {
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="mb-3 inline-flex rounded-full bg-[#162c4d] px-3 py-1 text-[10px] font-bold uppercase tracking-[.1em] text-white">Library Log</p>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[.12em] text-[#52708b]">Student Dashboard</p>
             <h1 className="serif text-4xl text-[#10253f]">Welcome back, {fullName}</h1>
             <p className="mt-2 max-w-lg text-sm text-[#52708b]">Manage your leave requests and track your departmental attendance.</p>
           </div>
