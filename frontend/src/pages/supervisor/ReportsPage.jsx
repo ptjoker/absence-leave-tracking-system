@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDays, endOfDay, format, isAfter, isBefore, startOfDay, startOfMonth, startOfWeek, endOfWeek } from 'date-fns';
-import { BarChart3, CalendarDays, ChevronDown, Download, FileSpreadsheet, FileText, Grid2X2, List, Search, UserRound } from 'lucide-react';
+import { BarChart3, CalendarDays, ChevronDown, Clock3, Download, FileSpreadsheet, FileText, Grid2X2, List, Search, UserRound } from 'lucide-react';
 import { PortalShell } from '@/components/portal/PortalComponents';
 import { useRequests } from '@/context/RequestsContext';
 import { parseDateRangeKeys } from '@/lib/schedule';
@@ -65,6 +65,13 @@ function shiftHours(shift) {
   const durationMinutes = endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 24 * 60 - startMinutes;
   return durationMinutes / 60;
 }
+function recordedShiftHours(shift) {
+  if (!shift?.startedAt) return 0;
+  const startedAt = new Date(shift.startedAt);
+  const endedAt = shift.endedAt ? new Date(shift.endedAt) : new Date();
+  if (Number.isNaN(startedAt.getTime()) || Number.isNaN(endedAt.getTime()) || endedAt <= startedAt) return 0;
+  return Math.min((endedAt - startedAt) / 3600000, shiftHours(shift));
+}
 function requestDays(request) { return Math.max(parseDateRangeKeys(request?.dateRange).length, 1); }
 
 export default function ReportsPage() {
@@ -123,9 +130,10 @@ export default function ReportsPage() {
       const personRequests = periodRequests.filter((request) => (request.name || '') === name || request.replacement === name || String(request.type || '').includes(name));
       const personShifts = periodShifts.filter((shift) => shift.studentName === name);
       const hours = personShifts.reduce((sum, shift) => sum + shiftHours(shift), 0);
+      const recordedHours = personShifts.reduce((sum, shift) => sum + recordedShiftHours(shift), 0);
       const requestDaysTotal = personRequests.reduce((sum, request) => sum + requestDays(request), 0);
       const site = personShifts[0]?.position || personShifts[0]?.role || base.site;
-      return { ...base, name, site, hours: `${hours.toFixed(1)}h`, days: personShifts.length, requests: personRequests.length, requestDays: requestDaysTotal, shifts: personShifts.length, shiftHours: hours, shiftDetails: personShifts.map((shift) => `${shift.shiftDate} | ${shift.position || shift.role || '—'} | ${shift.startTime}-${shift.endTime} | ${shiftHours(shift)}h`).join(' ; '), requestDetails: personRequests.map((request) => `${request.type || 'Request'} | ${request.dateRange || 'Date not provided'} | ${requestDays(request)} day(s) | ${request.status || 'Pending'}`).join(' ; ') };
+      return { ...base, name, site, hours: `${hours.toFixed(1)}h`, recordedHours, days: personShifts.length, requests: personRequests.length, requestDays: requestDaysTotal, shifts: personShifts.length, shiftHours: hours, shiftDetails: personShifts.map((shift) => `${shift.shiftDate} | ${shift.position || shift.role || '—'} | ${shift.startTime}-${shift.endTime} | ${shiftHours(shift).toFixed(1)} h`).join(' ; '), requestDetails: personRequests.map((request) => `${request.type || 'Request'} | ${request.dateRange || 'Date not provided'} | ${requestDays(request)} day(s) | ${request.status || 'Pending'}`).join(' ; ') };
     });
   }, [periodRequests, periodShifts]);
 
@@ -134,6 +142,7 @@ export default function ReportsPage() {
   const visiblePeriodShifts = useMemo(() => periodShifts.filter((shift) => !searchTerm || `${shift.studentName || ''} ${shift.role || ''} ${shift.location || ''}`.toLowerCase().includes(searchTerm)), [periodShifts, searchTerm]);
   const visiblePeriodRequests = useMemo(() => periodRequests.filter((request) => !searchTerm || `${request.name || ''} ${request.type || ''}`.toLowerCase().includes(searchTerm)), [periodRequests, searchTerm]);
   const totalHours = useMemo(() => filtered.reduce((sum, row) => sum + Number.parseFloat(row.hours), 0), [filtered]);
+  const totalWorkedHours = useMemo(() => filtered.reduce((sum, row) => sum + row.recordedHours, 0), [filtered]);
   const totalRequests = useMemo(() => filtered.reduce((sum, row) => sum + row.requests, 0), [filtered]);
   const activeReports = filtered.filter((row) => row.requests > 0 || row.shifts > 0).length;
 
@@ -173,13 +182,14 @@ export default function ReportsPage() {
           <div className="mt-3 rounded-lg border border-[#d0e0ea] bg-[#f8fbfd] px-3 py-2.5 text-sm font-bold text-black">Report details for: <span className="text-[#1f70d0]">{period.label}</span></div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Total Hours" value={`${totalHours.toFixed(1)}h`} icon={<BarChart3 size={17}/>} />
+          <StatCard label="Total Worked Hours" value={`${totalWorkedHours.toFixed(1)}h`} icon={<Clock3 size={17}/>} />
           <StatCard label="Requests in Period" value={totalRequests} icon={<FileText size={17}/>} />
           <StatCard label="Assistants with Requests" value={activeReports} icon={<FileText size={17}/>} />
         </div>
 
-        {visiblePeriodShifts.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white"><div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Shift details in selected period</h2><p className="mt-1 text-sm text-black">Every scheduled shift contributes its duration to the report totals.</p></div><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Position</th><th className="p-4">Date</th><th className="p-4">Shift Time</th><th className="p-4">Duration</th></tr></thead><tbody>{visiblePeriodShifts.map((shift) => <tr key={shift.id} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{shift.studentName}</td><td className="p-4">{shift.position || shift.role || '—'}</td><td className="p-4">{shift.shiftDate}</td><td className="p-4">{shift.startTime} - {shift.endTime}</td><td className="p-4 font-bold">{shiftHours(shift)} hours</td></tr>)}</tbody></table></div>}
+        {visiblePeriodShifts.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white"><div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Shift details in selected period</h2><p className="mt-1 text-sm text-black">Every scheduled shift contributes its duration to the report totals.</p></div><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Position</th><th className="p-4">Date</th><th className="p-4">Shift Time</th><th className="p-4">Duration</th></tr></thead><tbody>{visiblePeriodShifts.map((shift) => <tr key={shift.id} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{shift.studentName}</td><td className="p-4">{shift.position || shift.role || '—'}</td><td className="p-4">{shift.shiftDate}</td><td className="p-4">{shift.startTime} - {shift.endTime}</td><td className="p-4 font-bold">{shiftHours(shift).toFixed(1)} h</td></tr>)}</tbody></table></div>}
 
         {visiblePeriodRequests.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white">
           <div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Request details in selected period</h2><p className="mt-1 text-sm text-black">These requests match the active date filter and are included in the report period.</p></div>

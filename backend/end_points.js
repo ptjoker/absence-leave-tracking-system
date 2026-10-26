@@ -1735,6 +1735,8 @@ router.post('/shifts', async (req, res) => {
     const location   = body.location   ?? body.position ?? null;
     const notes      = body.notes      ?? null;
     const duration   = body.duration   ?? null;
+    const durationText = duration === null || duration === '' ? '' : String(duration).trim();
+    const parsedDuration = durationText === '' ? null : Number(durationText);
 
     if (!user_id || !shift_date || !start_time) {
       return res.status(400).json({
@@ -1742,12 +1744,15 @@ router.post('/shifts', async (req, res) => {
         required: ['user_id', 'shift_date', 'start_time'],
       });
     }
+    if (parsedDuration !== null && (!/^\d+(?:\.\d)?$/.test(durationText) || !Number.isFinite(parsedDuration) || parsedDuration < 0.1)) {
+      return res.status(400).json({ error: 'Shift duration must be at least 0.1 hours and use at most one decimal place.' });
+    }
 
     // Derive end_time from duration if the client didn't send one.
     if (!end_time && duration) {
       const match = /^([0-9]{1,2}):([0-9]{2})$/.exec(String(start_time).trim());
-      const hours = Number(String(duration).replace(/[^0-9.]/g, ''));
-      if (match && !Number.isNaN(hours) && hours > 0) {
+      const hours = parsedDuration;
+      if (match && Number.isFinite(hours) && hours >= 0.1) {
         const total = Number(match[1]) * 60 + Number(match[2]) + Math.round(hours * 60);
         const hh = String(Math.floor((total % (24 * 60)) / 60)).padStart(2, '0');
         const mm = String(total % 60).padStart(2, '0');

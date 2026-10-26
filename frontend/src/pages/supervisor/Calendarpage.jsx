@@ -301,7 +301,8 @@ export default function CalendarPage() {
     setFormError('');
     if (!form.user_id) return setFormError('Please select a student.');
     if (!form.shift_date) return setFormError('Please pick a date.');
-    if (!form.duration || Number(form.duration) <= 0) return setFormError('Please enter a valid shift duration.');
+    const normalizedDuration = Number(Number(form.duration).toFixed(1));
+    if (!Number.isFinite(normalizedDuration) || normalizedDuration < 0.1) return setFormError('Shift duration must be at least 0.1 hours.');
     if (!form.start_time) return setFormError('Please select a starting time.');
     const selected = new Date(`${form.shift_date}T00:00:00`);
     if (selected.getFullYear() !== new Date().getFullYear()) return setFormError('Only the current year can be used to assign shifts to current-year student assistants.');
@@ -312,10 +313,10 @@ export default function CalendarPage() {
     if (isPublicHoliday(selected)) return setFormError('Shifts cannot be assigned on public holidays.');
     if (strikeDays[form.shift_date]) return setFormError('Closure on this date');
     if ((shiftsByDate[form.shift_date] || []).some((shift) => shift.userId === form.user_id)) return setFormError('This student already has a shift assigned on that date.');
-    const durationMinutes = Number(form.duration) * 60;
+    const durationMinutes = normalizedDuration * 60;
     const startMinutes = timeToMinutes(form.start_time);
     const endMinutes = startMinutes + durationMinutes;
-    const timeRangeError = shiftTimeRangeError(selected, form.start_time, form.duration);
+    const timeRangeError = shiftTimeRangeError(selected, form.start_time, normalizedDuration);
     if (timeRangeError) return setFormError(timeRangeError);
     const start_time = form.start_time;
     const end_time = minutesToTime(endMinutes);
@@ -1066,12 +1067,13 @@ export default function CalendarPage() {
                     <div className="relative">
                       <input
                         type="number"
-                        min="0.5"
+                        min="0.1"
                         max={formWindow ? (timeToMinutes(formWindow.closing) - timeToMinutes(formWindow.opening)) / 60 : 13}
-                        step="0.5"
+                        step="0.1"
                         value={form.duration}
                         onChange={(e) => {
-                          const duration = e.target.value;
+                          const rawDuration = e.target.value;
+                          const duration = rawDuration === '' ? '' : String(Math.max(0.1, Number(Number(rawDuration).toFixed(1))));
                           setForm((f) => ({ ...f, duration }));
                         }}
                         placeholder="e.g. 4 hours"
