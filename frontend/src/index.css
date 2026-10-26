@@ -301,9 +301,9 @@
 }
 
 .homepage-dark .homepage-secondary-button {
-  background-color: #123452 !important;
-  border-color: #3e7396 !important;
-  color: #f4f8fc !important;
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #123452 !important;
 }
 
 .homepage-dark .homepage-info-card,
@@ -1363,4 +1363,11 @@ html:not(.dark) .auth-shell .auth-page-main > .absolute {
 .homepage-dark .homepage-footer a:hover,
 html.dark .homepage-shell .homepage-footer a:hover {
   color: #ff9c03 !important;
+}
+
+html.dark .homepage-shell.homepage-dark a.homepage-secondary-button,
+html.dark .homepage-shell.homepage-dark a.homepage-secondary-button:hover {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #123452 !important;
 }

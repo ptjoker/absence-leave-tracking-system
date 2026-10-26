@@ -361,7 +361,7 @@ function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;
 }
 const SIGNUP_DEPARTMENTS = [
-  'Information and Communication Technology',
+  'Computer Science',
   'Human Resources',
   'Electrical Engineering',
   'Administration',
@@ -383,7 +383,7 @@ function SignupDepartmentField({ value, onChange, error }) {
           className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`}
           data-testid="input-signup-course"
         >
-          <option value="">Select a course or department</option>
+          <option value="">Select a course</option>
           {SIGNUP_DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
         </select>
         <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" />
