@@ -919,17 +919,16 @@ html.dark body p[class][class] { color: #ffffff !important; }
 
 /* Admin pages share the global theme toggle but use a distinct light palette. */
 .dark .admin-console {
-  background-color: #071a2b !important;
+  background-color: var(--app-dark-surface) !important;
   color: #e8f1f8 !important;
 }
 .dark .admin-console .admin-sidebar,
 .dark .admin-console header,
 .dark .admin-console nav[aria-label="Administrator navigation"] {
-  background-color: #0d263b !important;
+  background-color: var(--app-dark-surface) !important;
   border-color: #29475e !important;
 }
-.admin-console .admin-sidebar,
-.dark .admin-console .admin-sidebar {
+.admin-console .admin-sidebar {
   background-color: #003a6c !important;
 }
 .admin-console .admin-sidebar {
@@ -946,6 +945,9 @@ html.dark body p[class][class] { color: #ffffff !important; }
 }
 .admin-console .admin-topbar [data-testid="link-portal-brand"] strong {
   color: #162c4d !important;
+}
+.dark .admin-console .admin-topbar [data-testid="link-portal-brand"] strong {
+  color: #ffffff !important;
 }
 .admin-console .admin-sidebar [data-testid="link-portal-brand"] strong {
   color: #ffffff !important;

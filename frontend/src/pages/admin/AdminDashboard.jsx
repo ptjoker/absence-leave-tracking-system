@@ -561,9 +561,9 @@ export default function AdminDashboard() {
             {loading ? <div className="rounded-xl border border-[#e6eaee] bg-white px-5 py-10 text-center text-sm text-[#75808c]">Loading administrator metrics…</div> : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Total users" value={totalUsers.toLocaleString()} note="Student assistants and supervisors" icon={Users} tint="bg-[#003a6c] text-white" />
-                <MetricCard label="Active accounts" value={(overview?.activeAccounts || 0).toLocaleString()} note="Accounts currently enabled" icon={UserRound} tint="bg-[#e8f8f0] text-[#15966a]" />
-                <MetricCard label="Student assistants" value={(overview?.totalStudentAssistants || 0).toLocaleString()} note={`${overview?.activeStudentAssistants || 0} active`} icon={UserRoundCog} tint="bg-[#f1ecff] text-[#7450c8]" />
-                <MetricCard label="Supervisors" value={(overview?.totalSupervisors || 0).toLocaleString()} note={`${overview?.activeSupervisors || 0} active`} icon={ShieldCheck} tint="bg-[#fff5e5] text-[#c17a13]" />
+                <MetricCard label="Active accounts" value={(overview?.activeAccounts || 0).toLocaleString()} note="Accounts currently enabled" icon={UserRound} tint="bg-[#003a6c] text-white" />
+                <MetricCard label="Student assistants" value={(overview?.totalStudentAssistants || 0).toLocaleString()} note={`${overview?.activeStudentAssistants || 0} active`} icon={UserRoundCog} tint="bg-[#003a6c] text-white" />
+                <MetricCard label="Supervisors" value={(overview?.totalSupervisors || 0).toLocaleString()} note={`${overview?.activeSupervisors || 0} active`} icon={ShieldCheck} tint="bg-[#003a6c] text-white" />
               </div>
             )}
             <div className="mt-5">
