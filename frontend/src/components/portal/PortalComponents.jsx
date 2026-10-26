@@ -22,7 +22,7 @@ export function PortalBrand({ supervisor = false, compact = false, admin = false
       <img src={assetUrl('tut-logo.png')} alt="TUT logo" className={`${compact ? 'size-7 rounded-md' : 'size-9 rounded-lg'} object-contain shadow-sm`} />
       <span className="leading-none">
         <strong className={`block font-bold tracking-[-.02em] text-[#162c4d] ${compact ? 'text-[11px]' : 'text-[15px]'}`}>Library Log</strong>
-        <span className={`block font-bold uppercase tracking-[.16em] text-[#c8102e] ${compact ? 'mt-0.5 text-[6px]' : 'mt-1 text-[9px]'}`}>{admin ? 'ADMINISTRATIVE CONSOLE' : supervisor ? 'SUPERVISOR PORTAL' : '{portalLabel}'}</span>
+        <span className={`block font-bold uppercase tracking-[.16em] text-[#c8102e] ${compact ? 'mt-0.5 text-[6px]' : 'mt-1 text-[9px]'}`}>{portalLabel}</span>
       </span>
     </Link>
   );

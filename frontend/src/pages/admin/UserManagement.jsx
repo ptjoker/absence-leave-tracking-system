@@ -9,7 +9,7 @@ export default function UserManagement({
   loading, error, accounts, filteredAccounts, visibleAccounts, search, setSearch, roleFilter, setRoleFilter,
   page, pageSize, pageCount, accountNotice, accountDialog, accountForm, accountError, accountBusy,
   pendingRegistrations = [], pendingRegistrationsLoading = false, pendingRegistrationsError = '', registrationBusyId,
-  onRefresh, onOpenAccount, onDeleteAccount, onChangeAccountStatus, onSaveAccount, onFormChange, onCloseDialog, onRoleChange,
+  onOpenAccount, onDeleteAccount, onChangeAccountStatus, onSaveAccount, onFormChange, onCloseDialog, onRoleChange,
   onPageChange, onExport, onRefreshRegistrations, onReviewRegistration,
 }) {
   const [rejectingRegistration, setRejectingRegistration] = useState(null);
@@ -20,7 +20,6 @@ export default function UserManagement({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><h2 className="text-xl font-bold text-[#202a34]">User management</h2><p className="mt-1 text-sm text-[#82909d]">Create, review, edit, and delete user accounts.</p></div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-          <button type="button" onClick={onRefresh} disabled={loading} className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-[#d7dde3] px-3 py-2 text-xs font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:opacity-60"><RefreshCw size={14} className={loading ? 'animate-spin' : ''} />Sync records</button>
           <button type="button" onClick={() => onOpenAccount('create')} className="focus-ring inline-flex items-center justify-center gap-2 rounded-md bg-[#003a6c] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#003a6c]"><Plus size={15} />Add new user</button>
           <button type="button" onClick={onExport} disabled={!accounts.length} className="focus-ring inline-flex items-center justify-center gap-2 rounded-md border border-[#d7dde3] px-3 py-2 text-xs font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:opacity-50"><Download size={14} />Export report</button>
         </div>

@@ -662,7 +662,6 @@ export default function AdminDashboard() {
             pendingRegistrationsLoading={pendingRegistrationsLoading}
             pendingRegistrationsError={pendingRegistrationsError}
             registrationBusyId={registrationBusyId}
-            onRefresh={() => loadDashboard(true)}
             onRefreshRegistrations={loadPendingRegistrations}
             onReviewRegistration={reviewRegistration}
             onOpenAccount={openAccountDialog}
