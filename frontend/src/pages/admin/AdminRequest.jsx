@@ -95,9 +95,9 @@ export default function AdminRequest({
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Matching requests" value={requests.length} note="Based on selected filters" icon={FileText} tint="bg-[#003a6c] text-white" />
-        <Metric label="Pending" value={pendingCount} note="Awaiting a decision" icon={Clock3} tint="bg-[#fff5e5] text-[#c17a13]" />
-        <Metric label="Leave requests" value={leaveCount} note="Leave submissions" icon={CalendarDays} tint="bg-[#f1ecff] text-[#7450c8]" />
-        <Metric label="Shift swaps" value={swapCount} note="Shift-swap submissions" icon={Activity} tint="bg-[#e8f8f0] text-[#15966a]" />
+        <Metric label="Pending" value={pendingCount} note="Awaiting a decision" icon={Clock3} tint="bg-[#003a6c] text-white" />
+        <Metric label="Leave requests" value={leaveCount} note="Leave submissions" icon={CalendarDays} tint="bg-[#003a6c] text-white" />
+        <Metric label="Shift swaps" value={swapCount} note="Shift-swap submissions" icon={Activity} tint="bg-[#003a6c] text-white" />
       </div>
       <div className="mt-5 grid gap-3 rounded-lg bg-[#f7f8f9] p-3 sm:grid-cols-2 xl:grid-cols-6">
         <label className="relative sm:col-span-2" htmlFor="admin-request-search"><Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8b96a1]" /><input id="admin-request-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search user, type, reason…" className="focus-ring w-full rounded-md border border-[#d7dde3] bg-white py-2.5 pl-9 pr-3 text-xs outline-none focus:border-[#003a6c]" /></label>

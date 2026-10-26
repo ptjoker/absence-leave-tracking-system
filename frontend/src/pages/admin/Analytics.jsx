@@ -14,9 +14,9 @@ export default function Analytics({
       {analyticsError && <div role="alert" className="rounded-lg border border-[#f1c6c3] bg-[#fff1f0] px-4 py-3 text-sm font-semibold text-[#b84233]">{analyticsError}</div>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total users" value={totalUsers} note="Student assistants and supervisors" icon={Users} tint="bg-[#003a6c] text-white" />
-        <MetricCard label="Online users" value={onlineUserCount} note="Active within the last five minutes" icon={Activity} tint="bg-[#e8f8f0] text-[#15966a]" />
-        <MetricCard label="Pending registrations" value={overview?.pendingRegistrations || 0} note="Waiting for administrator review" icon={Clock3} tint="bg-[#fff5e5] text-[#c17a13]" />
-        <MetricCard label="Requests submitted" value={analyticsRequests.length} note="Leave and shift-swap requests · last 7 days" icon={FileText} tint="bg-[#f1ecff] text-[#7450c8]" />
+        <MetricCard label="Online users" value={onlineUserCount} note="Active within the last five minutes" icon={Activity} tint="bg-[#003a6c] text-white" />
+        <MetricCard label="Pending registrations" value={overview?.pendingRegistrations || 0} note="Waiting for administrator review" icon={Clock3} tint="bg-[#003a6c] text-white" />
+        <MetricCard label="Requests submitted" value={analyticsRequests.length} note="Leave and shift-swap requests · last 7 days" icon={FileText} tint="bg-[#003a6c] text-white" />
       </div>
       <article className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-bold text-[#202a34]">Request submissions</h2><p className="mt-1 text-xs text-[#82909d]">Leave and shift-swap submissions by date · last seven days</p></div><span className="rounded-md bg-[#003a6c] px-2.5 py-1.5 text-[10px] font-bold text-white">{analyticsLoading ? 'Refreshing…' : `${analyticsRequests.length} total`}</span></div>

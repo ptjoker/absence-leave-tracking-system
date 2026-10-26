@@ -504,7 +504,7 @@ export default function AdminDashboard() {
       <aside className="admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-white/20 bg-[#003a6c] px-4 py-5 lg:flex">
         <nav className="mt-5 space-y-1" aria-label="Administrator navigation">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition-colors ${activeSection === id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}>
+            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold text-[#ffffff] transition-colors ${activeSection === id ? 'bg-white/20' : 'hover:bg-white/10'}`}>
               <Icon size={16} />{label}
             </button>
           ))}
@@ -561,9 +561,9 @@ export default function AdminDashboard() {
             {loading ? <div className="rounded-xl border border-[#e6eaee] bg-white px-5 py-10 text-center text-sm text-[#75808c]">Loading administrator metrics…</div> : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Total users" value={totalUsers.toLocaleString()} note="Student assistants and supervisors" icon={Users} tint="bg-[#003a6c] text-white" />
-                <MetricCard label="Active accounts" value={(overview?.activeAccounts || 0).toLocaleString()} note="Accounts currently enabled" icon={UserRound} tint="bg-[#e8f8f0] text-[#15966a]" />
-                <MetricCard label="Student assistants" value={(overview?.totalStudentAssistants || 0).toLocaleString()} note={`${overview?.activeStudentAssistants || 0} active`} icon={UserRoundCog} tint="bg-[#f1ecff] text-[#7450c8]" />
-                <MetricCard label="Supervisors" value={(overview?.totalSupervisors || 0).toLocaleString()} note={`${overview?.activeSupervisors || 0} active`} icon={ShieldCheck} tint="bg-[#fff5e5] text-[#c17a13]" />
+                <MetricCard label="Active accounts" value={(overview?.activeAccounts || 0).toLocaleString()} note="Accounts currently enabled" icon={UserRound} tint="bg-[#003a6c] text-white" />
+                <MetricCard label="Student assistants" value={(overview?.totalStudentAssistants || 0).toLocaleString()} note={`${overview?.activeStudentAssistants || 0} active`} icon={UserRoundCog} tint="bg-[#003a6c] text-white" />
+                <MetricCard label="Supervisors" value={(overview?.totalSupervisors || 0).toLocaleString()} note={`${overview?.activeSupervisors || 0} active`} icon={ShieldCheck} tint="bg-[#003a6c] text-white" />
               </div>
             )}
             <div className="mt-5">
