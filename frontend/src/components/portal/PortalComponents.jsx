@@ -16,6 +16,7 @@ export const STUDENT = { name: 'Nicholas Mathebula', initials: 'NM', number: 'SA
 export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
 
 export function PortalBrand({ supervisor = false, admin = false }) {
+  const portalLabel = admin ? 'ADMIN PORTAL' : supervisor ? 'SUPERVISOR PORTAL' : 'STUDENT PORTAL';
 
   return (
     <Link href="/" className="focus-ring flex items-center gap-2 px-2" data-testid="link-portal-brand">
@@ -23,7 +24,7 @@ export function PortalBrand({ supervisor = false, admin = false }) {
       <span className="leading-none">
 
         <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">Library Log</strong>
-        <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">STUDENT PORTAL</span>
+        <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">{portalLabel}</span>
       </span>
     </Link>
   );
