@@ -504,7 +504,7 @@ export default function AdminDashboard() {
       <aside className="admin-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-white/20 bg-[#003a6c] px-4 py-5 lg:flex">
         <nav className="mt-5 space-y-1" aria-label="Administrator navigation">
           {navItems.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold transition-colors ${activeSection === id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}>
+            <button key={id} type="button" onClick={() => jumpTo(id)} className={`focus-ring flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold text-[#ffffff] transition-colors ${activeSection === id ? 'bg-white/20' : 'hover:bg-white/10'}`}>
               <Icon size={16} />{label}
             </button>
           ))}

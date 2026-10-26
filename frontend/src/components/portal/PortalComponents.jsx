@@ -58,7 +58,7 @@ export function PortalSidebar({ supervisor = false }) {
     <>
       <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-4 pb-6 pt-[82px] transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-60 shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-3 pb-6 pt-4 transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
         <div>
           <nav className="flex flex-col gap-1">
             {items.map(([key, label, Icon, href]) => (
@@ -138,7 +138,7 @@ export function PortalTopbar({ supervisor = false }) {
   const email = user.email || '';
   return (
     <header className={`portal-topbar fixed left-0 right-0 top-0 z-40 flex h-[70px] items-center justify-between border-b border-[#e2eaf1] bg-white px-5 md:px-8 ${supervisor ? 'portal-topbar-supervisor' : ''}`}>
-      {supervisor ? <PortalBrand supervisor compact /> : <ModeToggle size="compact" />}
+      <PortalBrand supervisor={supervisor} compact />
       <div className={`flex items-center ${supervisor ? 'gap-4' : 'gap-3'}`}>
         <div className="flex items-center gap-3" data-testid={supervisor ? 'supervisor-profile' : 'student-profile'}>
           <span className="text-right leading-tight">
@@ -147,7 +147,7 @@ export function PortalTopbar({ supervisor = false }) {
           </span>
           <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
         </div>
-        {supervisor && <ModeToggle size="compact" />}
+        <ModeToggle size="compact" />
       </div>
     </header>
   );

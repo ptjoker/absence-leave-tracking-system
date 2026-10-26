@@ -162,12 +162,6 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <StatCard label="Total Hours" value={`${totalHours.toFixed(1)}h`} icon={<BarChart3 size={17}/>} />
-          <StatCard label="Requests in Period" value={totalRequests} icon={<FileText size={17}/>} />
-          <StatCard label="Assistants with Requests" value={activeReports} icon={<FileText size={17}/>} />
-        </div>
-
         <div className="mt-5 rounded-xl border border-[#1f70d0] bg-white p-3">
           <div className="flex flex-wrap items-center gap-3">
             <label className="relative min-w-[250px] flex-1" htmlFor="report-search"><Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black"/><input id="report-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Filter by student name or role..." className="w-full rounded-lg border border-[#d0e0ea] bg-white py-2.5 pl-10 pr-3 text-sm font-semibold text-black outline-none"/></label>
@@ -177,6 +171,12 @@ export default function ReportsPage() {
           </div>
           {range === 'Range Dates' && <div className="mt-3 grid gap-3 rounded-lg bg-[#f4f8fb] p-3 md:grid-cols-2"><label className="text-sm font-bold text-black">From<input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#cfdee9] bg-white px-3 py-2.5 text-sm font-semibold text-black"/></label><label className="text-sm font-bold text-black">To<input type="date" value={rangeTo} min={rangeFrom} onChange={(e) => setRangeTo(e.target.value)} className="mt-1.5 block w-full rounded-lg border border-[#cfdee9] bg-white px-3 py-2.5 text-sm font-semibold text-black"/></label></div>}
           <div className="mt-3 rounded-lg border border-[#d0e0ea] bg-[#f8fbfd] px-3 py-2.5 text-sm font-bold text-black">Report details for: <span className="text-[#1f70d0]">{period.label}</span></div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <StatCard label="Total Hours" value={`${totalHours.toFixed(1)}h`} icon={<BarChart3 size={17}/>} />
+          <StatCard label="Requests in Period" value={totalRequests} icon={<FileText size={17}/>} />
+          <StatCard label="Assistants with Requests" value={activeReports} icon={<FileText size={17}/>} />
         </div>
 
         {visiblePeriodShifts.length > 0 && <div className="mt-5 overflow-x-auto rounded-xl border border-[#1f70d0] bg-white"><div className="border-b border-[#d0e0ea] px-4 py-3"><h2 className="text-base font-bold text-black">Shift details in selected period</h2><p className="mt-1 text-sm text-black">Every scheduled shift contributes its duration to the report totals.</p></div><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[#d0e0ea] text-xs font-bold uppercase tracking-wide text-black"><th className="p-4">Student Assistant</th><th className="p-4">Position</th><th className="p-4">Date</th><th className="p-4">Shift Time</th><th className="p-4">Duration</th></tr></thead><tbody>{visiblePeriodShifts.map((shift) => <tr key={shift.id} className="border-b border-[#e2eaf1] text-sm text-black"><td className="p-4 font-bold">{shift.studentName}</td><td className="p-4">{shift.position || shift.role || '—'}</td><td className="p-4">{shift.shiftDate}</td><td className="p-4">{shift.startTime} - {shift.endTime}</td><td className="p-4 font-bold">{shiftHours(shift)} hours</td></tr>)}</tbody></table></div>}
