@@ -58,7 +58,7 @@ export function PortalSidebar({ supervisor = false }) {
     <>
       <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-[182px] shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-3 pb-6 pt-[82px] transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-[182px] shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-3 pb-6 pt-[82px] md:pt-4 transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
         <div>
           <nav className="flex flex-col gap-1">
             {items.map(([key, label, Icon, href]) => (
@@ -69,8 +69,8 @@ export function PortalSidebar({ supervisor = false }) {
           </nav>
         </div>
         <div className="flex flex-col gap-2">
-          <NotificationBell onNavigate={() => setMobileOpen(false)} />
-          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a50d25]"><LogOut size={18} />Logout</button>
+          <NotificationBell onNavigate={() => setMobileOpen(false)} fullWidth />
+          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex w-full items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a50d25]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
             {showLogoutConfirm && (

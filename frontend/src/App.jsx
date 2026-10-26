@@ -122,7 +122,7 @@ function Home() {
       <section className="mx-auto grid max-w-[1180px] items-center gap-12 px-8 pb-24 pt-20 sm:px-12 lg:grid-cols-[.95fr_1.05fr] lg:gap-20 lg:pb-32 lg:pt-24">
         <div className="animate-rise">
           <p className="homepage-eyebrow mb-5 inline-flex rounded-full bg-[#b7d7eb] px-3 py-1 text-[8px] font-semibold text-[#286ee5]">University Portal</p>
-          <h1 className="serif max-w-[570px] text-[47px] leading-[.91] tracking-[-.045em] text-[#10253f] sm:text-[62px]">iCenter<br/> <span className="text-[#286ee5]">Absence &amp; Leave</span><br />Tracking system</h1>
+          <h1 className="serif max-w-[570px] text-[47px] leading-[.91] tracking-[-.045em] text-[#10253f] sm:text-[62px]">Library Log<br/> <span className="text-[#286ee5]">Absence &amp; Leave</span><br />Tracking system</h1>
           <p className="mt-6 max-w-[430px] text-[11px] leading-5 text-[#52708b]">A centralized platform for managing attendance, absences, and leave requests, making work easier for everyone.</p>
           <div className="mt-8 flex gap-4">
             <Link href="/login" className="homepage-primary-button focus-ring rounded-[2px] bg-[#286ee5] px-8 py-3 text-[10px] font-bold text-white shadow-[0_3px_5px_rgba(31,88,183,.3)] transition-transform hover:-translate-y-0.5" data-testid="link-hero-signin">Login <ArrowRight className="ml-1 inline" size={11} /></Link>
@@ -193,7 +193,7 @@ function AuthHeader() {
   return <Header />;
 }
 function AuthFooter() {
-  return <div className="auth-footer fixed inset-x-0 bottom-0 z-50 border-t border-[#d7e3ee] bg-white/95 px-5 py-5 text-center text-xs text-[#71869a] backdrop-blur"><span>Need help? </span><a href="mailto:general@tut.ac.za" className="font-bold text-[#1f70d0]" data-testid="link-auth-support">Contact iCenter support</a><span className="mx-2 text-[#bdccd8]">·</span><Link href="/" className="hover:text-[#1f70d0]" data-testid="link-auth-home">Return home</Link></div>;
+  return <div className="auth-footer fixed inset-x-0 bottom-0 z-50 border-t border-[#d7e3ee] bg-white/95 px-5 py-5 text-center text-xs text-[#71869a] backdrop-blur"><span>Need help? </span><a href="mailto:general@tut.ac.za" className="font-bold text-[#1f70d0]" data-testid="link-auth-support">Contact Library Log support</a><span className="mx-2 text-[#bdccd8]">·</span><Link href="/" className="hover:text-[#1f70d0]" data-testid="link-auth-home">Return home</Link></div>;
 }
 function AuthShell({ children, eyebrow, title, copy, showSecurityNote = true }) {
   return <div className="auth-shell flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="auth-page-main relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p>{showSecurityNote && <div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div>}</div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
@@ -514,7 +514,7 @@ function LogoutSuccessPage() {
         <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={32}/></span>
         <p className="mt-6 text-sm font-bold uppercase tracking-[.14em] text-[#c8102e]">TSHWANE UNIVERSITY OF TECHNOLOGY</p>
         <h1 className="serif mt-3 text-4xl text-[#162c4d]">You have been logged out.</h1>
-        <p className="mt-4 text-base leading-7 text-black">Your iCenter session has ended. Please sign in again to access the portal.</p>
+        <p className="mt-4 text-base leading-7 text-black">Your Library Log session has ended. Please sign in again to access the portal.</p>
         <Link href="/login" className="focus-ring mt-8 inline-flex rounded-lg bg-[#1f70d0] px-7 py-3.5 text-base font-bold text-white shadow-[0_4px_0_#1555aa]">Sign in again</Link>
       </div>
     </main>
@@ -936,7 +936,7 @@ function DashboardPage() {
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_.6fr]">
-          <div className="rounded-xl bg-[#f4f8fb] p-6">
+          <div aria-label="Details" className="rounded-xl border border-[#003a6c] bg-[#f4f8fb] p-6">
             <div className="grid gap-6 sm:grid-cols-2">
               <DashboardStat icon={<Building2 size={14} />} label="Department" value={course} />
               <DashboardStat icon={<TrendingUp size={14} />} label="Position" value={role} />
@@ -944,7 +944,7 @@ function DashboardPage() {
               <DashboardStat icon={<Phone size={14} />} label="Phone" value={cellNumber} />
             </div>
           </div>
-          <div className="rounded-xl bg-[#f4f8fb] p-6">
+          <div aria-label="My Shift" className="rounded-xl border border-[#003a6c] bg-[#f4f8fb] p-6">
             <p className="flex items-center gap-2 text-base font-bold text-[#10253f]"><CalendarDays size={16} className="text-[#f2aa00]" /> My Shift</p>
             {assignedShifts === null ? (
               <p className="mt-5 text-sm text-[#7890a4]">Loading your shift...</p>
@@ -967,7 +967,7 @@ function DashboardPage() {
           </div>
         </div>
 
-        <div className="mt-5 rounded-xl bg-[#f4f8fb] p-6">
+        <div aria-label="Recent Requests" className="mt-5 rounded-xl border border-[#003a6c] bg-[#f4f8fb] p-6">
           <h2 className="text-lg font-bold text-[#10253f]">Recent Requests</h2>
           {requestsLoading ? (
             <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">Loading your requests...</p>
