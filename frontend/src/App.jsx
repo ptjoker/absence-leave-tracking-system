@@ -29,6 +29,7 @@ import { generateStudentSchedule } from '@/lib/schedule';
 import { useCancelledShifts } from '@/lib/cancelledShifts';
 import { assetUrl } from '@/lib/assets';
 import { setSession, rememberSession, clearSession, getSession } from '@/lib/session';
+import { SIGNUP_DEPARTMENTS, SIGNUP_STUDY_LEVELS } from '@/lib/signupOptions';
 const queryClient = new QueryClient();
 
 function Brand({ light = false }) {
@@ -126,7 +127,6 @@ function Home() {
           <p className="mt-6 max-w-[430px] text-[11px] leading-5 text-[#52708b]">A centralized platform for managing attendance, absences, and leave requests, making work easier for everyone.</p>
           <div className="mt-8 flex gap-4">
             <Link href="/login" className="homepage-primary-button focus-ring rounded-[2px] bg-[#286ee5] px-8 py-3 text-[10px] font-bold text-white shadow-[0_3px_5px_rgba(31,88,183,.3)] transition-transform hover:-translate-y-0.5" data-testid="link-hero-signin">Login <ArrowRight className="ml-1 inline" size={11} /></Link>
-            <Link href="/signup" className="homepage-secondary-button focus-ring rounded-[2px] border border-[#dce4ea] bg-white px-8 py-3 text-[10px] font-bold text-[#6a7180] transition-colors hover:border-[#286ee5] hover:text-[#286ee5]" data-testid="link-hero-signup">Sign Up</Link>
           </div>
         </div>
         <div className="animate-rise-delay-1 mx-auto w-full max-w-[510px]">
@@ -277,7 +277,7 @@ const submit = async (e) => {
         <label className="block" htmlFor="forgot-email"><span className="mb-2 flex items-center gap-1.5 text-sm font-bold text-black"><Mail size={16} className="text-[#1f70d0]"/>Email Address<em className="not-italic text-[#d05b48]">*</em></span><input id="forgot-email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="123456789@tut4life.ac.za" className={`focus-ring w-full rounded-lg border bg-white px-3.5 py-3 text-sm text-black outline-none placeholder:text-black ${errors.email?'border-[#d05b48]':'border-[#cfdee9] focus:border-[#1f70d0]'}`} />{errors.email&&<span className="mt-1.5 block text-xs font-semibold text-[#c54f43]">{errors.email}</span>}</label>
 
 {serverError && (
-  <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+  <p role="alert" className="forgot-password-error rounded-lg bg-red-50 p-3 text-sm text-red-700">
     {serverError}
   </p>
 )}
@@ -355,19 +355,11 @@ if (remember) rememberSession(sessionData);
       setLoading(false);
     }
   };
-  return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand." showSecurityNote={false}><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to Library Log</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}</AuthShell>;
+  return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand." showSecurityNote={false}><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to Library Log</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}</AuthShell>;
 }
 function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;
 }
-const SIGNUP_DEPARTMENTS = [
-  'Computer Science',
-  'Human Resources',
-  'Electrical Engineering',
-  'Administration',
-  'Entrepreneurship',
-];
-
 function SignupDepartmentField({ value, onChange, error }) {
   return (
     <label className="block" htmlFor="signup-course">
@@ -383,7 +375,7 @@ function SignupDepartmentField({ value, onChange, error }) {
           className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`}
           data-testid="input-signup-course"
         >
-          <option value="">Select a course</option>
+          <option value="">Select a course or department</option>
           {SIGNUP_DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
         </select>
         <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" />
@@ -477,10 +469,7 @@ function SignupPage() {
                   <span className="relative block">
                     <select id="signup-year" value={form.year} onChange={(event) => update('year')(event.target.value)} className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${errors.year ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid="input-signup-year">
                       <option value="">Select year</option>
-                      <option value="first">First year</option>
-                      <option value="second">Second year</option>
-                      <option value="third">Third year</option>
-                      <option value="postgraduate">Postgraduate</option>
+                      {SIGNUP_STUDY_LEVELS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                     </select>
                     <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" />
                   </span>

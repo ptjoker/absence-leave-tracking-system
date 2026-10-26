@@ -1,4 +1,4 @@
-import { Activity, Clock3, FileText, LockKeyhole, Users } from 'lucide-react';
+import { Activity, FileText, LockKeyhole, Users } from 'lucide-react';
 
 function MetricCard({ label, value, note, icon: Icon, tint }) {
   return <article className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)]"><span className={`grid size-9 place-items-center rounded-lg ${tint}`}><Icon size={17} /></span><p className="mt-4 text-[11px] font-bold uppercase tracking-[.08em] text-[#75808c]">{label}</p><p className="mt-1 text-2xl font-bold tracking-tight text-[#202a34]">{value}</p><p className="mt-1 text-xs text-[#8b96a1]">{note}</p></article>;
@@ -12,10 +12,9 @@ export default function Analytics({
     <section id="analytics" className="space-y-5">
       <div><p className="text-xs font-semibold text-[#75808c]"></p><h1 className="mt-2 text-2xl font-bold tracking-tight text-[#202a34]">System Analytics</h1><p className="mt-1 text-sm text-[#77828e]">Live account, presence, and request metrics from the administrator service.</p></div>
       {analyticsError && <div role="alert" className="rounded-lg border border-[#f1c6c3] bg-[#fff1f0] px-4 py-3 text-sm font-semibold text-[#b84233]">{analyticsError}</div>}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="Total users" value={totalUsers} note="Student assistants and supervisors" icon={Users} tint="bg-[#003a6c] text-white" />
         <MetricCard label="Online users" value={onlineUserCount} note="Active within the last five minutes" icon={Activity} tint="bg-[#003a6c] text-white" />
-        <MetricCard label="Pending registrations" value={overview?.pendingRegistrations || 0} note="Waiting for administrator review" icon={Clock3} tint="bg-[#003a6c] text-white" />
         <MetricCard label="Requests submitted" value={analyticsRequests.length} note="Leave and shift-swap requests · last 7 days" icon={FileText} tint="bg-[#003a6c] text-white" />
       </div>
       <article className="rounded-xl border border-[#e6eaee] bg-white p-5 shadow-[0_2px_8px_rgba(30,48,66,.04)] sm:p-6">

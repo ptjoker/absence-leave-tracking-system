@@ -4,6 +4,7 @@ import { useLocation } from 'wouter';
 import { format, subDays } from 'date-fns';
 import { apiFetch } from '@/lib/api';
 import { clearSession, getSession } from '@/lib/session';
+import { SIGNUP_DEPARTMENTS, SIGNUP_STUDY_LEVELS } from '@/lib/signupOptions';
 import { PortalBrand, ModeToggle } from '@/components/portal/PortalComponents';
 import { NotificationBell } from '@/components/portal/NotificationBell';
 import AdminRequest from '@/pages/admin/AdminRequest';
@@ -83,10 +84,6 @@ export default function AdminDashboard() {
   const [supervisorDeclarations, setSupervisorDeclarations] = useState([]);
   const [declarationsLoading, setDeclarationsLoading] = useState(false);
   const [declarationsError, setDeclarationsError] = useState('');
-  const [pendingRegistrations, setPendingRegistrations] = useState([]);
-  const [pendingRegistrationsLoading, setPendingRegistrationsLoading] = useState(false);
-  const [pendingRegistrationsError, setPendingRegistrationsError] = useState('');
-  const [registrationBusyId, setRegistrationBusyId] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
   const [analyticsRequests, setAnalyticsRequests] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -107,6 +104,7 @@ export default function AdminDashboard() {
   const [accountError, setAccountError] = useState('');
   const [accountNotice, setAccountNotice] = useState('');
   const [accountBusy, setAccountBusy] = useState(false);
+  const [createdAccountDetails, setCreatedAccountDetails] = useState(null);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -146,23 +144,6 @@ export default function AdminDashboard() {
     }
   }, [session]);
 
-  const loadPendingRegistrations = useCallback(async () => {
-    if (!session?.access_token || session.user?.role !== 'admin') return;
-    setPendingRegistrationsLoading(true);
-    setPendingRegistrationsError('');
-    try {
-      const response = await apiFetch('/api/admin/registration-requests?status=pending');
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || `Could not load pending registrations (${response.status}).`);
-      setPendingRegistrations(Array.isArray(body.requests) ? body.requests : []);
-    } catch (requestError) {
-      console.error('Load pending registrations error:', requestError);
-      setPendingRegistrationsError(requestError.message || 'Could not load pending registrations.');
-    } finally {
-      setPendingRegistrationsLoading(false);
-    }
-  }, [session]);
-
   const loadSupervisorDeclarations = useCallback(async () => {
     if (!session?.access_token || session.user?.role !== 'admin') return;
     setDeclarationsLoading(true);
@@ -180,30 +161,6 @@ export default function AdminDashboard() {
       setDeclarationsLoading(false);
     }
   }, [session]);
-
-  const reviewRegistration = async (registration, decision, reason = '') => {
-    setRegistrationBusyId(registration.id);
-    setPendingRegistrationsError('');
-    try {
-      const response = await apiFetch(
-        `/api/admin/registration-requests/${encodeURIComponent(registration.id)}/${decision}`,
-        {
-          method: 'PATCH',
-          headers: decision === 'reject' ? { 'Content-Type': 'application/json' } : undefined,
-          body: decision === 'reject' ? JSON.stringify({ reason }) : undefined,
-        },
-      );
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || `Could not ${decision} registration (${response.status}).`);
-      setAccountNotice(`${registration.name}'s registration was ${decision === 'approve' ? 'approved' : 'declined'}.`);
-      await Promise.all([loadPendingRegistrations(), loadDashboard(true)]);
-    } catch (requestError) {
-      console.error(`${decision === 'approve' ? 'Approve' : 'Reject'} registration error:`, requestError);
-      setPendingRegistrationsError(requestError.message || `Could not ${decision} registration.`);
-    } finally {
-      setRegistrationBusyId(null);
-    }
-  };
 
   const loadRequests = useCallback(async (filters) => {
     if (!session?.access_token || session.user?.role !== 'admin') return;
@@ -274,10 +231,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeSection === 'analytics') loadAnalyticsRequests();
   }, [activeSection, loadAnalyticsRequests]);
-
-  useEffect(() => {
-    if (activeSection === 'user-management') loadPendingRegistrations();
-  }, [activeSection, loadPendingRegistrations]);
 
   const filteredAccounts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -353,11 +306,43 @@ export default function AdminDashboard() {
   const handleSaveAccount = async (event) => {
     event.preventDefault();
     if (!accountDialog) return;
-    setAccountBusy(true);
-    setAccountError('');
     const { mode, account } = accountDialog;
     const isStudent = account?.apiRole === 'student' || accountDialog.role === 'student';
     const endpointRole = account?.apiRole || accountDialog.role;
+    if (mode === 'create') {
+      const requiredFields = [
+        ['first_name', 'First name is required.'],
+        ['last_name', 'Last name is required.'],
+        ['student_email', 'Login email is required.'],
+        ['password', 'Temporary password is required.'],
+      ];
+      if (isStudent) {
+        requiredFields.push(
+          ['student_number', 'Student number is required.'],
+          ['course', 'Choose a course or department.'],
+          ['level_of_study', 'Choose a level of study.'],
+        );
+      }
+      const missingField = requiredFields.find(([name]) => !String(accountForm[name] || '').trim());
+      if (missingField) {
+        setAccountError(missingField[1]);
+        return;
+      }
+      if (isStudent) {
+        const studentNumber = accountForm.student_number.trim();
+        const studentEmail = /^(\d{9})@tut4life\.ac\.za$/i.exec(accountForm.student_email.trim());
+        if (!/^\d{9}$/.test(studentNumber)) {
+          setAccountError('Student number must contain exactly 9 digits.');
+          return;
+        }
+        if (!studentEmail || studentEmail[1] !== studentNumber) {
+          setAccountError('Student email must use the matching 9-digit student number followed by @tut4life.ac.za.');
+          return;
+        }
+      }
+    }
+    setAccountBusy(true);
+    setAccountError('');
     const fields = {
       first_name: accountForm.first_name.trim(),
       last_name: accountForm.last_name.trim(),
@@ -387,7 +372,15 @@ export default function AdminDashboard() {
         body: JSON.stringify(fields),
       });
       setAccountDialog(null);
-      setAccountNotice(mode === 'create' ? 'User account created.' : 'User account updated.');
+      if (mode === 'create') {
+        setAccountNotice('');
+        setCreatedAccountDetails({
+          ...fields,
+          role: isStudent ? 'Student assistant' : 'Supervisor',
+        });
+      } else {
+        setAccountNotice('User account updated.');
+      }
       await loadDashboard(true);
     } catch (requestError) {
       console.error('Save administrator-managed account error:', requestError);
@@ -511,9 +504,7 @@ export default function AdminDashboard() {
         </nav>
         <div className="mt-auto flex flex-col gap-2">
           <div>
-            <NotificationBell fullWidth onNavigate={(notification) => {
-              if (notification.type === 'registration_pending') jumpTo('user-management');
-            }} />
+            <NotificationBell fullWidth />
           </div>
           <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex w-full items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#b90922]"><LogOut size={18} />Logout</button>
         </div>
@@ -523,9 +514,7 @@ export default function AdminDashboard() {
         <header className="admin-topbar fixed inset-x-0 top-0 z-40 flex min-h-[62px] items-center justify-between gap-4 border-b border-[#e1e5e9] bg-white/95 px-5 backdrop-blur sm:px-8">
           <PortalBrand admin />
           <div className="flex items-center gap-3">
-            <div className="lg:hidden"><NotificationBell compact onNavigate={(notification) => {
-              if (notification.type === 'registration_pending') jumpTo('user-management');
-            }} /></div>
+            <div className="lg:hidden"><NotificationBell compact /></div>
             <span className="hidden text-xs text-[#697582] sm:inline">Signed in as <strong className="text-[#344252]">{firstName}</strong></span>
             <button type="button" onClick={() => {
               if (activeSection === 'requests') loadRequests(requestFilters);
@@ -654,22 +643,20 @@ export default function AdminDashboard() {
             pageSize={pageSize}
             pageCount={pageCount}
             accountNotice={accountNotice}
+            createdAccountDetails={createdAccountDetails}
+            signupDepartments={SIGNUP_DEPARTMENTS}
+            signupStudyLevels={SIGNUP_STUDY_LEVELS}
             accountDialog={accountDialog}
             accountForm={accountForm}
             accountError={accountError}
             accountBusy={accountBusy}
-            pendingRegistrations={pendingRegistrations}
-            pendingRegistrationsLoading={pendingRegistrationsLoading}
-            pendingRegistrationsError={pendingRegistrationsError}
-            registrationBusyId={registrationBusyId}
-            onRefreshRegistrations={loadPendingRegistrations}
-            onReviewRegistration={reviewRegistration}
             onOpenAccount={openAccountDialog}
             onDeleteAccount={handleDeleteAccount}
             onChangeAccountStatus={handleAccountStatusChange}
             onSaveAccount={handleSaveAccount}
             onFormChange={handleAccountFormChange}
             onCloseDialog={() => setAccountDialog(null)}
+            onCloseCreated={() => setCreatedAccountDetails(null)}
             onRoleChange={(role) => setAccountDialog((current) => ({ ...current, role }))}
             onPageChange={setPage}
             onExport={handleExport}

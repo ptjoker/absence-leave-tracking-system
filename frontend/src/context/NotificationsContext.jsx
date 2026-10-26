@@ -197,7 +197,7 @@ export function useNotifications() {
   const viewerSig = viewer ? `${viewer.role}|${viewer.keys.join(',')}` : '';
   const notifications = useMemo(
     () => all
-      .filter((n) => visibleTo(n, viewer))
+      .filter((n) => visibleTo(n, viewer) && !(viewer?.role === 'admin' && n.type === 'registration_pending'))
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [all, viewerSig],

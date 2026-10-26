@@ -909,6 +909,15 @@ html.dark body p[class][class] { color: #ffffff !important; }
 .dark .date-picker-popover [class~="holiday"] button { color: #246b45 !important; }
 
 .forgot-password-modal .text-black { color: #000000 !important; }
+.dark .forgot-password-modal .forgot-password-error {
+  background-color: #4a1f1a !important;
+  color: #ffb4a8 !important;
+}
+.dark .forgot-password-modal [data-testid="button-send-reset-link"] {
+  background-color: #0d406b !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 0 #082b49 !important;
+}
 
 /* V16: visible X marker for past dates and Sundays in date-picker calendars. */
 .calendar-x-day { position: relative !important; }
@@ -1042,6 +1051,11 @@ html.dark body p[class][class] { color: #ffffff !important; }
 }
 .dark .admin-console [class~="text-[#b84233]"] {
   color: #ff9b8b !important;
+}
+.dark .admin-console .admin-created-account-notice {
+  background-color: #3b3019 !important;
+  border-color: #80652f !important;
+  color: #ffe2a3 !important;
 }
 /* Keep every route on the homepage's charcoal, blue, and gold dark palette. */
 .dark {
@@ -1390,6 +1404,15 @@ html:not(.dark) .auth-shell .auth-page-main > .absolute {
 .homepage-dark .homepage-footer a:hover,
 html.dark .homepage-shell .homepage-footer a:hover {
   color: #ff9c03 !important;
+}
+
+html.dark [data-testid="button-change-mode"],
+html.dark [data-testid="button-change-mode"] *,
+html.dark [data-testid="button-change-mode"]:hover,
+html.dark [data-testid="button-mobile-change-mode"],
+html.dark [data-testid="button-mobile-change-mode"] *,
+html.dark [data-testid="button-mobile-change-mode"]:hover {
+  color: #ffffff !important;
 }
 
 html.dark .homepage-shell.homepage-dark a.homepage-secondary-button,
