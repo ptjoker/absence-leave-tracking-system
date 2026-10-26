@@ -173,16 +173,6 @@ export default function StudentAssistancesPage() {
               Live roster of every student assistant in the system with their request activity.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={loadAssistants}
-            disabled={loading}
-            className="focus-ring flex items-center gap-2 rounded-lg border border-[#dce8f2] bg-white px-4 py-2.5 text-sm font-semibold text-[#385570] shadow-sm hover:bg-[#f4f8fb] disabled:opacity-50"
-            data-testid="button-refresh-assistants"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
         </div>
 
         {error && (
