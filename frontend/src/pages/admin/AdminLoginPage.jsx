@@ -102,7 +102,7 @@ export default function AdminLoginPage() {
           </button>
         </form>
         <p className="mt-6 border-t border-[#e7ebef] pt-5 text-center text-xs text-[#768391]">
-          <Link href="/" className="focus-ring rounded font-semibold text-[#526171] hover:text-[#003a6c]">Return to the iCenter home page</Link>
+          <Link href="/" className="focus-ring rounded font-semibold text-[#526171] hover:text-[#003a6c]">Return to the Library Log home page</Link>
         </p>
       </section>
     </main>

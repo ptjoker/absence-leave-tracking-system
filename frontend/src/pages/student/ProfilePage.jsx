@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Phone, Globe, GraduationCap, Building2, User, CalendarDays, BadgeCheck, Pencil, X, Save } from 'lucide-react';
+import { Mail, Phone, GraduationCap, Building2, User, CalendarDays, BadgeCheck, Pencil, X, Save } from 'lucide-react';
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
 import { recordActivity } from '@/lib/activityLog';
 import { getSession as readSession, updateSession } from '@/lib/session';
@@ -131,6 +131,7 @@ export default function ProfilePage() {
   const initials = `${(user.first_name || 'U')[0]}${(user.last_name || '')[0] || ''}`.toUpperCase();
   const isSupervisor = user.role === 'supervisor';
   const roleLabel = isSupervisor ? 'Supervisor' : 'Student';
+  const supervisorNumber = user.staff_number || user.staff_no || user.student_number;
   const levelLabel = LEVELS.find((l) => l.value === user.level_of_study)?.label || user.level_of_study || '—';
 
   const startEdit = () => {
@@ -264,10 +265,15 @@ export default function ProfilePage() {
               <h2 className="text-2xl font-bold text-[#10253f]">{fullName}</h2>
               <span className="rounded-full bg-[#e7f1fa] px-2.5 py-0.5 text-xs font-bold text-[#1f70d0]">{roleLabel}</span>
             </div>
+            {isSupervisor && (
+              <p className="mt-1.5 text-sm text-[#52708b]">
+                StaffNo: {supervisorNumber || '___'}
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-[#52708b]">
-              {user.student_number && (
+              {!isSupervisor && user.student_number && (
                 <span className="flex items-center gap-1.5">
-                  <BadgeCheck size={14} /> {isSupervisor ? 'StaffNo' : 'StudNo'}: {user.student_number}
+                  <BadgeCheck size={14} /> StudNo: {user.student_number}
                 </span>
               )}
               {!isSupervisor && user.course && (
@@ -297,7 +303,7 @@ export default function ProfilePage() {
                       placeholder="e.g. 076 123 4567"
                     />
                     <EditableField
-                      icon={<Globe size={14} />}
+                      icon={<Mail size={14} />}
                       label="Personal Email"
                       type="email"
                       value={draft.personal_email}
@@ -313,7 +319,7 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <InfoField icon={<Phone size={14} />} label="Cell Number" value={user.cell_number} bold />
-                    <InfoField icon={<Globe size={14} />} label="Personal Email" value={user.personal_email} />
+                    <InfoField icon={<Mail size={14} />} label="Personal Email" value={user.personal_email} />
                   </>
                 )}
               </div>
