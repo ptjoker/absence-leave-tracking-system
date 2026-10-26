@@ -128,10 +128,10 @@ export function NotificationBell({ onNavigate, compact = false, fullWidth = fals
                     <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-full ${adminTheme && ['request_submitted', 'timetable_uploaded'].includes(n.type) ? 'bg-[#003a6c] text-white' : style.tone}`}><Icon size={16} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-start justify-between gap-2">
-                        <strong className={`text-sm font-bold ${adminTheme ? 'text-[#003a6c]' : 'text-black'}`}>{n.title}</strong>
+                        <strong className={`text-sm font-bold ${adminTheme ? 'text-[#003a6c]' : 'text-[#162c4d]'}`}>{n.title}</strong>
                         {!n.read && <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-[#e5383b]" />}
                       </span>
-                      <span className="mt-0.5 block text-xs leading-5 text-black">{n.message}</span>
+                      <span className="mt-0.5 block text-xs leading-5 text-[#52708b]">{n.message}</span>
                       {n.reason && (
                         <span className="mt-1.5 block rounded-md border border-[#e9c7c2] bg-[#fbe4e1] px-2.5 py-1.5 text-xs leading-5 text-[#8f3a2d]">
                           <strong className="font-bold">Reason: </strong>{n.reason}

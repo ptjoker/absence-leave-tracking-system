@@ -18,8 +18,8 @@ export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
 export function PortalBrand({ supervisor = false, compact = false, admin = false }) {
   const portalLabel = admin ? 'ADMIN PORTAL' : supervisor ? 'SUPERVISOR PORTAL' : 'STUDENT PORTAL';
   return (
-    <Link href="/" className={`focus-ring flex items-center gap-2 ${compact ? 'px-0' : 'px-2'}`} data-testid="link-portal-brand">
-      <img src={assetUrl('tut-logo.png')} alt="TUT logo" className={`${compact ? 'size-7 rounded-md' : 'size-9 rounded-lg'} object-contain shadow-sm`} />
+    <Link href="/" className="focus-ring flex items-center gap-2 px-2" data-testid="link-portal-brand">
+      <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
       <span className="leading-none">
         <strong className={`block font-bold tracking-[-.02em] text-[#162c4d] ${compact ? 'text-[11px]' : 'text-[15px]'}`}>Library Log</strong>
         <span className={`block font-bold uppercase tracking-[.16em] text-[#c8102e] ${compact ? 'mt-0.5 text-[6px]' : 'mt-1 text-[9px]'}`}>{portalLabel}</span>
@@ -58,7 +58,7 @@ export function PortalSidebar({ supervisor = false }) {
     <>
       <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-60 shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-3 pb-6 pt-4 transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-[182px] shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-3 pb-6 pt-[82px] md:pt-4 transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
         <div>
           <nav className="flex flex-col gap-1">
             {items.map(([key, label, Icon, href]) => (
@@ -69,8 +69,8 @@ export function PortalSidebar({ supervisor = false }) {
           </nav>
         </div>
         <div className="flex flex-col gap-2">
-          <NotificationBell onNavigate={() => setMobileOpen(false)} />
-          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#b90923]"><LogOut size={18} />Logout</button>
+          <NotificationBell onNavigate={() => setMobileOpen(false)} fullWidth />
+          <button type="button" onClick={() => setShowLogoutConfirm(true)} className="focus-ring flex w-full items-center gap-3 rounded-lg bg-[#d60b28] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a50d25]"><LogOut size={18} />Logout</button>
         </div>
       </aside>
             {showLogoutConfirm && (
@@ -145,7 +145,7 @@ export function PortalTopbar({ supervisor = false }) {
             <strong className="block text-sm font-bold text-[#162c4d]">{fullName}</strong>
             <span className="block text-xs text-[#7890a4]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
           </span>
-          <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
+          <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 shrink-0 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
         </div>
         <ModeToggle size="compact" />
       </div>
@@ -184,7 +184,7 @@ const checkAuth = () => {
 const session = getSession();
 if (!session) return null;
 
-  return <div className={`portal-shell min-h-[100dvh] bg-white ${supervisor ? 'portal-shell-supervisor' : ''} ${className}`}><PortalSidebar supervisor={supervisor} /><div className="portal-main"><PortalTopbar supervisor={supervisor} /><main className="portal-page">{children}</main></div></div>;
+  return <div className={`portal-shell min-h-[100dvh] bg-white ${className}`}><PortalSidebar supervisor={supervisor} /><div className="portal-main"><PortalTopbar supervisor={supervisor} /><main className="portal-page">{children}</main></div></div>;
 }
 
 export function StatusBadge({ status }) {

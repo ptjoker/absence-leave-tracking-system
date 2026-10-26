@@ -503,7 +503,7 @@ function LogoutSuccessPage() {
         <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={32}/></span>
         <p className="mt-6 text-sm font-bold uppercase tracking-[.14em] text-[#c8102e]">TSHWANE UNIVERSITY OF TECHNOLOGY</p>
         <h1 className="serif mt-3 text-4xl text-[#162c4d]">You have been logged out.</h1>
-        <p className="mt-4 text-base leading-7 text-black">Your iCenter session has ended. Please sign in again to access the portal.</p>
+        <p className="mt-4 text-base leading-7 text-black">Your Library Log session has ended. Please sign in again to access the portal.</p>
         <Link href="/login" className="focus-ring mt-8 inline-flex rounded-lg bg-[#1f70d0] px-7 py-3.5 text-base font-bold text-white shadow-[0_4px_0_#1555aa]">Sign in again</Link>
       </div>
     </main>
@@ -925,7 +925,7 @@ function DashboardPage() {
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_.6fr]">
-          <div className="rounded-xl bg-[#f4f8fb] p-6">
+          <div aria-label="Details" className="rounded-xl border border-[#003a6c] bg-[#f4f8fb] p-6">
             <div className="grid gap-6 sm:grid-cols-2">
               <DashboardStat icon={<Building2 size={14} />} label="Department" value={course} />
               <DashboardStat icon={<TrendingUp size={14} />} label="Position" value={role} />
@@ -933,7 +933,7 @@ function DashboardPage() {
               <DashboardStat icon={<Phone size={14} />} label="Phone" value={cellNumber} />
             </div>
           </div>
-          <div className="rounded-xl bg-[#f4f8fb] p-6">
+          <div aria-label="My Shift" className="rounded-xl border border-[#003a6c] bg-[#f4f8fb] p-6">
             <p className="flex items-center gap-2 text-base font-bold text-[#10253f]"><CalendarDays size={16} className="text-[#f2aa00]" /> My Shift</p>
             {assignedShifts === null ? (
               <p className="mt-5 text-sm text-[#7890a4]">Loading your shift...</p>
@@ -956,7 +956,7 @@ function DashboardPage() {
           </div>
         </div>
 
-        <div className="mt-5 rounded-xl bg-[#f4f8fb] p-6">
+        <div aria-label="Recent Requests" className="mt-5 rounded-xl border border-[#003a6c] bg-[#f4f8fb] p-6">
           <h2 className="text-lg font-bold text-[#10253f]">Recent Requests</h2>
           {requestsLoading ? (
             <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">Loading your requests...</p>
