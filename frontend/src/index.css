@@ -134,24 +134,14 @@
 [class~="bg-[#e7f2f9]"] { background-color: #90bddb !important; }
 [class~="bg-[#f8fbfd]"] { background-color: #ffffff !important; }
 [class~="bg-[#162c4d]"] { background-color: #a9d0ea !important; }
-[class~="bg-[#1f70d0]"],
-[class~="bg-[#286ee5]"],
-[class~="bg-[#3e7de8]"],
-[class~="bg-[#2196f3]"] { background-color: #0d406b !important; }
+[class~="bg-[#1f70d0]"] { background-color: #286ee5 !important; }
 [class~="bg-[#f5ce58]"] { background-color: #f2aa00 !important; }
 [class~="bg-[#f3c938]"] { background-color: #f2aa00 !important; }
 [class~="text-[#162c4d]"] { color: #10253f !important; }
-[class~="text-[#1f70d0]"],
-[class~="text-[#286ee5]"],
-[class~="text-[#3e7de8]"],
-[class~="text-[#2196f3]"] { color: #0d406b !important; }
+[class~="text-[#1f70d0]"] { color: #286ee5 !important; }
 [class~="text-[#1555aa]"] { color: #1f58b7 !important; }
 [class~="text-[#f5ce58]"],
-[class~="text-[#f5d865]"],
-[class~="text-[#f0b323]"],
-[class~="text-[#f2aa00]"],
-[class~="text-[#c98200]"],
-[class~="text-[#b76a00]"] { color: #ff9c03 !important; }
+[class~="text-[#f5d865]"] { color: #f2aa00 !important; }
 [class~="text-[#526a82]"],
 [class~="text-[#60768c]"],
 [class~="text-[#71869a]"],
@@ -182,8 +172,7 @@
 [class~="bg-[#fff4c8]"] { background-color: #fff0c2 !important; }
 [class~="text-[#19885d]"] { color: #22b78b !important; }
 [class~="text-[#d05b48]"],
-[class~="text-[#c54f43]"] { color: #d60b28 !important; }
-[class~="bg-[#d05b48]"] { background-color: #d60b28 !important; }
+[class~="text-[#c54f43]"] { color: #c4473d !important; }
 [class~="text-[#7890a4]"],
 [class~="text-[#8aa0b2]"],
 [class~="text-[#9baebe]"],
@@ -204,7 +193,7 @@
   --homepage-text: #062e53;
   --homepage-muted: #4f6c83;
   --homepage-blue: #004b87;
-  --homepage-gold: #ff9c03;
+  --homepage-gold: #f0b323;
   background-color: var(--homepage-bg) !important;
   color: var(--homepage-text);
   transition: background-color .25s ease, color .25s ease;
@@ -270,7 +259,7 @@
   --homepage-text: #f4f8fc;
   --homepage-muted: #b6cadb;
   --homepage-blue: #2b8fd1;
-  --homepage-gold: #ff9c03;
+  --homepage-gold: #f3bd32;
 }
 
 .homepage-dark .homepage-header,
@@ -409,24 +398,20 @@ html.dark body { background-color: #fff; }
 .dark [class~="text-[#385570]"],
 .dark [class~="text-[#48627d]"] { color: #b7c8da !important; }
 .dark [class~="text-[#1f70d0]"],
-.dark [class~="text-[#286ee5]"],
-.dark [class~="text-[#3e7de8]"],
-.dark [class~="text-[#2196f3]"] { color: #0d406b !important; }
+.dark [class~="text-[#286ee5]"] { color: #63a6f2 !important; }
 .dark [class~="border-[#1f70d0]"],
 .dark [class~="border-[#286ee5]"] { border-color: #63a6f2 !important; }
 .dark [class~="text-[#19885d]"],
 .dark [class~="text-[#22b78b]"] { color: #3ddb9d !important; }
 .dark [class~="text-[#d05b48]"],
-.dark [class~="text-[#c54f43]"] { color: #d60b28 !important; }
+.dark [class~="text-[#c54f43]"] { color: #ff8a75 !important; }
 .dark [class~="border-[#d05b48]"],
 .dark [class~="border-[#c54f43]"] { border-color: #ff8a75 !important; }
 .dark [class~="text-[#f0b323]"],
-.dark [class~="text-[#f2aa00]"],
-.dark [class~="text-[#c98200]"],
-.dark [class~="text-[#b76a00]"] { color: #ff9c03 !important; }
+.dark [class~="text-[#f2aa00]"] { color: #ffcf4d !important; }
 .dark [class~="bg-white"] { background-color: #0f253d !important; }
 .dark [class~="bg-[#162c4d]"] { background-color: #23446e !important; }
-.dark [class~="bg-[#d05b48]"] { background-color: #d60b28 !important; }
+.dark [class~="bg-[#d05b48]"] { background-color: #b8453a !important; }
 
 /* Shared dark mode for every StudentAssist route. The theme switch is global
    and persisted, so changing it on a student or supervisor page carries over
@@ -545,20 +530,12 @@ html.dark body { background-color: #fff; }
    ========================================================= */
 .portal-shell { min-height: 100dvh; }
 .portal-sidebar { position: fixed !important; top: 0; bottom: 0; left: 0; }
-.portal-sidebar { background-color: #003a6c !important; border-color: #003a6c !important; }
-.portal-sidebar a { color: #ffffff !important; }
-.portal-sidebar a:hover { background-color: #0d406b !important; color: #ffffff !important; }
-.portal-sidebar a.bg-\[\#e7f1fa\] { background-color: #0d406b !important; color: #ffffff !important; }
 .portal-main { min-width: 0; min-height: 100dvh; margin-left: 16rem; }
-.portal-topbar { position: fixed !important; top: 0; left: 16rem !important; right: 0; height: 70px; }
-.portal-shell-supervisor .portal-sidebar { top: 70px; }
-.portal-shell-supervisor .portal-topbar { left: 0 !important; }
-.portal-page { min-height: 100dvh; padding-top: 70px; overflow-y: auto; overflow-x: hidden; }
+.portal-topbar { position: fixed !important; top: 0; left: 0 !important; right: 0; height: 58px; }
+.portal-page { min-height: 100dvh; padding-top: 58px; overflow-y: auto; overflow-x: hidden; }
 @media (max-width: 767px) {
   .portal-main { margin-left: 0; }
-  .portal-topbar { left: 0 !important; padding-left: 4rem; }
-  .portal-shell-supervisor .portal-sidebar { top: 70px; }
-  .portal-shell-supervisor .portal-topbar { padding-left: 1.25rem; }
+  .portal-topbar { padding-left: 4rem; }
 }
 
 /* Schedule calendar: calendar cells show only SHIFT; details appear in the panel. */
@@ -1021,7 +998,7 @@ html.dark body p[class][class] { color: #ffffff !important; }
   --app-dark-surface: rgba(19, 20, 20, 0.82);
   --app-dark-text: #f4f8fc;
   --app-dark-muted: #b6cadb;
-  --app-dark-accent: #0d406b;
+  --app-dark-accent: #2b8fd1;
   --app-dark-border: #1c4565;
 }
 
@@ -1086,10 +1063,8 @@ html.dark body p[class][class] { color: #ffffff !important; }
 
 .dark [class~="text-[#f0b323]"],
 .dark [class~="text-[#f2aa00]"],
-.dark [class~="text-[#ffcf4d]"],
-.dark [class~="text-[#c98200]"],
-.dark [class~="text-[#b76a00]"] {
-  color: #ff9c03 !important;
+.dark [class~="text-[#ffcf4d]"] {
+  color: #f3bd32 !important;
 }
 
 .dark [class~="text-[#52708b]"],
