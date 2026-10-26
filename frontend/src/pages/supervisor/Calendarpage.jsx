@@ -6,7 +6,6 @@ import {
   Clock3,
   MapPin,
   Plus,
-  RefreshCw,
   ShieldCheck,
   User,
   X,
@@ -529,15 +528,6 @@ export default function CalendarPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={loadShifts}
-              disabled={loading}
-              className="focus-ring flex items-center gap-2 rounded-lg border border-[#dce8f2] bg-white px-4 py-2.5 text-sm font-semibold text-[#385570] shadow-sm hover:bg-[#f4f8fb] disabled:opacity-50"
-            >
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-              {loading ? 'Loading...' : 'Refresh'}
-            </button>
           <button
             type="button"
             onClick={() => openForm()}

@@ -58,7 +58,7 @@ export function PortalSidebar({ supervisor = false }) {
     <>
       <button className="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 text-[#24405c] shadow md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={20} />{unreadCount > 0 && <UnreadDot className="-right-0.5 -top-0.5" />}</button>
       {mobileOpen && <button className="fixed inset-0 z-40 bg-[#10253f]/25 md:hidden" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
-      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-64 shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-4 pb-6 pt-[82px] transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
+      <aside className={`portal-sidebar fixed inset-y-0 left-0 flex w-[182px] shrink-0 flex-col justify-between border-r border-[#e2eaf1] px-3 pb-6 pt-[82px] transition-transform ${mobileOpen ? 'z-50 translate-x-0' : 'z-30 -translate-x-full md:translate-x-0'}`}>
         <div>
           <nav className="flex flex-col gap-1">
             {items.map(([key, label, Icon, href]) => (
@@ -137,19 +137,13 @@ export function PortalTopbar({ supervisor = false }) {
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'U';
   const email = user.email || '';
   return (
-    <header className="portal-topbar homepage-header fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[#d5dfe8] bg-white px-5 sm:px-8">
-      <Link href="/" className="focus-ring flex items-center gap-2" data-testid="link-brand">
-        <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
-        <span className="leading-none">
-          <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">Library Log</strong>
-          <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">STUDENT PORTAL</span>
-        </span>
-      </Link>
-      <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-4">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <span className="min-w-0 text-right leading-tight">
-            <strong className="block truncate text-[10px] font-bold text-[#162c4d] sm:text-[11px]">{fullName}</strong>
-            <span className="block text-[6px] text-[#7890a4] sm:text-[7px]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
+    <header className={`portal-topbar fixed left-0 right-0 top-0 z-40 flex h-[70px] items-center justify-between border-b border-[#e2eaf1] bg-white px-5 md:px-8 ${supervisor ? 'portal-topbar-supervisor' : ''}`}>
+      <PortalBrand supervisor={supervisor} compact />
+      <div className={`flex items-center ${supervisor ? 'gap-4' : 'gap-3'}`}>
+        <div className="flex items-center gap-3" data-testid={supervisor ? 'supervisor-profile' : 'student-profile'}>
+          <span className="text-right leading-tight">
+            <strong className="block text-sm font-bold text-[#162c4d]">{fullName}</strong>
+            <span className="block text-xs text-[#7890a4]">{supervisor ? 'Supervisor' : 'Student Assist'}</span>
           </span>
           <Link href={supervisor ? '/supervisor/profile' : '/profile'} aria-label={supervisor ? 'Supervisor profile' : 'Open profile'} className="focus-ring relative grid size-9 shrink-0 place-items-center rounded-full bg-[#1f70d0] text-sm font-bold text-white">{initials}<span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-white bg-[#22b78b]" /></Link>
         </div>
