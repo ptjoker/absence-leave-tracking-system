@@ -15,25 +15,14 @@ import { assetUrl } from '@/lib/assets';
 export const STUDENT = { name: 'Nicholas Mathebula', initials: 'NM', number: 'SA-2024-8842' };
 export const SUPERVISOR = { name: 'PS Monta', initials: 'PS' };
 
-<<<<<<< HEAD
 export function PortalBrand({ supervisor = false, compact = false, admin = false }) {
   const portalLabel = admin ? 'ADMIN PORTAL' : supervisor ? 'SUPERVISOR PORTAL' : 'STUDENT PORTAL';
-=======
-export function PortalBrand({ supervisor = false, admin = false }) {
-
->>>>>>> 415bfd5 (Revert "Update portal UI styling and layout")
   return (
     <Link href="/" className="focus-ring flex items-center gap-2 px-2" data-testid="link-portal-brand">
       <img src={assetUrl('tut-logo.png')} alt="TUT logo" className="size-7 rounded-[4px] object-contain" />
       <span className="leading-none">
-<<<<<<< HEAD
         <strong className={`block font-bold tracking-[-.02em] text-[#162c4d] ${compact ? 'text-[11px]' : 'text-[15px]'}`}>Library Log</strong>
         <span className={`block font-bold uppercase tracking-[.16em] text-[#c8102e] ${compact ? 'mt-0.5 text-[6px]' : 'mt-1 text-[9px]'}`}>{portalLabel}</span>
-=======
-
-        <strong className="block text-[10px] font-bold tracking-[-.02em] text-[#162c4d] sm:text-[11px]">Library Log</strong>
-        <span className="mt-0.5 block text-[5px] font-bold uppercase tracking-[.13em] text-[#c8102e] sm:text-[6px]">STUDENT PORTAL</span>
->>>>>>> 415bfd5 (Revert "Update portal UI styling and layout")
       </span>
     </Link>
   );

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ArrowRight, BadgeCheck, BookOpen, Bell, Building2, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Eye, EyeOff, FileText, GraduationCap, Info, LayoutDashboard, LockKeyhole, LogOut, Mail, MapPin, Menu, Moon, PanelTop, Phone, Plus, RefreshCw, ShieldCheck, Sun, TrendingUp, Trash2, Upload, User, UsersRound, X, } from 'lucide-react';
+import { ArrowRight, BadgeCheck, BookOpen, Bell, Building2, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, Eye, EyeOff, FileText, GraduationCap, Info, LayoutDashboard, LockKeyhole, LogOut, Mail, MapPin, Menu, Moon, Phone, Plus, RefreshCw, ShieldCheck, Sun, TrendingUp, Trash2, Upload, User, UsersRound, X, } from 'lucide-react';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import { format } from 'date-fns';
 import { RequestsProvider, useRequests } from '@/context/RequestsContext';
@@ -75,34 +75,38 @@ function Header() {
 }
 function Footer() {
   return (<footer className="homepage-footer bg-[#003a6c] text-white">
-    <div className="mx-auto max-w-[1180px] px-8 py-12 sm:px-12 lg:py-14">
-      <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.15fr_1fr_1fr_1.2fr]">
-        <div>
-          <a href="mailto:general@tut.ac.za" className="text-[13px] font-bold text-[#152d49] hover:text-[#286ee5]">Contact Us</a>
-          <div className="mt-5 space-y-3 text-[11px] leading-4 text-[#52708b]">
-            <p className="flex gap-2"><MapPin size={13} className="shrink-0" />19 OR Tambo, Witbank, Emalahleni,<br />1034, South Africa.</p>
-            <p className="flex gap-2"><Phone size={13} className="shrink-0" />+27 (0)86 110 2421</p>
-            <a href="mailto:general@tut.ac.za" className="flex gap-2 hover:text-[#286ee5]"><Mail size={13} className="shrink-0" />general@tut.ac.za</a>
-          </div>
+    <div className="mx-auto max-w-[1180px] px-6 py-10 sm:px-10 lg:py-12">
+    <div className="grid items-start gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-12">
+      <section>
+        <h2 className="text-[13px] font-bold text-[#152d49]">Contact Us</h2>
+        <div className="mt-4 space-y-3 text-[11px] leading-5 text-[#52708b]">
+          <p className="flex items-start gap-2"><MapPin size={14} className="mt-0.5 shrink-0" /><span>19 OR Tambo, Witbank, Emalahleni,<br />1034, South Africa.</span></p>
+          <p className="flex items-center gap-2"><Phone size={14} className="shrink-0" /><span>+27 (0)86 110 2421</span></p>
+          <a href="mailto:general@tut.ac.za" className="flex items-center gap-2 hover:text-[#286ee5]"><Mail size={14} className="shrink-0" /><span>general@tut.ac.za</span></a>
         </div>
-        <FooterGroup title="Platform" links={['Features', 'Documentation', 'Support Center', 'Status']} />
-        <FooterGroup title="Legal" links={['Privacy Policy', 'Terms of Service', 'Security', 'Compliance']} />
-        <div>
-          <p className="text-[13px] font-bold text-[#152d49]">Connect</p>
-          <div className="mt-5 flex gap-4 text-[#52708b]" aria-label="TUT social links">
-            <a href="https://www.facebook.com/TUTCommunications" target="_blank" rel="noreferrer" aria-label="TUT Facebook" className="hover:text-[#286ee5]">f</a>
-            <a href="https://www.instagram.com/tut_official2" target="_blank" rel="noreferrer" aria-label="TUT Instagram" className="hover:text-[#286ee5]">◎</a>
-            <a href="https://twitter.com/official_tut" target="_blank" rel="noreferrer" aria-label="TUT X formerly Twitter" className="hover:text-[#286ee5]">X</a>
-            <a href="https://www.youtube.com/channel/UCD4jxDpRYTarILQjtsEQv9Q" target="_blank" rel="noreferrer" aria-label="TUT YouTube" className="hover:text-[#286ee5]">▶</a>
-          </div>
-          <p className="mt-5 max-w-[220px] text-[11px] leading-4 text-[#52708b]">Ensuring seamless academic scheduling and management for all departments.</p>
+      </section>
+      <section>
+        <h2 className="text-[13px] font-bold text-[#152d49]">Quick Links</h2>
+        <ul className="mt-4 space-y-3 text-[11px] leading-5 text-[#52708b]">
+          <li><a href="https://os.tut.ac.za/studentportal/Login" target="_blank" rel="noopener noreferrer" className="hover:text-[#286ee5]">Student Portal</a></li>
+          <li><a href="https://outlook.office.com/mail/" target="_blank" rel="noopener noreferrer" className="hover:text-[#286ee5]">Staff/Student Emails</a></li>
+        </ul>
+      </section>
+      <section>
+        <h2 className="text-[13px] font-bold text-[#152d49]">Connect</h2>
+        <div className="mt-4 flex items-center gap-4 text-[11px] text-[#52708b]" aria-label="TUT social links">
+          <a href="https://www.facebook.com/TUTCommunications" target="_blank" rel="noreferrer" aria-label="TUT Facebook" className="hover:text-[#286ee5]">f</a>
+          <a href="https://www.instagram.com/tut_official2" target="_blank" rel="noreferrer" aria-label="TUT Instagram" className="hover:text-[#286ee5]">◎</a>
+          <a href="https://twitter.com/official_tut" target="_blank" rel="noreferrer" aria-label="TUT X formerly Twitter" className="hover:text-[#286ee5]">X</a>
+          <a href="https://www.youtube.com/channel/UCD4jxDpRYTarILQjtsEQv9Q" target="_blank" rel="noreferrer" aria-label="TUT YouTube" className="hover:text-[#286ee5]">▶</a>
         </div>
-      </div>
+      </section>
+    </div>
     </div>
     <div className="border-t border-[#91bfdc]">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-8 py-5 text-[10px] text-[#52708b] sm:flex-row sm:items-center sm:justify-between sm:px-12">
-        <span>© 2026 Student Assistance Absence Tracker. All rights reserved.</span>
-        <span className="flex gap-5"><a href="mailto:general@tut.ac.za" className="hover:text-[#286ee5]">Contact Support</a></span>
+        <span>© 2026 Library Log Absence Tracker. All rights reserved.</span>
+        <a href="mailto:general@tut.ac.za" className="hover:text-[#286ee5]">Contact Support</a>
       </div>
     </div>
   </footer>);
@@ -155,7 +159,7 @@ function Home() {
         <div>
           <p className="text-[9px] font-bold uppercase tracking-[.15em] text-[#f2aa00]">Stay informed</p>
           <h2 className="serif mt-4 max-w-[520px] text-[31px] leading-[1.04] tracking-[-.03em] text-[#10253f] sm:text-[38px]">Automated Notifications &amp; Alerts</h2>
-          <p className="mt-5 max-w-[470px] text-[11px] leading-5 text-[#52708b]">Ensure no request goes unnoticed. StudentAssist proactively notifies relevant staff via email and app alerts whenever a student assistant logs an absence or submits a time-off request.</p>
+          <p className="mt-5 max-w-[470px] text-[11px] leading-5 text-[#52708b]">Ensure no request goes unnoticed. Library Log proactively notifies relevant staff via email and app alerts whenever a student assistant logs an absence or submits a time-off request.</p>
           <div className="mt-7 grid max-w-[470px] gap-3 sm:grid-cols-2">
             <InfoCard className="homepage-notification-card" icon={<Clock3 size={16} />} title="Instant Alerts" text="Receive real-time push notifications for last-minute scheduling changes." />
             <InfoCard className="homepage-notification-card" icon={<ShieldCheck size={16} />} title="Status Updates" text="Students are automatically notified when their leave status changes." />
@@ -191,8 +195,8 @@ function AuthHeader() {
 function AuthFooter() {
   return <div className="auth-footer fixed inset-x-0 bottom-0 z-50 border-t border-[#d7e3ee] bg-white/95 px-5 py-5 text-center text-xs text-[#71869a] backdrop-blur"><span>Need help? </span><a href="mailto:general@tut.ac.za" className="font-bold text-[#1f70d0]" data-testid="link-auth-support">Contact iCenter support</a><span className="mx-2 text-[#bdccd8]">·</span><Link href="/" className="hover:text-[#1f70d0]" data-testid="link-auth-home">Return home</Link></div>;
 }
-function AuthShell({ children, eyebrow, title, copy }) {
-  return <div className="auth-shell flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="auth-page-main relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p><div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div></div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
+function AuthShell({ children, eyebrow, title, copy, showSecurityNote = true }) {
+  return <div className="auth-shell flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="auth-page-main relative flex flex-1 items-center overflow-hidden px-5 py-12 sm:py-16"><div className="absolute -left-28 top-12 size-72 rounded-full bg-[#dbeefa] blur-3xl" /><div className="absolute -right-24 bottom-0 size-72 rounded-full bg-[#f6df8c]/30 blur-3xl" /><div className="relative mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[.88fr_1.12fr]">{<div className="hidden lg:block"><span className="mono inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.16em] text-[#1f70d0]"><span className="size-2 rounded-full bg-[#f5ce58]" /> {eyebrow}</span><h1 className="serif mt-5 text-5xl leading-[1.02] tracking-[-.035em] text-[#162c4d]">{title}</h1><p className="mt-5 max-w-sm leading-7 text-[#60768c]">{copy}</p>{showSecurityNote && <div className="mt-10 flex items-center gap-3 text-xs text-[#6c8196]"><ShieldCheck size={17} className="text-[#1f70d0]" /> Your information is protected by institutional security.</div>}</div>}<div className="animate-rise">{children}</div></div></main><AuthFooter /></div>;
 }
 function Field({ label, id, type = 'text', placeholder, value, onChange, error, required = true, icon }) {
   return <label className="block" htmlFor={id}><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]">{icon}{label}{required && <em className="not-italic text-[#d05b48]">*</em>}</span><span className="relative block">{icon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8aa0b2]">{icon}</span>}<input id={id} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={`focus-ring w-full rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none transition-colors placeholder:text-[#9baebe] ${icon ? 'pl-10' : ''} ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid={`input-${id}`} /> </span>{error && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid={`error-${id}`}>{error}</span>}</label>;
@@ -351,11 +355,48 @@ if (remember) rememberSession(sessionData);
       setLoading(false);
     }
   };
+<<<<<<< HEAD
   return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to iCenter</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}</AuthShell>;
+=======
+  return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand." showSecurityNote={false}><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to Library Log</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-7 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Don’t have an account? <Link href="/signup" className="font-bold text-[#1f70d0]" data-testid="link-login-signup">Register here</Link></div></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}</AuthShell>;
+>>>>>>> 4594fc18074d9e03872af6f757727cbab17d284c
 }
 function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;
 }
+const SIGNUP_DEPARTMENTS = [
+  'Information and Communication Technology',
+  'Human Resources',
+  'Electrical Engineering',
+  'Administration',
+  'Entrepreneurship',
+];
+
+function SignupDepartmentField({ value, onChange, error }) {
+  return (
+    <label className="block" htmlFor="signup-course">
+      <span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]">
+        <BookOpen size={15} className="text-[#8aa0b2]" />
+        Course or department<em className="not-italic text-[#d05b48]">*</em>
+      </span>
+      <span className="relative block">
+        <select
+          id="signup-course"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${error ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`}
+          data-testid="input-signup-course"
+        >
+          <option value="">Select a course or department</option>
+          {SIGNUP_DEPARTMENTS.map((department) => <option key={department} value={department}>{department}</option>)}
+        </select>
+        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" />
+      </span>
+      {error && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid="error-signup-course">{error}</span>}
+    </label>
+  );
+}
+
 function SignupPage() {
   const [role, setRole] = useState('student');
   const [form, setForm] = useState({ first: '', last: '', email: '', studentNumber: '', course: '', year: '', cellNumber: '', password: '', confirm: '' });
@@ -371,7 +412,7 @@ function SignupPage() {
     if (!form.last.trim()) next.last = 'Last name is required.';
     if (!form.email.includes('@')) next.email = 'Use a valid institutional email.';
     if (role === 'student' && !form.studentNumber.trim()) next.studentNumber = 'Student number is required.';
-    if (role === 'student' && !form.course.trim()) next.course = 'Course is required.';
+    if (role === 'student' && !form.course) next.course = 'Choose a course or department.';
     if (role === 'student' && !form.year) next.year = 'Choose your current year.';
     if (!form.cellNumber.trim()) next.cellNumber = 'Cell number is required.';
     if (form.password.length < 8) next.password = 'Use at least 8 characters.';
@@ -413,7 +454,61 @@ function SignupPage() {
 
   if (success)
     return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]"><AuthHeader /><main className="flex flex-1 items-center justify-center px-5 py-14"><div className="w-full max-w-md animate-rise rounded-2xl border border-[#d0e0ea] bg-white p-8 text-center shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-10"><span className="mx-auto grid size-16 place-items-center rounded-full bg-[#e3f7ec] text-[#19885d]"><CheckCircle2 size={30} /></span><h1 className="serif mt-6 text-4xl text-[#162c4d]">Account request received.</h1><p className="mt-3 leading-7 text-[#60768c]">We’ve prepared your {role === 'student' ? 'student assistant' : 'supervisor'} profile. Check your institutional inbox to verify your email and finish setting up.</p><Link href="/login" className="focus-ring mt-7 block w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] hover:bg-[#256fc6]" data-testid="link-success-login">Continue to sign in</Link></div></main><AuthFooter /></div>;
-  return <AuthShell eyebrow="Join the portal" title="A better way to keep your records in order." copy="Create one account for the attendance details that matter — with the right tools for your role and the people you work with."><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-6"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Account registration</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Create your account</h2></div><div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1"><RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-signup-student" /><RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-signup-supervisor" /></div><form onSubmit={submit} className="space-y-5" noValidate><div className="grid gap-5 sm:grid-cols-2"><Field label="First name" id="signup-first" placeholder="e.g. Sarah" value={form.first} onChange={update('first')} error={errors.first} /><Field label="Last name" id="signup-last" placeholder="e.g. Nkosi" value={form.last} onChange={update('last')} error={errors.last} /></div><Field label={role === 'student' ? 'University email' : 'Work email'} id="signup-email" type="email" placeholder="studentnumber@tut4life.ac.za" value={form.email} onChange={update('email')} error={errors.email} icon={<Mail size={15} />} />{role === 'student' ? <><Field label="Student number" id="signup-student-number" placeholder="e.g. 20240123" value={form.studentNumber} onChange={update('studentNumber')} error={errors.studentNumber} icon={<BadgeCheck size={15} />} /><div className="grid gap-5 sm:grid-cols-2"><Field label="Course or department" id="signup-course" placeholder="e.g. Information Technology" value={form.course} onChange={update('course')} error={errors.course} icon={<BookOpen size={15} />} /><label className="block" htmlFor="signup-year"><span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]"><CalendarDays size={14} className="text-[#8aa0b2]" />Current year<em className="not-italic text-[#d05b48]">*</em></span><span className="relative block"><select id="signup-year" value={form.year} onChange={(e) => update('year')(e.target.value)} className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${errors.year ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid="input-signup-year"><option value="">Select year</option><option value="first">First year</option><option value="second">Second year</option><option value="third">Third year</option><option value="postgraduate">Postgraduate</option></select><ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" /></span>{errors.year && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid="error-signup-year">{errors.year}</span>}</label></div></> : <Field label="Department or faculty" id="signup-course" placeholder="e.g. Faculty of Information and Communication Technology" value={form.course} onChange={update('course')} error={errors.course} icon={<PanelTop size={15} />} />}<Field label="Cell number" id="signup-cell-number" type="tel" placeholder="e.g. 076 123 4567" value={form.cellNumber} onChange={update('cellNumber')} error={errors.cellNumber} icon={<Phone size={15} />} /><div className="grid gap-5 sm:grid-cols-2"><PasswordField label="Password" id="signup-password" value={form.password} onChange={update('password')} error={errors.password} /><PasswordField label="Confirm password" id="signup-confirm" value={form.confirm} onChange={update('confirm')} error={errors.confirm} /></div><label className="flex items-start gap-2 text-xs leading-5 text-[#71869a]"><input type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#1f70d0]" data-testid="input-terms" />I agree to the StudentAssist <a href="#terms" className="font-bold text-[#1f70d0]">terms and privacy policy</a>.</label>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 hover:bg-[#256fc6] active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-signup">{loading ? 'Creating account...' : `Create ${role === 'student' ? 'student' : 'supervisor'} account`}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form><div className="mt-6 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Already have an account? <Link href="/login" className="font-bold text-[#1f70d0]" data-testid="link-signup-login">Sign in</Link></div></div></AuthShell>;
+  return (
+    <AuthShell eyebrow="Join the portal" title="A better way to keep your records in order." copy="Create one account for the attendance details that matter — with the right tools for your role and the people you work with." showSecurityNote={false}>
+      <div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9">
+        <div className="mb-6">
+          <p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Account registration</p>
+          <h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Create your account</h2>
+        </div>
+        <div className="mb-7 grid grid-cols-2 rounded-lg bg-[#edf4f8] p-1">
+          <RoleTab active={role === 'student'} onClick={() => { setRole('student'); setErrors({}); }} icon={<GraduationCap size={16} />} label="Student assistant" testId="button-signup-student" />
+          <RoleTab active={role === 'supervisor'} onClick={() => { setRole('supervisor'); setErrors({}); }} icon={<UsersRound size={16} />} label="Supervisor" testId="button-signup-supervisor" />
+        </div>
+        <form onSubmit={submit} className="space-y-5" noValidate>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="First name" id="signup-first" placeholder="e.g. Sarah" value={form.first} onChange={update('first')} error={errors.first} />
+            <Field label="Last name" id="signup-last" placeholder="e.g. Nkosi" value={form.last} onChange={update('last')} error={errors.last} />
+          </div>
+          <Field label={role === 'student' ? 'University email' : 'Work email'} id="signup-email" type="email" placeholder="studentnumber@tut4life.ac.za" value={form.email} onChange={update('email')} error={errors.email} icon={<Mail size={15} />} />
+          {role === 'student' ? (
+            <>
+              <Field label="Student number" id="signup-student-number" placeholder="e.g. 20240123" value={form.studentNumber} onChange={update('studentNumber')} error={errors.studentNumber} icon={<BadgeCheck size={15} />} />
+              <div className="grid gap-5 sm:grid-cols-2">
+                <SignupDepartmentField value={form.course} onChange={update('course')} error={errors.course} />
+                <label className="block" htmlFor="signup-year">
+                  <span className="mb-2 flex items-center gap-1.5 text-xs font-bold text-[#385570]"><CalendarDays size={14} className="text-[#8aa0b2]" />Current year<em className="not-italic text-[#d05b48]">*</em></span>
+                  <span className="relative block">
+                    <select id="signup-year" value={form.year} onChange={(event) => update('year')(event.target.value)} className={`focus-ring w-full appearance-none rounded-lg border bg-[#fbfdfe] px-3.5 py-3 text-sm text-[#243e5b] outline-none ${errors.year ? 'border-[#d05b48]' : 'border-[#cfdee9] focus:border-[#1f70d0]'}`} data-testid="input-signup-year">
+                      <option value="">Select year</option>
+                      <option value="first">First year</option>
+                      <option value="second">Second year</option>
+                      <option value="third">Third year</option>
+                      <option value="postgraduate">Postgraduate</option>
+                    </select>
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#7890a4]" />
+                  </span>
+                  {errors.year && <span className="mt-1.5 block text-xs font-medium text-[#c54f43]" data-testid="error-signup-year">{errors.year}</span>}
+                </label>
+              </div>
+            </>
+          ) : null}
+          <Field label="Cell number" id="signup-cell-number" type="tel" placeholder="e.g. 076 123 4567" value={form.cellNumber} onChange={update('cellNumber')} error={errors.cellNumber} icon={<Phone size={15} />} />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <PasswordField label="Password" id="signup-password" value={form.password} onChange={update('password')} error={errors.password} />
+            <PasswordField label="Confirm password" id="signup-confirm" value={form.confirm} onChange={update('confirm')} error={errors.confirm} />
+          </div>
+          <label className="flex items-start gap-2 text-xs leading-5 text-[#71869a]"><input type="checkbox" required className="mt-1 size-4 shrink-0 accent-[#1f70d0]" data-testid="input-terms" />I agree to the StudentAssist <a href="#terms" className="font-bold text-[#1f70d0]">terms and privacy policy</a>.</label>
+          {serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}
+          <button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 hover:bg-[#256fc6] active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-signup">
+            {loading ? 'Creating account...' : `Create ${role === 'student' ? 'student' : 'supervisor'} account`}
+            {!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}
+          </button>
+        </form>
+        <div className="mt-6 border-t border-[#e4edf3] pt-5 text-center text-xs text-[#71869a]">Already have an account? <Link href="/login" className="font-bold text-[#1f70d0]" data-testid="link-signup-login">Sign in</Link></div>
+      </div>
+    </AuthShell>
+  );
 }
 function LogoutSuccessPage() {
   return <div className="flex min-h-[100dvh] flex-col bg-[#eef6fb]">
