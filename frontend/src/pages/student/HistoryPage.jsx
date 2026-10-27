@@ -106,13 +106,13 @@ export default function HistoryPage() {
             </div>
           </section>
         )}
-        <div className="rounded-xl bg-[#f4f8fb] p-6">
+        <div className="bg-[#f4f8fb] p-6">
           <h2 className="text-lg font-bold text-[#10253f]">All Requests</h2>
           {requestsLoading ? (
             <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">Loading your requests...</p>
           ) : requests.length === 0 ? (
             <p className="mt-4 rounded-lg bg-white px-4 py-6 text-center text-sm text-[#7890a4]">There are no requests or shift swap offers to show.</p>
-          ) : <div className="overflow-x-auto">
+          ) : <div className="overflow-x-auto bg-white px-4">
             <table className="mt-5 w-full min-w-[760px] text-left text-sm">
               <thead>
                 <tr className="text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]">

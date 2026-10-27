@@ -584,9 +584,6 @@ export default function AdminDashboard() {
                 <article className="rounded-xl border border-[#e6eaee] bg-white shadow-[0_2px_8px_rgba(30,48,66,.04)]">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f2] px-5 py-4">
                     <div><h2 className="text-base font-bold text-[#202a34]">Supervisor declarations</h2><p className="mt-1 text-xs text-[#82909d]">Institutional strikes and library closures</p></div>
-                    <button type="button" onClick={loadSupervisorDeclarations} disabled={declarationsLoading} className="focus-ring inline-flex items-center gap-1.5 rounded-md border border-[#d7dde3] px-2.5 py-1.5 text-[10px] font-semibold text-[#526171] hover:bg-[#f6f8fa] disabled:opacity-60" data-testid="button-refresh-declarations">
-                      <RefreshCw size={12} className={declarationsLoading ? 'animate-spin' : ''} />Refresh
-                    </button>
                   </div>
                   {declarationsError ? (
                     <p role="alert" className="px-5 py-6 text-center text-xs font-semibold text-[#b84233]">{declarationsError}</p>

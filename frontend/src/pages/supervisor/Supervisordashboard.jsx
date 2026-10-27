@@ -12,7 +12,7 @@ const PERIODS = ['Today', 'This week', 'This month', 'All time'];
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 function StatCard({ label, value, icon }) {
-  return <div className="rounded-xl bg-[#f4f8fb] p-5"><div className="flex items-center justify-between"><p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">{label}</p><span className="text-[#1f70d0]">{icon}</span></div><p className="serif mt-2 text-4xl text-[#10253f]">{value}</p></div>;
+  return <div className="rounded-xl border border-[#e2eaf1] bg-[#f4f8fb] p-5"><div className="flex items-center justify-between"><p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">{label}</p><span className="text-[#1f70d0]">{icon}</span></div><p className="serif mt-2 text-4xl text-[#10253f]">{value}</p></div>;
 }
 
 function inPeriod(value, period) {
@@ -151,7 +151,7 @@ export default function SupervisorDashboard() {
           <StatCard label="Total Requests" value={requests.length} icon={<ClipboardList size={17} />} />
         </div>
         <div className="mt-8 flex items-center justify-between"><h2 className="mono text-xs font-bold uppercase tracking-[.14em] text-[#10253f]">Awaiting your review</h2><button type="button" onClick={() => setLocation('/supervisor/requests')} className="focus-ring mono text-xs font-bold uppercase tracking-[.08em] text-[#152d49] hover:text-[#1f70d0]">View all</button></div>
-        <div className="mt-4 overflow-hidden rounded-xl bg-[#f4f8fb]">
+        <div className="mt-4 overflow-hidden rounded-xl border border-[#e2eaf1] bg-[#f4f8fb]">
           {pending.length ? pending.slice(0, 6).map((request) => <button key={request.id} type="button" onClick={() => setLocation('/supervisor/requests')} className="flex w-full items-center justify-between gap-4 border-t border-[#e2eaf1] px-6 py-4 text-left first:border-t-0 hover:bg-white"><div><strong className="block text-sm font-bold text-[#162c4d]">{request.name || 'Nicholas Mathebula'}</strong><span className="mt-1 block text-xs text-[#7890a4]">{request.type} · {request.dateRange || 'Date not specified'}</span></div><StatusBadge status="Pending" /></button>) : <div className="px-6 py-8 text-sm text-[#7890a4]">No new requests are awaiting your review.</div>}
         </div>
         <div className="mt-8 grid gap-6 border-t border-white/40 pt-8 lg:grid-cols-[1.3fr_1fr]">

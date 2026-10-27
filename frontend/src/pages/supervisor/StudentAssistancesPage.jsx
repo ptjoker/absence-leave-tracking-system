@@ -28,7 +28,7 @@ function formatDate(value) {
 
 function StatCard({ label, value, icon }) {
   return (
-    <div className="rounded-xl bg-[#f4f8fb] p-5">
+    <div className="rounded-xl border border-[#e2eaf1] bg-[#f4f8fb] p-5">
       <div className="flex items-center justify-between">
         <p className="mono text-[10px] font-bold uppercase tracking-[.1em] text-[#7890a4]">{label}</p>
         <span className="text-[#1f70d0]">{icon}</span>
@@ -205,7 +205,7 @@ export default function StudentAssistancesPage() {
           </label>
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl bg-[#f4f8fb]">
+        <div className="mt-5 overflow-x-auto rounded-xl border border-[#e2eaf1] bg-[#f4f8fb]">
           <table className="w-full min-w-[900px] text-left">
             <thead>
               <tr className="mono text-[10px] font-bold uppercase tracking-[.08em] text-[#8ca0b2]">

@@ -140,7 +140,7 @@ function buildCalendarGrid(monthDate) {
 
 function StatCard({ label, value, accent = 'bg-[#1f70d0]' }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl bg-[#f4f8fb] p-3.5">
+    <div className="flex items-center gap-2.5 rounded-xl border border-[#e2eaf1] bg-[#f4f8fb] p-3.5">
       <span className={`h-7 w-1 rounded-full ${accent}`} />
       <div>
         <p className="mono text-[8px] font-bold uppercase tracking-[.06em] text-[#8ca0b2]">{label}</p>
@@ -555,7 +555,7 @@ export default function CalendarPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_.42fr]">
           {/* Calendar */}
-          <div className="rounded-xl bg-white p-5">
+          <div className="rounded-xl border border-[#e2eaf1] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 place-items-center rounded-lg bg-[#1f70d0] text-white">
@@ -709,7 +709,7 @@ export default function CalendarPage() {
 
           {/* Side panel — selected day */}
           <div className="flex flex-col gap-5">
-            <div className="rounded-xl bg-white p-5">
+            <div className="rounded-xl border border-[#e2eaf1] bg-white p-5">
               <p className="serif text-2xl leading-tight text-[#10253f]">
                 {selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
@@ -800,7 +800,7 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="rounded-xl bg-[#eef8f2] p-5">
+            <div className="rounded-xl border border-[#d6eadf] bg-[#eef8f2] p-5">
               <p className="flex items-center gap-2 text-sm font-bold text-[#10253f]">
                 <ShieldCheck size={16} className="text-[#19885d]" />
                 Scheduling Tips
@@ -817,7 +817,7 @@ export default function CalendarPage() {
               </ul>
             </div>
 
-            <div className="rounded-xl bg-[#f4f8fb] p-5" data-testid="block-view-student-timetable">
+            <div className="rounded-xl border border-[#e2eaf1] bg-[#f4f8fb] p-5" data-testid="block-view-student-timetable">
               <div className="flex items-center justify-between gap-2">
                 <p className="flex items-center gap-2 text-sm font-bold text-[#10253f]">
                   <FileText size={16} className="text-[#1f70d0]" />
