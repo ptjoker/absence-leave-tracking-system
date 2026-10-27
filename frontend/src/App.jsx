@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { API_BASE } from '@/lib/api';
-import { useState, useEffect, useContext, createContext } from 'react';
+import { useState, useEffect, useContext, createContext, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -302,7 +302,79 @@ function LoginPage() {
    const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [forgotOpen, setForgotOpen] = useState(false);
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otp, setOtp] = useState(() => Array(8).fill(''));
+  const [otpError, setOtpError] = useState('');
+  const [otpResent, setOtpResent] = useState(false);
+  const [pendingLogin, setPendingLogin] = useState(null);
+  const otpInputRefs = useRef([]);
   const [, setLocation] = useLocation();
+
+  const updateOtpAt = (index, value) => {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) {
+      const next = [...otp];
+      next[index] = '';
+      setOtp(next);
+      setOtpError('');
+      return;
+    }
+
+    const next = [...otp];
+    digits.slice(0, 8 - index).split('').forEach((digit, offset) => {
+      next[index + offset] = digit;
+    });
+    setOtp(next);
+    setOtpError('');
+    otpInputRefs.current[Math.min(index + digits.length, 7)]?.focus();
+  };
+
+  const handleOtpKeyDown = (event, index) => {
+    if (event.key === 'Backspace' && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    } else if (event.key === 'ArrowLeft' && index > 0) {
+      event.preventDefault();
+      otpInputRefs.current[index - 1]?.focus();
+    } else if (event.key === 'ArrowRight' && index < 7) {
+      event.preventDefault();
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (event, index) => {
+    const pastedDigits = event.clipboardData.getData('text').replace(/\D/g, '');
+    if (!pastedDigits) return;
+    event.preventDefault();
+    updateOtpAt(index, pastedDigits);
+  };
+
+  const verifyOtp = (e) => {
+    e.preventDefault();
+    if (otp.join('') !== '11111111') {
+      setOtpError('Incorrect PIN. Please try again.');
+      return;
+    }
+
+    const { sessionData, destination, remember: shouldRemember } = pendingLogin;
+    clearSession();
+    setSession(sessionData);
+    if (shouldRemember) rememberSession(sessionData);
+    setPendingLogin(null);
+    setOtpOpen(false);
+    setOtp(Array(8).fill(''));
+    setOtpError('');
+    setOtpResent(false);
+    setLocation(destination);
+  };
+
+  const cancelOtp = () => {
+    setOtpOpen(false);
+    setOtp(Array(8).fill(''));
+    setOtpError('');
+    setOtpResent(false);
+    setPendingLogin(null);
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     const next = {};
@@ -344,10 +416,11 @@ const sessionData = {
   user: data.user,
 };
 
-clearSession();              // wipe any leftover from previous user in this tab
-setSession(sessionData);     // this tab's session
-if (remember) rememberSession(sessionData);
-      setLocation(destination);
+      setPendingLogin({ sessionData, destination, remember });
+      setOtp(Array(8).fill(''));
+      setOtpError('');
+      setOtpResent(false);
+      setOtpOpen(true);
     } catch (err) {
       console.error('Login error:', err);
       setServerError('Could not reach the server. Please check that the backend is running and try again.');
@@ -355,7 +428,61 @@ if (remember) rememberSession(sessionData);
       setLoading(false);
     }
   };
-  return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand." showSecurityNote={false}><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to Library Log</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}</AuthShell>;
+  return <AuthShell eyebrow="Secure portal" title="Welcome back." copy="Sign in to keep attendance records moving, requests clear, and your next step close at hand." showSecurityNote={false}><div className="rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_18px_45px_rgba(43,81,119,.12)] sm:p-9"><div className="mb-7"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-[#1f70d0]">Portal access</p><h2 className="serif mt-2 text-3xl tracking-[-.025em] text-[#162c4d]">Sign in to Library Log</h2><p className="mt-2 text-sm text-[#71869a]">Use your institutional email and password to continue.</p></div><form onSubmit={submit} className="space-y-5" noValidate><Field label="Institutional email" id="login-email" type="email" placeholder="name@tut4life.ac.za" value={email} onChange={setEmail} error={errors.email} icon={<Mail size={15} />} /><PasswordField label="Password" id="login-password" value={password} onChange={setPassword} error={errors.password} /><div className="flex items-center justify-between gap-3 text-xs"><label className="flex cursor-pointer items-center gap-2 text-[#71869a]"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-[#1f70d0]" data-testid="input-remember" /> Keep me signed in</label><button type="button" onClick={() => setForgotOpen(true)} className="font-bold text-[#1f70d0] hover:text-[#1555aa]" data-testid="button-forgot-password">Forgot password?</button></div>{serverError && <p className="rounded-lg bg-[#fbe4e1] px-3 py-2 text-xs font-semibold text-[#d05b48]" data-testid="error-server">{serverError}</p>}<button type="submit" disabled={loading} className="focus-ring group w-full rounded-lg bg-[#1f70d0] px-5 py-3.5 text-sm font-bold text-white shadow-[0_4px_0_#1555aa] transition-all hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0" data-testid="button-submit-login">{loading ? 'Signing in...' : 'Sign in'}{!loading && <ArrowRight className="ml-2 inline transition-transform group-hover:translate-x-1" size={16} />}</button></form></div>{forgotOpen && <ForgotPasswordModal onClose={() => setForgotOpen(false)} />}{otpOpen && (
+    <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="login-otp-title">
+      <div className="w-full max-w-md rounded-2xl border border-[#d0e0ea] bg-white p-6 shadow-[0_24px_70px_rgba(18,43,67,.28)] sm:p-8">
+        <h2 id="login-otp-title" className="text-2xl font-bold text-[#162c4d]">Verify your sign-in</h2>
+        <p className="mt-2 text-sm leading-6 text-[#60768c]">Enter the 8-digit PIN to continue. Use the default PIN 11111111.</p>
+        <form onSubmit={verifyOtp} className="mt-6 space-y-4">
+          <label className="block text-sm font-semibold text-[#385570]">8-digit PIN</label>
+          <div className="flex justify-center gap-2" role="group" aria-label="8-digit PIN">
+            {Array.from({ length: 8 }, (_, index) => (
+              <input
+                key={index}
+                ref={(element) => { otpInputRefs.current[index] = element; }}
+                id={index === 0 ? 'login-otp' : undefined}
+                type="text"
+                inputMode="numeric"
+                autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                maxLength={1}
+                value={otp[index] || ''}
+                onChange={(event) => updateOtpAt(index, event.target.value)}
+                onKeyDown={(event) => handleOtpKeyDown(event, index)}
+                onPaste={(event) => handleOtpPaste(event, index)}
+                aria-label={`PIN digit ${index + 1}`}
+                aria-invalid={Boolean(otpError)}
+                aria-describedby={otpError ? 'login-otp-error' : undefined}
+                className={`focus-ring size-10 rounded-lg border bg-white text-center text-base font-semibold outline-none ${otpError ? 'border-red-500 text-red-700' : 'border-[#cfdee9] text-[#243e5b] focus:border-[#1f70d0]'}`}
+                data-testid={`input-login-otp-${index + 1}`}
+              />
+            ))}
+          </div>
+          {otpError && <p id="login-otp-error" role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{otpError}</p>}
+          {otpResent && (
+            <p role="status" aria-live="polite" className="text-sm font-medium text-[#19885d]">
+              We sent the code to the login email{email.trim() ? ` ${email.trim()}` : ''}.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setOtp(Array(8).fill(''));
+              setOtpError('');
+              setOtpResent(true);
+            }}
+            className="text-sm font-semibold text-[#1f70d0] underline underline-offset-2 hover:text-[#1555aa]"
+            data-testid="button-resend-login-otp"
+          >
+            Resend code
+          </button>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={cancelOtp} className="focus-ring w-full rounded-lg border border-[#cfdee9] px-4 py-3 text-sm font-bold text-[#385570] hover:bg-[#f4f8fb]" data-testid="button-cancel-login-otp">Cancel</button>
+            <button type="submit" disabled={!otp.every(Boolean)} className="focus-ring w-full rounded-lg bg-[#1f70d0] px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" data-testid="button-verify-login-otp">Verify PIN</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}</AuthShell>;
 }
 function RoleTab({ active, onClick, icon, label, testId }) {
   return <button type="button" onClick={onClick} className={`focus-ring flex items-center justify-center gap-2 rounded-md px-2 py-2.5 text-xs font-bold transition-all ${active ? 'bg-white text-[#1f70d0] shadow-sm' : 'text-[#71869a] hover:text-[#385570]'}`} data-testid={testId}>{icon}{label}</button>;

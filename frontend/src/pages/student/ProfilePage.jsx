@@ -3,6 +3,7 @@ import { Mail, Phone, GraduationCap, Building2, User, CalendarDays, BadgeCheck, 
 import { PortalShell, FieldLabel } from '@/components/portal/PortalComponents';
 import { recordActivity } from '@/lib/activityLog';
 import { getSession as readSession, updateSession } from '@/lib/session';
+import { apiFetch } from '@/lib/api';
 
 const LEVELS = [
   { value: 'first', label: 'First Year' },
@@ -92,12 +93,13 @@ function InfoField({ icon, label, value, bold = false }) {
   );
 }
 
-function EditableField({ icon, label, value, onChange, type = 'text', placeholder, error, onBlur }) {
+function EditableField({ icon, label, value, onChange, type = 'text', placeholder, error, onBlur, autoComplete }) {
   return (
     <div>
       <FieldLabel icon={icon}>{label}</FieldLabel>
       <input
         type={type}
+        autoComplete={autoComplete}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
@@ -114,8 +116,14 @@ export default function ProfilePage() {
   const [session, setSession] = useState(() => getSession());
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [cellError, setCellError] = useState('');
 
@@ -142,6 +150,11 @@ export default function ProfilePage() {
     setSuccess('');
     setEmailError('');
     setCellError('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
     setEditing(true);
   };
 
@@ -150,6 +163,55 @@ export default function ProfilePage() {
     setError('');
     setEmailError('');
     setCellError('');
+    setPasswordError('');
+    setPasswordSuccess('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const changePassword = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('Enter your current password, new password, and confirmation.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordError('Your new password must contain at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('The new passwords do not match.');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const response = await apiFetch('/api/profile/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setPasswordError(data.error || 'Could not change your password.');
+        return;
+      }
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordSuccess('Password changed successfully.');
+    } catch (err) {
+      console.error('Change password error:', err);
+      setPasswordError('Could not reach the server.');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const save = async () => {
@@ -318,6 +380,53 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+
+            {editing && (
+              <section className="mt-8 border-t border-[#e2eaf1] pt-6" aria-labelledby="change-password-heading">
+                <h3 id="change-password-heading" className="text-xs font-bold uppercase tracking-[.08em] text-[#385570]">Change Password</h3>
+                <p className="mt-2 text-xs text-[#71869a]">Enter your current password to set a new one.</p>
+                <div className="mt-4 grid gap-5 sm:grid-cols-2">
+                  <EditableField
+                    label="Current Password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={setCurrentPassword}
+                    placeholder="Enter current password"
+                  />
+                  <EditableField
+                    label="New Password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={setNewPassword}
+                    placeholder="At least 8 characters"
+                  />
+                  <EditableField
+                    label="Confirm New Password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={setConfirmPassword}
+                    placeholder="Re-enter new password"
+                  />
+                </div>
+                {passwordError && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700" role="alert">
+                    {passwordError}
+                  </p>
+                )}
+                {passwordSuccess && <p className="mt-3 text-xs font-medium text-[#19885d]" role="status">{passwordSuccess}</p>}
+                <button
+                  type="button"
+                  onClick={changePassword}
+                  disabled={changingPassword}
+                  className="focus-ring mt-4 rounded-lg border border-[#1f70d0] px-4 py-2 text-sm font-bold text-[#1f70d0] hover:bg-[#eff6fb] disabled:opacity-50"
+                >
+                  {changingPassword ? 'Changing Password...' : 'Change Password'}
+                </button>
+              </section>
+            )}
 
             {/* Academic and employment details (read-only, even while editing) */}
             <div className="mt-8">
